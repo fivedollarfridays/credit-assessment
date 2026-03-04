@@ -11,6 +11,7 @@ from modules.credit.feature_flags import (
     FeatureFlag,
     RuleType,
     TargetingRule,
+    _matches_rule,
     create_flag,
     delete_flag,
     evaluate_flag,
@@ -68,6 +69,11 @@ class TestFlagCRUD:
         updated = update_flag("f", enabled=True)
         assert updated is not None
         assert updated.enabled is True
+        # Cover description-only update (feature_flags.py:87)
+        updated = update_flag("f", description="new desc")
+        assert updated is not None
+        assert updated.description == "new desc"
+        assert updated.enabled is True  # unchanged
 
     def test_update_flag_not_found(self):
         assert update_flag("missing", enabled=True) is None
@@ -124,6 +130,8 @@ class TestTargeting:
             "f", targeting=[TargetingRule(type=RuleType.PERCENTAGE, values=["0"])]
         )
         assert evaluate_flag("f", user_id="anyone") is False
+        # Cover user_id=None for percentage targeting (feature_flags.py:121)
+        assert evaluate_flag("f") is False
 
     def test_percentage_targeting_hundred(self):
         create_flag(key="f", enabled=True)
@@ -138,6 +146,10 @@ class TestTargeting:
             "f", targeting=[TargetingRule(type=RuleType.PERCENTAGE, values=["abc"])]
         )
         assert evaluate_flag("f", user_id="anyone") is False
+        # Cover unknown rule type fallback (feature_flags.py:127)
+        fake_rule = TargetingRule(type=RuleType.ORG, values=[])
+        fake_rule.type = "unknown_type"  # type: ignore[assignment]
+        assert _matches_rule(fake_rule, "f", org_id=None, user_id=None) is False
 
     def test_percentage_deterministic(self):
         """Same user_id always gets the same result."""
@@ -195,6 +207,13 @@ class TestFlagEndpoints:
         )
         assert resp.status_code == 201
         assert resp.json()["key"] == "new-flag"
+        # Cover duplicate flag creation 409 (flag_routes.py:69-70)
+        dup_resp = client.post(
+            "/v1/flags",
+            json={"key": "new-flag", "description": "Dup", "enabled": False},
+            headers=admin_headers,
+        )
+        assert dup_resp.status_code == 409
 
     def test_list_flags_endpoint(self, client, admin_headers):
         create_flag(key="f1")

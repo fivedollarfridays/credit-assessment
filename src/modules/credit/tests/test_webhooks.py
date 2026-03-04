@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -284,6 +284,17 @@ class TestWebhookEndpoints:
             headers={"X-API-Key": "test"},
         )
         assert resp.status_code == 422
+        # Cover URL validator (webhook_routes.py:30)
+        resp = client.post(
+            "/v1/webhooks",
+            json={
+                "url": "ftp://example.com/hook",
+                "events": ["assessment.completed"],
+                "secret": "webhook-secret-0123456789",
+            },
+            headers={"X-API-Key": "test"},
+        )
+        assert resp.status_code == 422
 
     def test_list_webhooks(self, client):
         client.post(
@@ -323,3 +334,52 @@ class TestWebhookEndpoints:
     def test_delete_webhook_not_found(self, client):
         resp = client.delete("/v1/webhooks/nonexistent", headers={"X-API-Key": "test"})
         assert resp.status_code == 404
+
+    def test_webhook_deliveries_for_existing_webhook(self, client):
+        """GET deliveries returns log dict for an existing webhook."""
+        create_resp = client.post(
+            "/v1/webhooks",
+            json={
+                "url": "https://example.com/h",
+                "events": ["assessment.completed"],
+                "secret": "webhook-secret-0123456789",
+            },
+            headers={"X-API-Key": "test"},
+        )
+        wh_id = create_resp.json()["id"]
+        resp = client.get(
+            f"/v1/webhooks/{wh_id}/deliveries",
+            headers={"X-API-Key": "test"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deliveries"] == []
+        assert data["total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_deliver_event_http_error(self):
+        """Network errors are caught and recorded as failures."""
+        wh = create_webhook(
+            url="https://example.com/hook",
+            events=[EventType.ASSESSMENT_COMPLETED],
+            secret="secret",
+        )
+        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client.post = AsyncMock(
+                side_effect=httpx.ConnectError("connection refused")
+            )
+            mock_cls.return_value = mock_client
+
+            result = await deliver_event(
+                event_type=EventType.ASSESSMENT_COMPLETED,
+                payload={"score": 50},
+            )
+        assert len(result) == 1
+        assert result[0].status == WebhookDeliveryStatus.FAILED
+        assert result[0].status_code is None
+        log = get_delivery_log(webhook_id=wh.id)
+        assert len(log) == 1
+        assert log[0]["status"] == "failed"

@@ -182,6 +182,17 @@ class TestUpdateCustomer:
     def test_not_found(self):
         assert update_customer("nobody@test.com", role=Role.ADMIN) is None
 
+    def test_no_fields_returns_current_data(self):
+        """When neither role nor is_active is provided, return current user info."""
+        _seed_users()
+        result = update_customer("alice@acme.com")
+        assert result is not None
+        assert result["email"] == "alice@acme.com"
+        assert result["role"] == "admin"
+        assert result["is_active"] is True
+        # Not found case with no fields
+        assert update_customer("nobody@test.com") is None
+
 
 # --- System health ---
 
@@ -387,3 +398,23 @@ class TestDashboardEndpoints:
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert resp.status_code == 422
+
+    def test_put_and_delete_customer_not_found(self, client, admin_headers):
+        """PUT and DELETE return 404 for unknown customer emails."""
+        resp = client.put(
+            "/v1/dashboard/customers/unknown@test.com",
+            json={"role": "analyst"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 404
+        resp = client.delete(
+            "/v1/dashboard/customers/unknown@test.com",
+            headers=admin_headers,
+        )
+        assert resp.status_code == 404
+
+    def test_serve_dashboard_page(self, client):
+        """GET /dashboard serves the static HTML file."""
+        resp = client.get("/dashboard")
+        assert resp.status_code == 200
+        assert "text/html" in resp.headers["content-type"]
