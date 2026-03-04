@@ -69,14 +69,16 @@ class TestRateLimiting:
         """Exercise the rate_limit_handler exception handler."""
         import asyncio
 
+        from slowapi.errors import RateLimitExceeded
         from starlette.requests import Request
 
-        from modules.credit.router import rate_limit_handler
+        from modules.credit.router import app
 
         scope = {"type": "http", "headers": []}
         request = Request(scope)
-        exc = MagicMock()
+        exc = MagicMock(spec=RateLimitExceeded)
 
-        response = asyncio.run(rate_limit_handler(request, exc))
+        handler = app.exception_handlers[RateLimitExceeded]
+        response = asyncio.run(handler(request, exc))
         assert response.status_code == 429
         assert response.body == b'{"detail":"Rate limit exceeded"}'

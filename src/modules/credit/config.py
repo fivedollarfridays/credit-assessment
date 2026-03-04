@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     jwt_expiry_minutes: int = 30
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.1
+    redis_url: str | None = None
+    stripe_secret_key: str | None = None
+    stripe_webhook_secret: str | None = None
 
     @property
     def is_production(self) -> bool:

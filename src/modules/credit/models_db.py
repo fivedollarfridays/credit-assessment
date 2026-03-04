@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -25,6 +25,22 @@ class AssessmentRecord(Base):
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     request_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     response_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class User(Base):
+    """Registered user account."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, insert_default=True, server_default="1", nullable=False
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

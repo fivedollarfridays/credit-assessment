@@ -46,6 +46,22 @@ class HttpsRedirectMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class DeprecationMiddleware(BaseHTTPMiddleware):
+    """Adds Deprecation and Sunset headers to legacy unversioned endpoints."""
+
+    _DEPRECATED_PATHS = {"/assess"}
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
+        if request.url.path in self._DEPRECATED_PATHS:
+            response.headers["Deprecation"] = "true"
+            response.headers["Sunset"] = "2026-09-01T00:00:00Z"
+            response.headers["Link"] = '</v1/assess>; rel="successor-version"'
+        return response
+
+
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """Adds X-Request-ID to every request/response and binds it to structlog context."""
 

@@ -38,12 +38,12 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T4.1 | User management — signup, login, reset | P0 | 60 | Pending |
-| T4.2 | RBAC — roles with scoped API keys | P0 | 55 | Pending |
-| T4.3 | Per-customer rate limiting | P1 | 40 | Pending |
-| T4.4 | Billing integration — Stripe | P1 | 70 | Pending |
-| T4.5 | Tenant isolation — org-scoped data | P0 | 50 | Pending |
-| T4.6 | API versioning — /v1/ prefix | P1 | 30 | Pending |
+| T4.1 | User management — signup, login, reset | P0 | 60 | ✓ Done |
+| T4.2 | RBAC — roles with scoped API keys | P0 | 55 | ✓ Done |
+| T4.3 | Per-customer rate limiting | P1 | 40 | ✓ Done |
+| T4.4 | Billing integration — Stripe | P1 | 70 | ✓ Done |
+| T4.5 | Tenant isolation — org-scoped data | P0 | 50 | ✓ Done |
+| T4.6 | API versioning — /v1/ prefix | P1 | 30 | ✓ Done |
 
 ### Sprint 5 — Phase 4: Production Operations (Weeks 9-10)
 
@@ -82,11 +82,82 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 ## What Was Just Done
 
+- **T4.6 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.6: API versioning — /v1/ prefix
+
+- Created `/v1` versioned router wrapping auth, user, admin, and assess endpoints
+- `POST /v1/assess` is the primary versioned endpoint
+- Legacy `POST /assess` still works but marked `deprecated=True`
+- `DeprecationMiddleware` adds `Deprecation`, `Sunset`, and `Link` headers on legacy `/assess`
+- `/health`, `/ready`, `/metrics` remain at root (unversioned)
+- OpenAPI spec reflects `/v1/` paths
+- 11 tests in test_versioning.py, 374 total, 100% coverage, 0 arch errors
+- **Sprint 4 complete!** All 6 tasks done.
+
+- **T4.5 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.5: Tenant isolation — org-scoped data
+
+- Created `tenant.py`: `Organization` dataclass, `resolve_org_id()`, `ScopedAssessmentRepository`
+- In-memory `_org_assessments` store with `store_org_assessment()`/`get_org_assessments()`
+- Admin-only `get_all_assessments()` for cross-org queries
+- `resolve_org_id()` allows admin org override, non-admins locked to their org
+- User registration now auto-assigns `org_id` derived from email prefix
+- `ScopedAssessmentRepository` requires non-null `org_id` (raises ValueError)
+- 12 tests in test_tenant.py, 363 total, 100% coverage, 0 arch errors
+
+- **T4.4 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.4: Billing integration — Stripe
+
+- Created `billing.py`: `BillingPlan` enum (FREE/STARTER/PRO/ENTERPRISE) with pricing
+- `create_checkout_session()`: Stripe Checkout for subscription signup
+- `record_usage()`: metered billing per /assess call with graceful error handling
+- `handle_webhook()`: processes checkout.session.completed, subscription.updated/deleted
+- `create_portal_session()`: self-service billing portal
+- In-memory `_subscriptions` store with `update_subscription()`/`get_subscription()`
+- Added `stripe_secret_key` and `stripe_webhook_secret` to Settings
+- 24 tests in test_billing.py, 351 total, 100% coverage, 0 arch errors
+
+- **T4.3 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.3: Per-customer rate limiting
+
+- Created `RateTier` enum (FREE, STARTER, PRO, ENTERPRISE) with per-tier limits in `rate_limit.py`
+- Added `resolve_tier()` for looking up tier rate limit strings
+- Added `create_limiter()` with optional Redis backend and graceful in-memory fallback
+- Added `RateLimitHeaderMiddleware` injecting X-RateLimit-Limit/Remaining/Reset headers on `/assess`
+- 429 responses now include `Retry-After` header
+- Added `redis_url` to Settings config
+- 20 tests in test_rate_limiting.py, 327 total, 100% coverage, 0 arch errors
+
+- **T4.2 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.2: RBAC — roles with scoped API keys
+
+- Created `roles.py`: `Role` enum (ADMIN, ANALYST, VIEWER) + `require_role()` FastAPI dependency
+- Created `admin_routes.py`: `GET /admin/users` and `POST /admin/api-keys` (admin-only endpoints)
+- Created `rate_limit.py`: extracted rate limiter + handler from router.py (fixed import count)
+- User registration now assigns default `viewer` role
+- 10 tests in test_rbac.py (enum, enforcement, API keys, error branches), 304 total, 100% coverage, 0 arch errors
+
+- **T4.1 done** (auto-updated by hook)
+
 - **T3.5 done** (auto-updated by hook)
 
 - **T3.4 done** (auto-updated by hook)
 
 - **T3.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T4.1: User management
+
+- Created `User` ORM model in models_db.py (email, password_hash, is_active)
+- Created `password.py`: bcrypt hash/verify using `bcrypt` directly (passlib incompatible with bcrypt 4.x)
+- Created `user_routes.py`: register, login, reset-password, confirm-reset endpoints
+- Added `email-validator>=2.0` to dependencies
+- Created `observability.py` to consolidate metrics + sentry setup (fixed router import count)
+- 20 new tests (test_user_model.py + test_user_endpoints.py), 294 total, 100% coverage, 0 arch errors
 
 ### Session: 2026-03-04 — T3.5: Sentry error tracking
 
@@ -208,7 +279,7 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 ## What's Next
 
-Sprint 3 complete (all 5 tasks done). Next: Sprint 4 (Multi-Tenant SaaS).
+Sprint 4 complete (6/6 tasks). Next: Sprint 5 — Production Operations (T5.1-T5.5).
 
 
 ## Blockers
