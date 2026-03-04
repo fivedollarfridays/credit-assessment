@@ -112,6 +112,27 @@ class TestSettingsHelpers:
             assert s.is_production is False
 
 
+class TestDatabaseSettings:
+    """Test database-related settings."""
+
+    def test_default_database_url_is_sqlite(self):
+        with patch.dict("os.environ", {}, clear=True):
+            from modules.credit.config import Settings
+
+            s = Settings()
+            assert s.database_url == "sqlite+aiosqlite:///./credit.db"
+
+    def test_database_url_from_env(self):
+        with patch.dict(
+            "os.environ",
+            {"DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/credit"},
+        ):
+            from modules.credit.config import Settings
+
+            s = Settings()
+            assert s.database_url == "postgresql+asyncpg://user:pass@localhost/credit"
+
+
 class TestBackwardCompatFunctions:
     """Test that legacy standalone functions delegate to the settings singleton."""
 

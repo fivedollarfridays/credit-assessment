@@ -1,0 +1,17 @@
+{
+	# In production, remove this block and set real domain
+	# For local dev with self-signed certs:
+	auto_https disable_redirects
+}
+
+:443 {
+	reverse_proxy api:8000
+
+	tls internal
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+}

@@ -9,6 +9,13 @@ dependencies = [
     "uvicorn>=0.25",
     "slowapi>=0.1",
     "structlog>=24.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.20",
+    "alembic>=1.13",
+    "python-jose[cryptography]>=3.3",
+    "passlib[bcrypt]>=1.7",
+    "prometheus-fastapi-instrumentator>=7.0",
+    "sentry-sdk[fastapi]>=2.0",
 ]
 
 [project.optional-dependencies]

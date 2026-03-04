@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     host: str = "0.0.0.0"
     port: int = 8000
+    database_url: str = "sqlite+aiosqlite:///./credit.db"
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiry_minutes: int = 30
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.1
 
     @property
     def is_production(self) -> bool:

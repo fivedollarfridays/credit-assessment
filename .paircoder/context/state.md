@@ -28,11 +28,11 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T3.1 | HTTPS / TLS enforcement | P1 | 35 | Pending |
-| T3.2 | JWT auth replacing API key | P0 | 55 | Pending |
-| T3.3 | Database + migrations (PostgreSQL + Alembic) | P0 | 70 | Pending |
-| T3.4 | Prometheus metrics + health checks | P1 | 40 | Pending |
-| T3.5 | Error tracking — Sentry integration | P1 | 25 | Pending |
+| T3.1 | HTTPS / TLS enforcement | P1 | 35 | ✓ Done |
+| T3.2 | JWT auth replacing API key | P0 | 55 | ✓ Done |
+| T3.3 | Database + migrations (PostgreSQL + Alembic) | P0 | 70 | ✓ Done |
+| T3.4 | Prometheus metrics + health checks | P1 | 40 | ✓ Done |
+| T3.5 | Error tracking — Sentry integration | P1 | 25 | ✓ Done |
 
 ### Sprint 4 — Phase 3: Multi-Tenant SaaS (Weeks 5-8)
 
@@ -81,6 +81,70 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 | plan-2026-03-launch-readiness | Launch Readiness | 5/5 Done |
 
 ## What Was Just Done
+
+- **T3.5 done** (auto-updated by hook)
+
+- **T3.4 done** (auto-updated by hook)
+
+- **T3.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T3.5: Sentry error tracking
+
+- Created `sentry.py`: `setup_sentry` (init with DSN/env/traces) + `set_request_id_tag`
+- Added `sentry_dsn` and `sentry_traces_sample_rate` to Settings config
+- Added `sentry-sdk[fastapi]>=2.0` to dependencies
+- Sentry initializes on app startup, no-op when DSN is not set
+- Request IDs automatically tagged via middleware for log correlation
+- Extracted `check_db_health` to `database.py` to fix router import count
+- 8 new tests in test_sentry.py, 274 total passing, 100% coverage, 0 arch errors
+
+### Session: 2026-03-04 — T3.4: Prometheus metrics + health checks
+
+- Created `metrics.py`: Prometheus instrumentation via `prometheus-fastapi-instrumentator`
+- Added `GET /metrics` endpoint (Prometheus scraping, auto HTTP latency/error tracking)
+- Added `GET /ready` readiness probe (checks DB connectivity, returns degraded if unavailable)
+- Extracted auth endpoints to `auth_routes.py` (APIRouter) to fix router.py arch violations
+- Added `prometheus-fastapi-instrumentator>=7.0` to dependencies
+- 7 new tests in test_metrics.py, 266 total passing, 100% coverage, 0 arch errors
+
+### Session: 2026-03-04 — T3.1: HTTPS / TLS enforcement
+
+- Created `HstsMiddleware` in middleware.py — adds `Strict-Transport-Security` header in production
+- Created `HttpsRedirectMiddleware` in middleware.py — redirects HTTP→HTTPS in production (307)
+- Both middlewares use dynamic `prod_check` callback (testable, respects runtime config)
+- Created `Caddyfile` — reverse proxy with TLS termination + security headers
+- Created `docker-compose.prod.yml` — adds Caddy service, sets `ENVIRONMENT=production`
+- Dev mode unaffected — no HSTS, no redirect on HTTP
+- 6 new tests in test_tls.py, 259 total passing, 100% coverage
+
+- **T3.2 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T3.2: JWT auth replacing API key
+
+- Created `auth.py`: `create_access_token`, `decode_token`, `InvalidTokenError` using python-jose
+- Added `jwt_secret`, `jwt_algorithm`, `jwt_expiry_minutes` to Settings config
+- Replaced `verify_api_key` with `verify_auth` — supports JWT Bearer + legacy API key fallback
+- Added `POST /auth/token` endpoint (issue JWT from username/password)
+- Added `POST /auth/refresh` endpoint (refresh valid JWT)
+- Added `python-jose[cryptography]>=3.3` and `passlib[bcrypt]>=1.7` to dependencies
+- 20 new tests (test_auth.py + test_auth_endpoints.py), 253 total passing, 100% coverage
+
+- **T3.3 done** (auto-updated by hook)
+
+- **T3.3 done**
+
+### Session: 2026-03-04 — T3.3: Database + migrations
+
+- Added `sqlalchemy[asyncio]>=2.0`, `aiosqlite>=0.20`, `alembic>=1.13` to dependencies
+- Created `database.py`: async engine factory + session factory
+- Created `models_db.py`: AssessmentRecord + AuditLog ORM models (SQLAlchemy 2.0 declarative)
+- Created `repository.py`: AssessmentRepository (save/get/list) + AuditRepository (log_action)
+- Initialized Alembic with initial migration (assessment_records + audit_logs tables)
+- Added PostgreSQL service to docker-compose.yml with health checks
+- Wired database into router lifespan (auto-creates tables on startup)
+- `/assess` endpoint now persists results to database (graceful fallback when no DB)
+- Added `database_url` to Settings (default: SQLite for local dev)
+- 232 tests, 100% coverage, 0 arch violations
 
 - **T2.5 done** (auto-updated by hook)
 
@@ -144,7 +208,7 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 ## What's Next
 
-Sprint 2 complete! Next: Sprint 3 starting with T3.3 (Database + migrations) or T3.2 (JWT auth).
+Sprint 3 complete (all 5 tasks done). Next: Sprint 4 (Multi-Tenant SaaS).
 
 
 ## Blockers

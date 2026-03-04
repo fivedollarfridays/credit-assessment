@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 *.egg-info/
+*.db
 agent_pack.tgz
 *.bak
 
