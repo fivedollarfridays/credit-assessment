@@ -1,7 +1,5 @@
 """Tests for credit assessment service — TDD: written before implementation."""
 
-import pytest
-
 from modules.credit.assessment import (
     CreditAssessmentService,
     get_score_band,
@@ -78,9 +76,7 @@ class TestComputeBarrierSeverity:
             current_score=520,
             score_band=ScoreBand.VERY_POOR,
             overall_utilization=30.0,
-            account_summary=AccountSummary(
-                total_accounts=5, open_accounts=3
-            ),
+            account_summary=AccountSummary(total_accounts=5, open_accounts=3),
             payment_history_pct=90.0,
             average_account_age_months=24,
         )
@@ -93,9 +89,7 @@ class TestComputeBarrierSeverity:
             current_score=680,
             score_band=ScoreBand.FAIR,
             overall_utilization=80.0,
-            account_summary=AccountSummary(
-                total_accounts=5, open_accounts=3
-            ),
+            account_summary=AccountSummary(total_accounts=5, open_accounts=3),
             payment_history_pct=95.0,
             average_account_age_months=36,
         )

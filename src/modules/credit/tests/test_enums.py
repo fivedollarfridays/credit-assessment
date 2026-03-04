@@ -4,7 +4,6 @@ from modules.credit.types import (
     PRODUCT_THRESHOLDS,
     SCORE_BANDS,
     SCORE_WEIGHTS,
-    ActionPriority,
     BarrierSeverity,
     LegalTheory,
     ScoreBand,

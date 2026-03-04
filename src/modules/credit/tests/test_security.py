@@ -76,8 +76,7 @@ class TestRateLimiting:
         scope = {"type": "http", "headers": []}
         request = Request(scope)
         exc = MagicMock()
-        response = asyncio.get_event_loop().run_until_complete(
-            rate_limit_handler(request, exc)
-        )
+
+        response = asyncio.run(rate_limit_handler(request, exc))
         assert response.status_code == 429
         assert response.body == b'{"detail":"Rate limit exceeded"}'

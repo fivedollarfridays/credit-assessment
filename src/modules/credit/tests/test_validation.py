@@ -27,33 +27,23 @@ class TestAccountSummaryValidation:
 
     def test_rejects_negative_negative_accounts(self) -> None:
         with pytest.raises(ValidationError):
-            AccountSummary(
-                total_accounts=5, open_accounts=3, negative_accounts=-1
-            )
+            AccountSummary(total_accounts=5, open_accounts=3, negative_accounts=-1)
 
     def test_rejects_negative_collection_accounts(self) -> None:
         with pytest.raises(ValidationError):
-            AccountSummary(
-                total_accounts=5, open_accounts=3, collection_accounts=-1
-            )
+            AccountSummary(total_accounts=5, open_accounts=3, collection_accounts=-1)
 
     def test_rejects_negative_total_balance(self) -> None:
         with pytest.raises(ValidationError):
-            AccountSummary(
-                total_accounts=5, open_accounts=3, total_balance=-100.0
-            )
+            AccountSummary(total_accounts=5, open_accounts=3, total_balance=-100.0)
 
     def test_rejects_negative_total_credit_limit(self) -> None:
         with pytest.raises(ValidationError):
-            AccountSummary(
-                total_accounts=5, open_accounts=3, total_credit_limit=-1.0
-            )
+            AccountSummary(total_accounts=5, open_accounts=3, total_credit_limit=-1.0)
 
     def test_rejects_negative_monthly_payments(self) -> None:
         with pytest.raises(ValidationError):
-            AccountSummary(
-                total_accounts=5, open_accounts=3, monthly_payments=-50.0
-            )
+            AccountSummary(total_accounts=5, open_accounts=3, monthly_payments=-50.0)
 
 
 class TestCreditProfileValidation:

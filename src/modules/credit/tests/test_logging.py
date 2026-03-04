@@ -1,8 +1,5 @@
 """Tests for structured logging and request ID middleware — TDD."""
 
-import json
-from unittest.mock import patch
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -56,9 +53,7 @@ class TestRequestIdMiddleware:
         uuid.UUID(rid)  # raises if not valid UUID
 
     def test_client_provided_request_id_is_used(self, client):
-        response = client.get(
-            "/health", headers={"X-Request-ID": "custom-id-123"}
-        )
+        response = client.get("/health", headers={"X-Request-ID": "custom-id-123"})
         assert response.headers["x-request-id"] == "custom-id-123"
 
     def test_different_requests_get_different_ids(self, client):

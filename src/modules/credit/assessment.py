@@ -24,6 +24,7 @@ from .types import (
     ThresholdEstimate,
 )
 
+
 class BracketData(TypedDict):
     """Type for utilization bracket impact data."""
 
@@ -64,7 +65,9 @@ def get_score_band(score: int) -> ScoreBand:
     return ScoreBand.VERY_POOR
 
 
-def get_utilization_impact(current_util: float, target_util: float) -> UtilizationImpact:
+def get_utilization_impact(
+    current_util: float, target_util: float
+) -> UtilizationImpact:
     """Calculate estimated score impact of changing utilization."""
 
     def _bracket_impact(util: float) -> int:
@@ -132,49 +135,59 @@ class CreditAssessmentService:
         barriers: list[CreditBarrier] = []
         acct = profile.account_summary
         if acct.collection_accounts > 0:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.HIGH,
-                description=f"{acct.collection_accounts} collection account(s) on file",
-                estimated_resolution_days=90,
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.HIGH,
+                    description=f"{acct.collection_accounts} collection account(s) on file",
+                    estimated_resolution_days=90,
+                )
+            )
         if profile.overall_utilization > HIGH_UTILIZATION_THRESHOLD:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.HIGH,
-                description=(
-                    f"Utilization at {profile.overall_utilization:.0f}%"
-                    " (above 75%)"
-                ),
-                estimated_resolution_days=60,
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.HIGH,
+                    description=(
+                        f"Utilization at {profile.overall_utilization:.0f}% (above 75%)"
+                    ),
+                    estimated_resolution_days=60,
+                )
+            )
         if profile.current_score < 580:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.HIGH,
-                description=f"Score {profile.current_score} is below 580",
-                estimated_resolution_days=180,
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.HIGH,
+                    description=f"Score {profile.current_score} is below 580",
+                    estimated_resolution_days=180,
+                )
+            )
         return barriers
 
     def _medium_barriers(self, profile: CreditProfile) -> list[CreditBarrier]:
         """Build MEDIUM severity barrier list."""
         barriers: list[CreditBarrier] = []
         if len(profile.negative_items) > 0:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.MEDIUM,
-                description=f"{len(profile.negative_items)} negative item(s) on file",
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.MEDIUM,
+                    description=f"{len(profile.negative_items)} negative item(s) on file",
+                )
+            )
         if profile.overall_utilization > MODERATE_UTILIZATION_THRESHOLD:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.MEDIUM,
-                description=(
-                    f"Utilization at {profile.overall_utilization:.0f}%"
-                    " (above 50%)"
-                ),
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.MEDIUM,
+                    description=(
+                        f"Utilization at {profile.overall_utilization:.0f}% (above 50%)"
+                    ),
+                )
+            )
         if profile.current_score < 650:
-            barriers.append(CreditBarrier(
-                severity=BarrierSeverity.MEDIUM,
-                description=f"Score {profile.current_score} is below 650",
-            ))
+            barriers.append(
+                CreditBarrier(
+                    severity=BarrierSeverity.MEDIUM,
+                    description=f"Score {profile.current_score} is below 650",
+                )
+            )
         return barriers
 
     def _compute_readiness_score(self, profile: CreditProfile) -> CreditReadiness:
@@ -199,8 +212,7 @@ class CreditAssessmentService:
 
         neg_penalty = min(
             0.3,
-            len(profile.negative_items) * 0.05
-            + acct.collection_accounts * 0.05,
+            len(profile.negative_items) * 0.05 + acct.collection_accounts * 0.05,
         )
 
         raw = fico_normalized * 0.5 + factor_score * 0.5 - neg_penalty
@@ -249,14 +261,14 @@ class CreditAssessmentService:
                         threshold_score=min_score,
                         estimated_days=_estimate_days_for_gap(gap),
                         already_met=False,
-                        confidence=ConfidenceLevel.MEDIUM if gap < 50 else ConfidenceLevel.LOW,
+                        confidence=ConfidenceLevel.MEDIUM
+                        if gap < 50
+                        else ConfidenceLevel.LOW,
                     )
                 )
         return results
 
-    def _compute_eligibility(
-        self, profile: CreditProfile
-    ) -> list[EligibilityItem]:
+    def _compute_eligibility(self, profile: CreditProfile) -> list[EligibilityItem]:
         """Compare profile score against product thresholds."""
         items: list[EligibilityItem] = []
         for product_name, info in PRODUCT_THRESHOLDS.items():
@@ -292,9 +304,7 @@ class CreditAssessmentService:
         self, profile: CreditProfile, required_score: int
     ) -> list[str]:
         """Identify reasons a product is blocked."""
-        factors: list[str] = [
-            f"Score {profile.current_score} below {required_score}"
-        ]
+        factors: list[str] = [f"Score {profile.current_score} below {required_score}"]
         if profile.overall_utilization > MODERATE_UTILIZATION_THRESHOLD:
             factors.append("High utilization")
         if profile.account_summary.collection_accounts > 0:

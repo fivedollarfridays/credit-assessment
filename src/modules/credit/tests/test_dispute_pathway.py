@@ -1,12 +1,8 @@
 """Tests for dispute pathway generator — TDD: written before implementation."""
 
-import pytest
-
 from modules.credit.types import (
     ActionPriority,
-    CreditProfile,
     DisputePathway,
-    DisputeStep,
 )
 
 

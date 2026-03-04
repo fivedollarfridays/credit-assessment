@@ -14,12 +14,16 @@ def client():
 class TestLifespan:
     """Test application lifespan lifecycle."""
 
-    @pytest.mark.asyncio
-    async def test_lifespan_configures_logging(self):
+    def test_lifespan_configures_logging(self):
+        import asyncio
+
         from modules.credit.router import app, lifespan
 
-        async with lifespan(app):
-            pass  # exercises configure_logging + yield
+        async def _run():
+            async with lifespan(app):
+                pass
+
+        asyncio.run(_run())
 
 
 class TestHealthEndpoint:

@@ -76,9 +76,7 @@ class TestCreditAssessmentResult:
     """Tests for CreditAssessmentResult model."""
 
     def test_has_all_five_output_fields(self) -> None:
-        readiness = CreditReadiness(
-            score=70, fico_score=650, score_band="fair"
-        )
+        readiness = CreditReadiness(score=70, fico_score=650, score_band="fair")
         pathway = DisputePathway()
         result = CreditAssessmentResult(
             barrier_severity=BarrierSeverity.MEDIUM,
@@ -93,23 +91,16 @@ class TestCreditAssessmentResult:
         assert result.eligibility == []
 
     def test_has_default_disclaimer(self) -> None:
-        readiness = CreditReadiness(
-            score=50, fico_score=600, score_band="poor"
-        )
+        readiness = CreditReadiness(score=50, fico_score=600, score_band="poor")
         result = CreditAssessmentResult(
             barrier_severity=BarrierSeverity.HIGH,
             readiness=readiness,
             dispute_pathway=DisputePathway(),
         )
-        assert (
-            result.disclaimer
-            == "All estimates are for educational purposes only."
-        )
+        assert result.disclaimer == "All estimates are for educational purposes only."
 
     def test_validates_with_full_data(self) -> None:
-        readiness = CreditReadiness(
-            score=85, fico_score=740, score_band="excellent"
-        )
+        readiness = CreditReadiness(score=85, fico_score=740, score_band="excellent")
         barrier = CreditBarrier(
             severity=BarrierSeverity.LOW,
             description="Minor issue",
@@ -141,34 +132,26 @@ class TestCreditAssessmentResult:
 class TestFixtures:
     """Tests that conftest fixtures produce valid profiles."""
 
-    def test_good_credit_profile(
-        self, good_credit_profile: CreditProfile
-    ) -> None:
+    def test_good_credit_profile(self, good_credit_profile: CreditProfile) -> None:
         assert good_credit_profile.current_score == 740
         assert good_credit_profile.score_band == ScoreBand.GOOD
         assert good_credit_profile.overall_utilization == 20.0
         assert good_credit_profile.account_summary.negative_accounts == 0
 
-    def test_poor_credit_profile(
-        self, poor_credit_profile: CreditProfile
-    ) -> None:
+    def test_poor_credit_profile(self, poor_credit_profile: CreditProfile) -> None:
         assert poor_credit_profile.current_score == 520
         assert poor_credit_profile.score_band == ScoreBand.VERY_POOR
         assert poor_credit_profile.overall_utilization == 85.0
         assert poor_credit_profile.account_summary.collection_accounts == 3
         assert len(poor_credit_profile.negative_items) == 3
 
-    def test_fair_credit_profile(
-        self, fair_credit_profile: CreditProfile
-    ) -> None:
+    def test_fair_credit_profile(self, fair_credit_profile: CreditProfile) -> None:
         assert fair_credit_profile.current_score == 650
         assert fair_credit_profile.score_band == ScoreBand.FAIR
         assert fair_credit_profile.overall_utilization == 45.0
         assert fair_credit_profile.account_summary.negative_accounts == 1
 
-    def test_thin_file_profile(
-        self, thin_file_profile: CreditProfile
-    ) -> None:
+    def test_thin_file_profile(self, thin_file_profile: CreditProfile) -> None:
         assert thin_file_profile.current_score == 620
         assert thin_file_profile.score_band == ScoreBand.POOR
         assert thin_file_profile.account_summary.total_accounts == 2

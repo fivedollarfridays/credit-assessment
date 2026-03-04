@@ -79,9 +79,7 @@ class TestCreditProfile:
                 current_score=299,
                 score_band=ScoreBand.VERY_POOR,
                 overall_utilization=50.0,
-                account_summary=AccountSummary(
-                    total_accounts=1, open_accounts=1
-                ),
+                account_summary=AccountSummary(total_accounts=1, open_accounts=1),
                 payment_history_pct=80.0,
                 average_account_age_months=12,
                 negative_items=[],
@@ -93,9 +91,7 @@ class TestCreditProfile:
                 current_score=851,
                 score_band=ScoreBand.EXCELLENT,
                 overall_utilization=5.0,
-                account_summary=AccountSummary(
-                    total_accounts=10, open_accounts=8
-                ),
+                account_summary=AccountSummary(total_accounts=10, open_accounts=8),
                 payment_history_pct=100.0,
                 average_account_age_months=120,
                 negative_items=[],
@@ -145,9 +141,7 @@ class TestScoreImpact:
         assert impact.expected_points == 5
 
     def test_creates_with_explicit_values(self) -> None:
-        impact = ScoreImpact(
-            min_points=5, max_points=15, expected_points=12
-        )
+        impact = ScoreImpact(min_points=5, max_points=15, expected_points=12)
         assert impact.min_points == 5
         assert impact.max_points == 15
         assert impact.expected_points == 12
@@ -182,7 +176,9 @@ class TestCreditReadiness:
 
     def test_validates_with_required_fields(self) -> None:
         readiness = CreditReadiness(
-            score=75, fico_score=700, score_band="good",
+            score=75,
+            fico_score=700,
+            score_band="good",
         )
         assert readiness.score == 75
         assert readiness.fico_score == 700
@@ -191,7 +187,9 @@ class TestCreditReadiness:
 
     def test_validates_with_factors(self) -> None:
         readiness = CreditReadiness(
-            score=85, fico_score=740, score_band="excellent",
+            score=85,
+            fico_score=740,
+            score_band="excellent",
             factors={"payment_history": 95.0, "utilization": 80.0},
         )
         assert readiness.factors["payment_history"] == 95.0

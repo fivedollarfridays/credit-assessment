@@ -1,7 +1,5 @@
 """Integration tests + coverage gap tests."""
 
-import pytest
-
 from modules.credit.types import (
     BarrierSeverity,
     CreditAssessmentResult,
@@ -77,7 +75,9 @@ class TestCoverageGaps:
         from modules.credit.dispute_pathway import DisputePathwayGenerator
 
         gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("unauthorized_inquiry") == "unauthorized_inquiry"
+        assert (
+            gen._classify_issue_type("unauthorized_inquiry") == "unauthorized_inquiry"
+        )
 
     def test_classify_dofd_error(self):
         from modules.credit.dispute_pathway import DisputePathwayGenerator
@@ -119,9 +119,7 @@ class TestCoverageGaps:
         from modules.credit.dispute_pathway import DisputePathwayGenerator
 
         gen = DisputePathwayGenerator()
-        with patch(
-            "modules.credit.dispute_pathway.logger"
-        ) as mock_logger:
+        with patch("modules.credit.dispute_pathway.logger") as mock_logger:
             result = gen._classify_issue_type("some_unknown_thing")
             assert result == "late_payment"
             mock_logger.warning.assert_called_once()

@@ -191,7 +191,10 @@ class DisputePathwayGenerator:
     ) -> list[tuple[DisputeStep, IssuePattern]]:
         """Build additional steps from profile-level issues."""
         result: list[tuple[DisputeStep, IssuePattern]] = []
-        if profile.overall_utilization > HIGH_UTILIZATION_THRESHOLD and profile.account_summary.total_credit_limit > 0:
+        if (
+            profile.overall_utilization > HIGH_UTILIZATION_THRESHOLD
+            and profile.account_summary.total_credit_limit > 0
+        ):
             pattern = ISSUE_PATTERNS["wrong_balance"]
             step = DisputeStep(
                 step_number=0,
