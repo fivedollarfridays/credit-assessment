@@ -2,30 +2,24 @@
 
 from __future__ import annotations
 
-import enum
 import logging
 
 import stripe
+from stripe import SignatureVerificationError as _StripeSignatureError
 
+from .rate_limit import SubscriptionTier
 
 logger = logging.getLogger(__name__)
 
-
-class BillingPlan(str, enum.Enum):
-    """Subscription plans."""
-
-    FREE = "free"
-    STARTER = "starter"
-    PRO = "pro"
-    ENTERPRISE = "enterprise"
-
+# Re-export for backwards compatibility
+BillingPlan = SubscriptionTier
 
 # Prices in cents. None = custom pricing.
-PLAN_PRICES: dict[BillingPlan, int | None] = {
-    BillingPlan.FREE: 0,
-    BillingPlan.STARTER: 2900,
-    BillingPlan.PRO: 9900,
-    BillingPlan.ENTERPRISE: None,
+PLAN_PRICES: dict[SubscriptionTier, int | None] = {
+    SubscriptionTier.FREE: 0,
+    SubscriptionTier.STARTER: 2900,
+    SubscriptionTier.PRO: 9900,
+    SubscriptionTier.ENTERPRISE: None,
 }
 
 # In-memory subscription store — replaced by DB in production.
@@ -88,7 +82,7 @@ def handle_webhook(*, payload: bytes, sig_header: str, webhook_secret: str) -> d
     """Process a Stripe webhook event."""
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except ValueError:
+    except (ValueError, _StripeSignatureError):
         return {"status": "error", "detail": "Invalid payload"}
 
     event_type = event["type"]
@@ -98,7 +92,7 @@ def handle_webhook(*, payload: bytes, sig_header: str, webhook_secret: str) -> d
         email = data.get("customer_email")
         sub_id = data.get("subscription")
         if email and sub_id:
-            update_subscription(email, sub_id, "active", "starter")
+            update_subscription(email, sub_id, "active", SubscriptionTier.STARTER.value)
     elif event_type == "customer.subscription.updated":
         logger.info("Subscription updated: %s", data.get("id"))
     elif event_type == "customer.subscription.deleted":

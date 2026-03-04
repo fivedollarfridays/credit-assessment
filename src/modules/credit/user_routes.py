@@ -10,6 +10,7 @@ from pydantic import BaseModel, EmailStr
 from .auth import create_access_token
 from .config import settings
 from .password import hash_password, verify_password
+from .roles import Role
 
 router = APIRouter(prefix="/auth", tags=["users"])
 
@@ -61,7 +62,7 @@ def register(req: RegisterRequest) -> RegisterResponse:
         "email": req.email,
         "password_hash": hash_password(req.password),
         "is_active": True,
-        "role": "viewer",
+        "role": Role.VIEWER.value,
         "org_id": f"org-{req.email.split('@')[0]}",
     }
     return RegisterResponse(email=req.email)

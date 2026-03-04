@@ -5,7 +5,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from .auth import InvalidTokenError, create_access_token, decode_token
+from .auth import (
+    InvalidTokenError,
+    create_access_token,
+    decode_token,
+    extract_bearer_token,
+)
 from .config import settings
 
 # Hard-coded demo credentials — replace with database lookup in production.
@@ -28,14 +33,6 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-def _extract_bearer_token(request: Request) -> str | None:
-    """Extract Bearer token from Authorization header."""
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Bearer "):
-        return auth[7:]
-    return None
-
-
 @router.post("/token", response_model=TokenResponse)
 def issue_token(creds: TokenRequest) -> TokenResponse:
     """Issue a JWT access token for valid credentials."""
@@ -53,7 +50,7 @@ def issue_token(creds: TokenRequest) -> TokenResponse:
 @router.post("/refresh", response_model=TokenResponse)
 def refresh_token(request: Request) -> TokenResponse:
     """Refresh a JWT token. Requires a valid Bearer token."""
-    bearer = _extract_bearer_token(request)
+    bearer = extract_bearer_token(request)
     if bearer is None:
         raise HTTPException(status_code=401, detail="Missing Bearer token")
     try:

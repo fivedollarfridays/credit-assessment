@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Securit
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from .assessment import CreditAssessmentService
-from .auth import InvalidTokenError, decode_token
+from .auth import InvalidTokenError, decode_token, extract_bearer_token
 from .admin_routes import router as admin_router
 from .auth_routes import router as auth_router
 from .user_routes import router as user_router
@@ -84,20 +84,12 @@ app.add_middleware(HttpsRedirectMiddleware, prod_check=lambda: settings.is_produ
 # --- Auth helpers ---
 
 
-def _extract_bearer_token(request: Request) -> str | None:
-    """Extract Bearer token from Authorization header."""
-    auth = request.headers.get("authorization", "")
-    if auth.startswith("Bearer "):
-        return auth[7:]
-    return None
-
-
 async def verify_auth(
     request: Request,
     api_key: str | None = Security(_api_key_header),
 ) -> None:
     """Validate JWT Bearer or legacy API key. Skip auth in dev mode."""
-    bearer = _extract_bearer_token(request)
+    bearer = extract_bearer_token(request)
     if bearer is not None:
         try:
             decode_token(

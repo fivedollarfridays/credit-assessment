@@ -5,10 +5,19 @@ from __future__ import annotations
 import datetime
 
 from jose import JWTError, jwt
+from starlette.requests import Request
 
 
 class InvalidTokenError(Exception):
     """Raised when a JWT token is invalid or expired."""
+
+
+def extract_bearer_token(request: Request) -> str | None:
+    """Extract Bearer token from Authorization header."""
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    return None
 
 
 def create_access_token(

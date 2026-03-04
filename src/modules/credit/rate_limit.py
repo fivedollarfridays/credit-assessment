@@ -17,8 +17,8 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 
-class RateTier(str, enum.Enum):
-    """Customer subscription tiers for rate limiting."""
+class SubscriptionTier(str, enum.Enum):
+    """Customer subscription tiers (billing + rate limiting)."""
 
     FREE = "free"
     STARTER = "starter"
@@ -26,18 +26,21 @@ class RateTier(str, enum.Enum):
     ENTERPRISE = "enterprise"
 
 
-TIER_LIMITS: dict[RateTier, str | None] = {
-    RateTier.FREE: "10/minute",
-    RateTier.STARTER: "60/minute",
-    RateTier.PRO: "300/minute",
-    RateTier.ENTERPRISE: None,  # unlimited
+# Backwards-compatible alias
+RateTier = SubscriptionTier
+
+TIER_LIMITS: dict[SubscriptionTier, str | None] = {
+    SubscriptionTier.FREE: "10/minute",
+    SubscriptionTier.STARTER: "60/minute",
+    SubscriptionTier.PRO: "300/minute",
+    SubscriptionTier.ENTERPRISE: None,  # unlimited
 }
 
 
-def resolve_tier(tier: RateTier | None) -> str | None:
+def resolve_tier(tier: SubscriptionTier | None) -> str | None:
     """Return the rate limit string for a given tier. Defaults to FREE."""
     if tier is None:
-        tier = RateTier.FREE
+        tier = SubscriptionTier.FREE
     return TIER_LIMITS[tier]
 
 
@@ -51,7 +54,14 @@ def create_limiter(redis_url: str | None = None) -> Limiter:
     return Limiter(key_func=get_remote_address)
 
 
-limiter = create_limiter()
+def _get_redis_url() -> str | None:
+    """Get Redis URL from settings at import time."""
+    from .config import settings
+
+    return settings.redis_url
+
+
+limiter = create_limiter(redis_url=_get_redis_url())
 
 
 class RateLimitHeaderMiddleware(BaseHTTPMiddleware):
@@ -68,7 +78,7 @@ class RateLimitHeaderMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        if request.url.path == "/assess":
+        if request.url.path in {"/assess", "/v1/assess"}:
             reset_at = int(time.time()) + 60
             response.headers["X-RateLimit-Limit"] = str(self._max_requests)
             response.headers["X-RateLimit-Remaining"] = str(self._max_requests - 1)

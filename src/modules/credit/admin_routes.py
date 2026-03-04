@@ -18,7 +18,7 @@ _api_keys: dict[str, dict] = {}
 
 class ApiKeyRequest(BaseModel):
     org_id: str
-    role: str
+    role: Role
     expires_in_days: int | None = None
 
 
@@ -37,7 +37,7 @@ def list_users() -> list[dict]:
     return [
         {
             "email": email,
-            "role": u.get("role", "viewer"),
+            "role": u.get("role", Role.VIEWER.value),
             "is_active": u.get("is_active", True),
         }
         for email, u in _users.items()

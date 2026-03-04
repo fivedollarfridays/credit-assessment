@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from .roles import Role
+
 
 @dataclass
 class Organization:
@@ -21,7 +23,7 @@ def resolve_org_id(user_data: dict, override_org: str | None = None) -> str | No
     Non-admins always get their own org_id.
     """
     user_org = user_data.get("org_id")
-    if override_org is not None and user_data.get("role") == "admin":
+    if override_org is not None and user_data.get("role") == Role.ADMIN.value:
         return override_org
     return user_org
 
