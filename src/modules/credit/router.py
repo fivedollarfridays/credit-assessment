@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
@@ -11,19 +13,32 @@ from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
 from .assessment import CreditAssessmentService
-from .config import get_api_key, get_cors_origins, is_production
+from .config import settings
+from .logging_config import configure_logging
+from .middleware import RequestIdMiddleware
 from .types import CreditAssessmentResult, CreditProfile
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 limiter = Limiter(key_func=get_remote_address)
 
+_prod = settings.is_production
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup/shutdown lifecycle."""
+    configure_logging(json_output=_prod, log_level=settings.log_level)
+    yield
+
+
 app = FastAPI(
     title="Credit Assessment API",
     version="0.1.0",
-    docs_url=None if is_production() else "/docs",
-    redoc_url=None if is_production() else "/redoc",
-    openapi_url=None if is_production() else "/openapi.json",
+    lifespan=lifespan,
+    docs_url=None if _prod else "/docs",
+    redoc_url=None if _prod else "/redoc",
+    openapi_url=None if _prod else "/openapi.json",
 )
 app.state.limiter = limiter
 
@@ -36,17 +51,18 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
+    allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type", "Authorization", "X-API-Key"],
+    allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
+app.add_middleware(RequestIdMiddleware)
 
 
 async def verify_api_key(
     api_key: str | None = Security(_api_key_header),
 ) -> None:
     """Validate API key if configured. Skip auth in dev mode."""
-    expected = get_api_key()
+    expected = settings.api_key
     if expected is None:
         return
     if api_key != expected:

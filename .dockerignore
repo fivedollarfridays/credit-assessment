@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+.coverage
+htmlcov/
+.env
+.env.*
+*.bak
+*.tgz
+.paircoder/
+.claude/
+CLAUDE.md
+PLAN.md
+.github/
