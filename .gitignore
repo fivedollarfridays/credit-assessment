@@ -11,6 +11,10 @@ agent_pack.tgz
 .env.local
 .env.production
 
+# Deploy state files
+.deploy-active-slot
+.deploy-previous-slot
+
 # Coverage
 .coverage
 htmlcov/

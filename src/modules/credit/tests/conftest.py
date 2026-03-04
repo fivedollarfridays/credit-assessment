@@ -1,12 +1,31 @@
 """Shared fixtures for credit module tests."""
 
 import pytest
+from fastapi.testclient import TestClient
 
 from modules.credit.types import (
     AccountSummary,
     CreditProfile,
     ScoreBand,
 )
+
+# Shared valid payload dict for endpoint tests (matches good_credit_profile).
+VALID_ASSESS_PAYLOAD: dict = {
+    "current_score": 740,
+    "score_band": "good",
+    "overall_utilization": 20.0,
+    "account_summary": {"total_accounts": 8, "open_accounts": 6},
+    "payment_history_pct": 98.0,
+    "average_account_age_months": 72,
+}
+
+
+@pytest.fixture
+def client() -> TestClient:
+    """Shared TestClient for the FastAPI app."""
+    from modules.credit.router import app
+
+    return TestClient(app)
 
 
 @pytest.fixture

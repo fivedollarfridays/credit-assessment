@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import signal
 
@@ -42,8 +43,10 @@ async def validate_health(base_url: str, timeout: int = 30) -> bool:
     """
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            health = await client.get(f"{base_url}/health")
-            ready = await client.get(f"{base_url}/ready")
+            health, ready = await asyncio.gather(
+                client.get(f"{base_url}/health"),
+                client.get(f"{base_url}/ready"),
+            )
             return health.status_code == 200 and ready.status_code == 200
-    except Exception:
+    except (httpx.HTTPError, OSError):
         return False

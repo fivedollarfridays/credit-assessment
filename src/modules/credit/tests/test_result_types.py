@@ -97,7 +97,9 @@ class TestCreditAssessmentResult:
             readiness=readiness,
             dispute_pathway=DisputePathway(),
         )
-        assert result.disclaimer == "All estimates are for educational purposes only."
+        from modules.credit.disclosures import FCRA_DISCLAIMER
+
+        assert result.disclaimer == FCRA_DISCLAIMER
 
     def test_validates_with_full_data(self) -> None:
         readiness = CreditReadiness(score=85, fico_score=740, score_band="excellent")

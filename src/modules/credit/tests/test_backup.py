@@ -17,19 +17,19 @@ class TestRetentionPolicy:
     """Tests for RetentionPolicy defaults."""
 
     def test_default_daily_count(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy
+        from modules.credit.backup import RetentionPolicy
 
         policy = RetentionPolicy()
         assert policy.daily_count == 7
 
     def test_default_weekly_count(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy
+        from modules.credit.backup import RetentionPolicy
 
         policy = RetentionPolicy()
         assert policy.weekly_count == 4
 
     def test_default_monthly_count(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy
+        from modules.credit.backup import RetentionPolicy
 
         policy = RetentionPolicy()
         assert policy.monthly_count == 12
@@ -44,19 +44,19 @@ class TestBackupConfig:
     """Tests for BackupConfig construction and validation."""
 
     def test_creates_with_valid_database_url(self) -> None:
-        from src.modules.credit.backup import BackupConfig
+        from modules.credit.backup import BackupConfig
 
         cfg = BackupConfig(database_url="postgresql://localhost/credit")
         assert cfg.database_url == "postgresql://localhost/credit"
 
     def test_default_backup_dir(self) -> None:
-        from src.modules.credit.backup import BackupConfig
+        from modules.credit.backup import BackupConfig
 
         cfg = BackupConfig(database_url="postgresql://localhost/credit")
         assert cfg.backup_dir == "/var/backups/credit-assessment"
 
     def test_default_retention_policy(self) -> None:
-        from src.modules.credit.backup import BackupConfig
+        from modules.credit.backup import BackupConfig
 
         cfg = BackupConfig(database_url="postgresql://localhost/credit")
         assert cfg.retention.daily_count == 7
@@ -64,13 +64,13 @@ class TestBackupConfig:
         assert cfg.retention.monthly_count == 12
 
     def test_raises_on_empty_database_url(self) -> None:
-        from src.modules.credit.backup import BackupConfig
+        from modules.credit.backup import BackupConfig
 
         with pytest.raises(ValueError, match="database_url is required"):
             BackupConfig(database_url="")
 
     def test_raises_on_none_database_url(self) -> None:
-        from src.modules.credit.backup import BackupConfig
+        from modules.credit.backup import BackupConfig
 
         with pytest.raises(ValueError, match="database_url is required"):
             BackupConfig(database_url=None)  # type: ignore[arg-type]
@@ -85,21 +85,21 @@ class TestGetBackupFilename:
     """Tests for timestamped backup filename generation."""
 
     def test_default_prefix(self) -> None:
-        from src.modules.credit.backup import get_backup_filename
+        from modules.credit.backup import get_backup_filename
 
         name = get_backup_filename()
         assert name.startswith("credit_assessment_")
         assert name.endswith(".sql.gz")
 
     def test_custom_prefix(self) -> None:
-        from src.modules.credit.backup import get_backup_filename
+        from modules.credit.backup import get_backup_filename
 
         name = get_backup_filename(prefix="mydb")
         assert name.startswith("mydb_")
         assert name.endswith(".sql.gz")
 
     def test_timestamp_format(self) -> None:
-        from src.modules.credit.backup import get_backup_filename
+        from modules.credit.backup import get_backup_filename
 
         name = get_backup_filename()
         # Extract the timestamp portion between prefix and extension
@@ -119,47 +119,47 @@ class TestShouldRetain:
     """Tests for backup retention decision logic."""
 
     def test_retains_recent_daily_backup(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         assert should_retain(backup_age_days=3, policy=policy) is True
 
     def test_retains_backup_at_daily_boundary(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         assert should_retain(backup_age_days=7, policy=policy) is True
 
     def test_retains_weekly_backup(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         # Day 14 is exactly 2 weeks old and 14 % 7 == 0
         assert should_retain(backup_age_days=14, policy=policy) is True
 
     def test_discards_non_weekly_outside_daily_window(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         # Day 10 is outside daily (>7) and not a weekly boundary (10 % 7 != 0)
         assert should_retain(backup_age_days=10, policy=policy) is False
 
     def test_retains_monthly_backup(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         # Day 60 is outside weekly window (>28), but 60 % 30 == 0
         assert should_retain(backup_age_days=60, policy=policy) is True
 
     def test_discards_old_non_monthly_backup(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         # Day 45 is outside weekly (>28) and 45 % 30 != 0
         assert should_retain(backup_age_days=45, policy=policy) is False
 
     def test_discards_backup_beyond_all_windows(self) -> None:
-        from src.modules.credit.backup import RetentionPolicy, should_retain
+        from modules.credit.backup import RetentionPolicy, should_retain
 
         policy = RetentionPolicy()
         # Day 400 is beyond monthly window (12 * 30 = 360)

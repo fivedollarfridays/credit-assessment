@@ -7,6 +7,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
+from .disclosures import FCRA_DISCLAIMER
+
 
 class BarrierSeverity(str, Enum):
     """Severity level for credit barriers."""
@@ -79,6 +81,15 @@ class ActionPriority(str, Enum):
     LOW = "low"
 
 
+SCORE_BANDS: dict[str, dict[str, int]] = {
+    "excellent": {"min": 750, "max": 850},
+    "good": {"min": 700, "max": 749},
+    "fair": {"min": 650, "max": 699},
+    "poor": {"min": 600, "max": 649},
+    "very_poor": {"min": 300, "max": 599},
+}
+
+
 # --- Pydantic Models ---
 
 
@@ -110,14 +121,8 @@ class CreditProfile(BaseModel):
 
     @model_validator(mode="after")
     def _check_score_band(self) -> CreditProfile:
-        band_ranges = {
-            ScoreBand.EXCELLENT: (750, 850),
-            ScoreBand.GOOD: (700, 749),
-            ScoreBand.FAIR: (650, 699),
-            ScoreBand.POOR: (600, 649),
-            ScoreBand.VERY_POOR: (300, 599),
-        }
-        lo, hi = band_ranges[self.score_band]
+        band = SCORE_BANDS[self.score_band.value]
+        lo, hi = band["min"], band["max"]
         if not (lo <= self.current_score <= hi):
             msg = (
                 f"score_band {self.score_band.value} requires score "
@@ -158,7 +163,7 @@ class CreditReadiness(BaseModel):
 
     score: int = Field(ge=0, le=100)
     fico_score: int = Field(ge=300, le=850)
-    score_band: str
+    score_band: ScoreBand
     factors: dict[str, float] = {}
 
 
@@ -189,7 +194,7 @@ class ThresholdEstimate(BaseModel):
     threshold_score: int
     estimated_days: int | None = None
     already_met: bool = False
-    confidence: str = "medium"
+    confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
 
 class EligibilityItem(BaseModel):
@@ -198,7 +203,7 @@ class EligibilityItem(BaseModel):
     product_name: str
     category: str
     required_score: int
-    status: str
+    status: EligibilityStatus
     gap_points: int | None = None
     estimated_days_to_eligible: int | None = None
     blocking_factors: list[str] = []
@@ -213,7 +218,7 @@ class CreditAssessmentResult(BaseModel):
     thresholds: list[ThresholdEstimate] = []
     dispute_pathway: DisputePathway
     eligibility: list[EligibilityItem] = []
-    disclaimer: str = "All estimates are for educational purposes only."
+    disclaimer: str = FCRA_DISCLAIMER
 
 
 # --- Constants ---
@@ -225,14 +230,6 @@ SCORE_WEIGHTS: dict[str, float] = {
     "credit_age": 0.15,
     "credit_mix": 0.10,
     "new_credit": 0.10,
-}
-
-SCORE_BANDS: dict[str, dict[str, int]] = {
-    "excellent": {"min": 750, "max": 850},
-    "good": {"min": 700, "max": 749},
-    "fair": {"min": 650, "max": 699},
-    "poor": {"min": 600, "max": 649},
-    "very_poor": {"min": 300, "max": 599},
 }
 
 HIGH_UTILIZATION_THRESHOLD: float = 75.0

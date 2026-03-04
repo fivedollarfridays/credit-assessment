@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .audit import get_audit_trail
 from .roles import Role, require_role
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -65,10 +66,16 @@ def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
     )
 
 
+@router.get("/audit-log", dependencies=[Depends(require_role(Role.ADMIN))])
+def audit_log(action: str | None = None, limit: int | None = None) -> dict:
+    """Query audit trail entries with optional filters."""
+    entries = get_audit_trail(action=action, limit=limit)
+    return {"entries": entries, "total": len(entries)}
+
+
 @router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])
 def revoke_api_key(api_key: str) -> dict:
     """Revoke an API key. Admin only."""
-    if api_key not in _api_keys:
+    if _api_keys.pop(api_key, None) is None:
         raise HTTPException(status_code=404, detail="API key not found")
-    del _api_keys[api_key]
     return {"message": "API key revoked"}

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 
 # --- Cycle 1: AlertSeverity enum ---
 
@@ -204,7 +206,7 @@ def test_check_latency_custom_threshold():
 
 # --- Cycle 6: YAML configuration files ---
 
-_PROJECT_ROOT = __import__("pathlib").Path(__file__).resolve().parents[4]
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_prometheus_rules_yaml_exists():

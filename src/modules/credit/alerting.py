@@ -14,7 +14,11 @@ class AlertSeverity(str, enum.Enum):
     INFO = "info"
 
 
-@dataclass
+ERROR_RATE_THRESHOLD = 0.05
+LATENCY_P95_THRESHOLD = 0.5
+
+
+@dataclass(frozen=True)
 class AlertRule:
     """A single alerting rule definition."""
 
@@ -30,7 +34,7 @@ _DEFAULT_RULES = [
     AlertRule(
         name="high_error_rate",
         condition="error_rate_5m",
-        threshold=0.05,
+        threshold=ERROR_RATE_THRESHOLD,
         severity=AlertSeverity.CRITICAL,
         runbook_url="/docs/runbooks/service-outage.md",
         description="Error rate exceeds 5% over 5 minutes",
@@ -38,7 +42,7 @@ _DEFAULT_RULES = [
     AlertRule(
         name="high_latency_p95",
         condition="latency_p95_5m",
-        threshold=0.5,
+        threshold=LATENCY_P95_THRESHOLD,
         severity=AlertSeverity.WARNING,
         runbook_url="/docs/runbooks/service-outage.md",
         description="p95 latency exceeds 500ms over 5 minutes",
@@ -60,7 +64,9 @@ def get_alert_rules() -> list[AlertRule]:
 
 
 def check_error_rate(
-    total_requests: int, error_count: int, threshold: float = 0.05
+    total_requests: int,
+    error_count: int,
+    threshold: float = ERROR_RATE_THRESHOLD,
 ) -> bool:
     """Return True if error rate exceeds the threshold."""
     if total_requests == 0:
@@ -68,6 +74,6 @@ def check_error_rate(
     return (error_count / total_requests) > threshold
 
 
-def check_latency(p95_seconds: float, threshold: float = 0.5) -> bool:
+def check_latency(p95_seconds: float, threshold: float = LATENCY_P95_THRESHOLD) -> bool:
     """Return True if p95 latency exceeds the threshold."""
     return p95_seconds > threshold

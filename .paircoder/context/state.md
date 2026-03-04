@@ -59,11 +59,11 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T6.1 | FCRA Section 505 disclosures | P0 | 40 | Pending |
-| T6.2 | Privacy policy + Terms of Service | P1 | 30 | Pending |
-| T6.3 | GDPR/CCPA data handling | P0 | 55 | Pending |
-| T6.4 | Audit trail — log assessments | P0 | 45 | Pending |
-| T6.5 | API docs site — OpenAPI + guides | P1 | 35 | Pending |
+| T6.1 | FCRA Section 505 disclosures | P0 | 40 | ✓ Done |
+| T6.2 | Privacy policy + Terms of Service | P1 | 30 | ✓ Done |
+| T6.3 | GDPR/CCPA data handling | P0 | 55 | ✓ Done |
+| T6.4 | Audit trail — log assessments | P0 | 45 | ✓ Done |
+| T6.5 | API docs site — OpenAPI + guides | P1 | 35 | ✓ Done |
 
 ### Sprint 7 — Phase 6: Growth (Ongoing)
 
@@ -81,6 +81,83 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 | plan-2026-03-launch-readiness | Launch Readiness | 5/5 Done |
 
 ## What Was Just Done
+
+### Session: 2026-03-04 — Code review fixes (all findings)
+
+- **Security**: Added admin auth (`require_role(Role.ADMIN)`) to audit-log endpoint, added `Depends(verify_auth)` to all 3 data-rights endpoints
+- **Bounded stores**: Changed `_audit_entries` from `list` to `deque(maxlen=100_000)`
+- **PII hashing**: Upgraded `hash_pii` from unsalted SHA-256 to HMAC-SHA256 with pepper
+- **Shared utility**: Extracted `purge_by_age()` to `retention.py`, used by both `audit.py` and `data_rights.py`
+- **Stringly-typed fields**: Changed 3 types.py fields to use proper enums (`ScoreBand`, `ConfidenceLevel`, `EligibilityStatus`)
+- **Other**: Singleton assessment service, f-string date interpolation in legal.py, `set -euo pipefail` in `_common.sh`
+- **Test cleanup**: Consolidated per-method lazy imports to top-level in `test_audit_trail.py` (41→10 imports) and `test_data_rights.py` (38→10 imports)
+- **Shared test fixtures**: Added `VALID_ASSESS_PAYLOAD` and `client` fixture to conftest.py
+- 576 tests, 100% coverage, 0 arch errors
+
+- **T6.5 done** (auto-updated by hook)
+
+- **T6.5 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T6.5: API docs site — OpenAPI + guides
+
+- Created `api_docs.py`: API_DESCRIPTION and API_TAGS constants for enriched OpenAPI spec, `get_integration_guide()` with auth/endpoints/errors/rate_limiting sections, `get_code_examples()` with Python/JavaScript/curl samples
+- Created `docs_routes.py`: APIRouter with `GET /docs/guide` and `GET /docs/examples` (no auth required)
+- Enriched FastAPI app: version "1.0.0", full description, tag metadata for all endpoint groups
+- Extracted `assess_routes.py`: moved verify_auth, get_assessment_service, and assessment endpoints out of router.py to fix import count violation (23→19 imports, 222→120 lines)
+- Updated test patches in test_security.py and test_auth_endpoints.py to cover assess_routes.settings
+- 19 new tests in test_api_docs.py, 570 total passing, 100% coverage, 0 arch errors
+- **Sprint 6 complete!** All 5 tasks done.
+
+- **T6.4 done** (auto-updated by hook)
+
+- **T6.3 done** (auto-updated by hook)
+
+- **T6.2 done** (auto-updated by hook)
+
+- **T6.1 done** (auto-updated by hook)
+
+- **T6.4 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T6.4: Audit trail — log assessments
+
+- Created `audit.py`: `hash_pii()` (SHA-256 one-way hash), `create_audit_entry()` with hashed user_id, `get_audit_trail()` with action/limit filters, `purge_audit_trail()` with FCRA 7-year default retention (2555 days)
+- Added `GET /v1/admin/audit-log` endpoint with action and limit query params to admin_routes.py
+- Audit entries include: action, user_id_hash (PII hashed), request_summary, result_summary, timestamp, optional org_id
+- 22 new tests in test_audit_trail.py, 551 total passing, 100% coverage, 0 arch errors
+
+- **T6.3 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T6.3: GDPR/CCPA data handling
+
+- Created `data_rights.py`: consent tracking (record/check/withdraw/get), user assessment storage, data export (GDPR Article 15), data deletion with cascade (GDPR Article 17), retention purge by age
+- Created `data_rights_routes.py`: `GET /v1/user/data-export`, `DELETE /v1/user/data`, `POST /v1/user/consent`
+- Consent is version-specific with timestamp, withdrawal supported
+- Deletion cascades to consent records and assessments, returns summary with counts
+- Purge function removes assessments older than configurable max_age_days
+- 25 new tests in test_data_rights.py, 529 total passing, 100% coverage, 0 arch errors
+
+- **T6.2 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T6.2: Privacy policy + Terms of Service
+
+- Created `legal.py`: privacy policy (v1.0) covering data collection, use, retention, sharing, security, rights; terms of service (v1.0) covering API usage, liability, termination
+- Both documents versioned with version string and effective_date
+- In-memory ToS acceptance tracking: `record_tos_acceptance()`, `check_tos_accepted()`, `get_tos_acceptance()`
+- Created `legal_routes.py`: APIRouter with `GET /legal/privacy` and `GET /legal/terms` (no auth required)
+- Endpoints mounted at root and `/v1` prefix
+- 27 new tests in test_legal.py, 504 total passing, 100% coverage, 0 arch errors
+
+- **T6.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T6.1: FCRA Section 505 disclosures
+
+- Created `disclosures.py`: FCRA_DISCLAIMER constant, ADVERSE_ACTION_NOTICE_TEMPLATE with placeholder fields, consumer rights text, data usage notice
+- `get_disclosures()` returns structured dict of all disclosure texts
+- Updated `CreditAssessmentResult.disclaimer` default to use `FCRA_DISCLAIMER` (replaces old one-liner)
+- Added `GET /disclosures` and `GET /v1/disclosures` endpoints (no auth required)
+- Adverse action notice template has {consumer_name}, {action_taken}, {reasons}, {date} placeholders
+- Updated existing test_result_types.py to match new FCRA disclaimer
+- 23 new tests in test_disclosures.py, 477 total passing, 100% coverage, 0 arch errors
 
 - **T5.5 done** (auto-updated by hook)
 - **T5.4 done** (auto-updated by hook)
@@ -328,7 +405,7 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 
 ## What's Next
 
-Sprint 5 complete (5/5 tasks). Next: Sprint 6 — Compliance & Documentation (T6.1-T6.5).
+Sprint 6 complete! All compliance & documentation tasks done (T6.1-T6.5). Next: Sprint 7 — Growth (T7.1-T7.4: SDK/client libraries, webhook system, dashboard/admin UI, feature flags).
 
 
 ## Blockers

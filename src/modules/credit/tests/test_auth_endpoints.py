@@ -6,15 +6,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from modules.credit.config import Settings
-
-_VALID_PAYLOAD = {
-    "current_score": 740,
-    "score_band": "good",
-    "overall_utilization": 20.0,
-    "account_summary": {"total_accounts": 8, "open_accounts": 6},
-    "payment_history_pct": 98.0,
-    "average_account_age_months": 72,
-}
+from modules.credit.tests.conftest import VALID_ASSESS_PAYLOAD
 
 _JWT_SETTINGS = Settings(
     jwt_secret="test-secret-key",
@@ -30,10 +22,11 @@ def _get_client():
 
 
 def _patch_settings():
-    """Patch settings in both router and auth_routes modules."""
+    """Patch settings in router, auth_routes, and assess_routes modules."""
     stack = ExitStack()
     stack.enter_context(patch("modules.credit.router.settings", _JWT_SETTINGS))
     stack.enter_context(patch("modules.credit.auth_routes.settings", _JWT_SETTINGS))
+    stack.enter_context(patch("modules.credit.assess_routes.settings", _JWT_SETTINGS))
     return stack
 
 
@@ -79,7 +72,7 @@ class TestJwtBearerAuth:
         with _patch_settings():
             response = client.post(
                 "/assess",
-                json=_VALID_PAYLOAD,
+                json=VALID_ASSESS_PAYLOAD,
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert response.status_code == 200
@@ -89,7 +82,7 @@ class TestJwtBearerAuth:
         with _patch_settings():
             response = client.post(
                 "/assess",
-                json=_VALID_PAYLOAD,
+                json=VALID_ASSESS_PAYLOAD,
                 headers={"Authorization": "Bearer invalid-token"},
             )
             assert response.status_code == 401
@@ -98,7 +91,7 @@ class TestJwtBearerAuth:
         """When JWT is configured, no auth header returns 403."""
         client = _get_client()
         with _patch_settings():
-            response = client.post("/assess", json=_VALID_PAYLOAD)
+            response = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert response.status_code == 403
 
 
@@ -149,7 +142,7 @@ class TestLegacyApiKeyCompat:
         with _patch_settings():
             response = client.post(
                 "/assess",
-                json=_VALID_PAYLOAD,
+                json=VALID_ASSESS_PAYLOAD,
                 headers={"X-API-Key": "legacy-api-key"},
             )
             assert response.status_code == 200
@@ -159,7 +152,7 @@ class TestLegacyApiKeyCompat:
         with _patch_settings():
             response = client.post(
                 "/assess",
-                json=_VALID_PAYLOAD,
+                json=VALID_ASSESS_PAYLOAD,
                 headers={"X-API-Key": "wrong-key"},
             )
             assert response.status_code == 403

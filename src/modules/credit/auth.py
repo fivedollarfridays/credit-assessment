@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import datetime
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from starlette.requests import Request
 
 
@@ -38,5 +39,5 @@ def decode_token(token: str, *, secret: str, algorithm: str) -> dict:
     """Decode and validate a JWT token. Raises InvalidTokenError on failure."""
     try:
         return jwt.decode(token, secret, algorithms=[algorithm])
-    except JWTError as exc:
+    except PyJWTError as exc:
         raise InvalidTokenError(str(exc)) from exc
