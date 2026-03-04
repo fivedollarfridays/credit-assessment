@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class BarrierSeverity(str, Enum):
@@ -54,6 +55,21 @@ class ActionType(str, Enum):
     REMOVE_COLLECTION = "remove_collection"
 
 
+class ConfidenceLevel(str, Enum):
+    """Confidence level for estimates."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class EligibilityStatus(str, Enum):
+    """Eligibility status for credit products."""
+
+    ELIGIBLE = "eligible"
+    BLOCKED = "blocked"
+
+
 class ActionPriority(str, Enum):
     """Priority level for credit actions."""
 
@@ -69,14 +85,14 @@ class ActionPriority(str, Enum):
 class AccountSummary(BaseModel):
     """Summary of credit accounts."""
 
-    total_accounts: int
-    open_accounts: int
-    closed_accounts: int = 0
-    negative_accounts: int = 0
-    collection_accounts: int = 0
-    total_balance: float = 0.0
-    total_credit_limit: float = 0.0
-    monthly_payments: float = 0.0
+    total_accounts: int = Field(ge=0)
+    open_accounts: int = Field(ge=0)
+    closed_accounts: int = Field(default=0, ge=0)
+    negative_accounts: int = Field(default=0, ge=0)
+    collection_accounts: int = Field(default=0, ge=0)
+    total_balance: float = Field(default=0.0, ge=0.0)
+    total_credit_limit: float = Field(default=0.0, ge=0.0)
+    monthly_payments: float = Field(default=0.0, ge=0.0)
 
 
 class CreditProfile(BaseModel):
@@ -84,11 +100,31 @@ class CreditProfile(BaseModel):
 
     current_score: int = Field(ge=300, le=850)
     score_band: ScoreBand
-    overall_utilization: float
+    overall_utilization: float = Field(ge=0.0, le=100.0)
     account_summary: AccountSummary
-    payment_history_pct: float
-    average_account_age_months: int
-    negative_items: list[str] = []
+    payment_history_pct: float = Field(ge=0.0, le=100.0)
+    average_account_age_months: int = Field(ge=0, le=1200)
+    negative_items: list[Annotated[str, Field(max_length=200)]] = Field(
+        default=[], max_length=50
+    )
+
+    @model_validator(mode="after")
+    def _check_score_band(self) -> CreditProfile:
+        band_ranges = {
+            ScoreBand.EXCELLENT: (750, 850),
+            ScoreBand.GOOD: (700, 749),
+            ScoreBand.FAIR: (650, 699),
+            ScoreBand.POOR: (600, 649),
+            ScoreBand.VERY_POOR: (300, 599),
+        }
+        lo, hi = band_ranges[self.score_band]
+        if not (lo <= self.current_score <= hi):
+            msg = (
+                f"score_band {self.score_band.value} requires score "
+                f"{lo}-{hi}, got {self.current_score}"
+            )
+            raise ValueError(msg)
+        return self
 
 
 class ScoreImpact(BaseModel):
@@ -198,6 +234,9 @@ SCORE_BANDS: dict[str, dict[str, int]] = {
     "poor": {"min": 600, "max": 649},
     "very_poor": {"min": 300, "max": 599},
 }
+
+HIGH_UTILIZATION_THRESHOLD: float = 75.0
+MODERATE_UTILIZATION_THRESHOLD: float = 50.0
 
 PRODUCT_THRESHOLDS: dict[str, dict[str, str | int]] = {
     "FHA Mortgage": {"score": 580, "category": "mortgage"},

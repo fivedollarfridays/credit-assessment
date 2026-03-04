@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.pyc
+agent_pack.tgz
+*.bak
+
+# Coverage
+.coverage
+htmlcov/
+
+# PairCoder — ephemeral/session data
+.paircoder/routing_decision_*.json
+.paircoder/time-tracking-cache.json
+.paircoder/.cli_version
+.paircoder/history/
+.paircoder/cache/
+.paircoder/telemetry/telemetry.jsonl
+.paircoder/telemetry/audit.jsonl
+.paircoder/telemetry/session_snapshot.json
+.paircoder/feedback/calibration.json
