@@ -137,7 +137,7 @@ class TestSignature:
 class TestDelivery:
     @pytest.mark.asyncio
     async def test_deliver_event_success(self):
-        wh = create_webhook(
+        create_webhook(
             url="https://example.com/hook",
             events=[EventType.ASSESSMENT_COMPLETED],
             secret="secret",
