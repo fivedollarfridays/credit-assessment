@@ -69,7 +69,11 @@ class TestApiKeyOrgResolution:
         from modules.credit.admin_routes import _api_keys
 
         # The _api_keys store already maps keys to org_id
-        _api_keys["test-key"] = {"org_id": "org-1", "role": "analyst", "expires_at": None}
+        _api_keys["test-key"] = {
+            "org_id": "org-1",
+            "role": "analyst",
+            "expires_at": None,
+        }
         assert _api_keys["test-key"]["org_id"] == "org-1"
         del _api_keys["test-key"]
 

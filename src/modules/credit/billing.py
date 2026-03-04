@@ -84,9 +84,7 @@ def create_portal_session(*, customer_id: str, return_url: str):
     )
 
 
-def handle_webhook(
-    *, payload: bytes, sig_header: str, webhook_secret: str
-) -> dict:
+def handle_webhook(*, payload: bytes, sig_header: str, webhook_secret: str) -> dict:
     """Process a Stripe webhook event."""
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)

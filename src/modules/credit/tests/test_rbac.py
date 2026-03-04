@@ -43,16 +43,13 @@ class TestRoleEnforcement:
     """Test role-based access on endpoints."""
 
     def _register_and_login(self, client, email, password="Secret123!"):
-        client.post(
-            "/auth/register", json={"email": email, "password": password}
-        )
-        resp = client.post(
-            "/auth/login", json={"email": email, "password": password}
-        )
+        client.post("/auth/register", json={"email": email, "password": password})
+        resp = client.post("/auth/login", json={"email": email, "password": password})
         return resp.json()["access_token"]
 
     def _patch_all(self):
         from contextlib import ExitStack
+
         stack = ExitStack()
         for mod in ["router", "auth_routes", "user_routes", "roles"]:
             stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
@@ -63,6 +60,7 @@ class TestRoleEnforcement:
         with self._patch_all():
             token = self._register_and_login(client, "admin@test.com")
             from modules.credit.user_routes import _users
+
             _users["admin@test.com"]["role"] = "admin"
 
             resp = client.get(
@@ -76,6 +74,7 @@ class TestRoleEnforcement:
         with self._patch_all():
             token = self._register_and_login(client, "viewer@test.com")
             from modules.credit.user_routes import _users
+
             _users["viewer@test.com"]["role"] = "viewer"
 
             resp = client.get(
@@ -105,6 +104,7 @@ class TestRoleEnforcement:
         client = _get_client()
         with self._patch_all():
             from modules.credit.auth import create_access_token
+
             token = create_access_token(
                 subject="ghost@test.com",
                 secret=_SETTINGS.jwt_secret,
@@ -123,16 +123,13 @@ class TestApiKeyModel:
     """Test API key creation and management."""
 
     def _register_and_login(self, client, email, password="Secret123!"):
-        client.post(
-            "/auth/register", json={"email": email, "password": password}
-        )
-        resp = client.post(
-            "/auth/login", json={"email": email, "password": password}
-        )
+        client.post("/auth/register", json={"email": email, "password": password})
+        resp = client.post("/auth/login", json={"email": email, "password": password})
         return resp.json()["access_token"]
 
     def _patch_all(self):
         from contextlib import ExitStack
+
         stack = ExitStack()
         for mod in ["router", "auth_routes", "user_routes", "roles"]:
             stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
@@ -143,6 +140,7 @@ class TestApiKeyModel:
         with self._patch_all():
             token = self._register_and_login(client, "keyadmin@test.com")
             from modules.credit.user_routes import _users
+
             _users["keyadmin@test.com"]["role"] = "admin"
 
             resp = client.post(
@@ -159,6 +157,7 @@ class TestApiKeyModel:
         with self._patch_all():
             token = self._register_and_login(client, "revokeadmin@test.com")
             from modules.credit.user_routes import _users
+
             _users["revokeadmin@test.com"]["role"] = "admin"
 
             create_resp = client.post(
@@ -180,6 +179,7 @@ class TestApiKeyModel:
         with self._patch_all():
             token = self._register_and_login(client, "revoke404@test.com")
             from modules.credit.user_routes import _users
+
             _users["revoke404@test.com"]["role"] = "admin"
 
             resp = client.delete(
@@ -193,6 +193,7 @@ class TestApiKeyModel:
         with self._patch_all():
             token = self._register_and_login(client, "expadmin@test.com")
             from modules.credit.user_routes import _users
+
             _users["expadmin@test.com"]["role"] = "admin"
 
             resp = client.post(

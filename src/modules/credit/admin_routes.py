@@ -35,13 +35,21 @@ def list_users() -> list[dict]:
     from .user_routes import _users
 
     return [
-        {"email": email, "role": u.get("role", "viewer"), "is_active": u.get("is_active", True)}
+        {
+            "email": email,
+            "role": u.get("role", "viewer"),
+            "is_active": u.get("is_active", True),
+        }
         for email, u in _users.items()
     ]
 
 
-@router.post("/api-keys", response_model=ApiKeyResponse, status_code=201,
-             dependencies=[Depends(require_role(Role.ADMIN))])
+@router.post(
+    "/api-keys",
+    response_model=ApiKeyResponse,
+    status_code=201,
+    dependencies=[Depends(require_role(Role.ADMIN))],
+)
 def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
     """Create a scoped API key for an organization. Admin only."""
     key = secrets.token_urlsafe(32)
@@ -57,8 +65,7 @@ def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
     )
 
 
-@router.delete("/api-keys/{api_key}",
-               dependencies=[Depends(require_role(Role.ADMIN))])
+@router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])
 def revoke_api_key(api_key: str) -> dict:
     """Revoke an API key. Admin only."""
     if api_key not in _api_keys:

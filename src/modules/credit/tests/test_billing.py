@@ -109,7 +109,9 @@ class TestCreateCheckoutSession:
 
     @patch("modules.credit.billing.stripe")
     def test_checkout_sets_correct_mode(self, mock_stripe):
-        mock_stripe.checkout.Session.create.return_value = MagicMock(url="https://x.com")
+        mock_stripe.checkout.Session.create.return_value = MagicMock(
+            url="https://x.com"
+        )
         from modules.credit.billing import create_checkout_session
 
         create_checkout_session(
@@ -136,7 +138,9 @@ class TestRecordUsage:
 
     @patch("modules.credit.billing.stripe")
     def test_records_usage_graceful_on_error(self, mock_stripe):
-        mock_stripe.SubscriptionItem.create_usage_record.side_effect = Exception("API error")
+        mock_stripe.SubscriptionItem.create_usage_record.side_effect = Exception(
+            "API error"
+        )
         from modules.credit.billing import record_usage
 
         # Should not raise
@@ -150,7 +154,9 @@ class TestWebhookHandler:
     def test_webhook_verifies_signature(self, mock_stripe):
         mock_stripe.Webhook.construct_event.return_value = {
             "type": "checkout.session.completed",
-            "data": {"object": {"customer_email": "user@test.com", "subscription": "sub_123"}},
+            "data": {
+                "object": {"customer_email": "user@test.com", "subscription": "sub_123"}
+            },
         }
         from modules.credit.billing import handle_webhook
 
@@ -164,7 +170,9 @@ class TestWebhookHandler:
 
     @patch("modules.credit.billing.stripe")
     def test_webhook_rejects_invalid_signature(self, mock_stripe):
-        mock_stripe.Webhook.construct_event.side_effect = ValueError("Invalid signature")
+        mock_stripe.Webhook.construct_event.side_effect = ValueError(
+            "Invalid signature"
+        )
         from modules.credit.billing import handle_webhook
 
         result = handle_webhook(
@@ -181,7 +189,7 @@ class TestWebhookHandler:
         from modules.credit.billing import handle_webhook
 
         result = handle_webhook(
-            payload=b'{}', sig_header="sig", webhook_secret="whsec_test"
+            payload=b"{}", sig_header="sig", webhook_secret="whsec_test"
         )
         assert result["status"] == "processed"
 
@@ -194,7 +202,7 @@ class TestWebhookHandler:
         from modules.credit.billing import handle_webhook
 
         result = handle_webhook(
-            payload=b'{}', sig_header="sig", webhook_secret="whsec_test"
+            payload=b"{}", sig_header="sig", webhook_secret="whsec_test"
         )
         assert result["status"] == "processed"
 

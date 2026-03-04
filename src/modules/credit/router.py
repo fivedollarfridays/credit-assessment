@@ -15,7 +15,12 @@ from .database import check_db_health, create_engine, get_session_factory
 from .logging_config import configure_logging
 from .observability import setup_observability
 from .rate_limit import RateLimitHeaderMiddleware, limiter, register_rate_limit_handler
-from .middleware import DeprecationMiddleware, HstsMiddleware, HttpsRedirectMiddleware, RequestIdMiddleware
+from .middleware import (
+    DeprecationMiddleware,
+    HstsMiddleware,
+    HttpsRedirectMiddleware,
+    RequestIdMiddleware,
+)
 from .models_db import Base
 from .repository import AssessmentRepository
 from .types import CreditAssessmentResult, CreditProfile

@@ -162,7 +162,10 @@ class TestRedisBackend:
 
         with mock_patch(
             "modules.credit.rate_limit.Limiter",
-            side_effect=[Exception("connection refused"), Limiter(key_func=get_remote_address)],
+            side_effect=[
+                Exception("connection refused"),
+                Limiter(key_func=get_remote_address),
+            ],
         ):
             lim = create_limiter(redis_url="redis://nonexistent:6379")
             assert lim is not None
