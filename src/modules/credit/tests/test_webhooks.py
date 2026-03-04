@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import time
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
