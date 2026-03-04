@@ -133,6 +133,17 @@ class TestTokenRefresh:
             )
             assert resp.status_code == 401
 
+    def test_refresh_with_api_key_returns_401(self):
+        """Refreshing with an API key instead of JWT returns 401."""
+        client = _get_client()
+        with _patch_settings():
+            resp = client.post(
+                "/auth/refresh",
+                headers={"X-API-Key": "legacy-api-key"},
+            )
+            assert resp.status_code == 401
+            assert resp.json()["detail"] == "Cannot refresh API key"
+
 
 class TestLegacyApiKeyCompat:
     """Test that legacy API key still works alongside JWT."""

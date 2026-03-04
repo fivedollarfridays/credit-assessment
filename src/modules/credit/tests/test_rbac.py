@@ -100,6 +100,28 @@ class TestRoleEnforcement:
             assert resp.status_code == 401
             assert resp.json()["detail"] == "Invalid or expired token"
 
+    def test_api_key_rejected_on_role_restricted_endpoint(self):
+        """API key users cannot access role-restricted endpoints."""
+        settings_with_key = Settings(jwt_secret="test-secret", api_key="test-api-key")
+        client = _get_client()
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
+            stack.enter_context(
+                patch(f"modules.credit.{mod}.settings", settings_with_key)
+            )
+        with stack:
+            resp = client.get(
+                "/admin/users",
+                headers={"X-API-Key": "test-api-key"},
+            )
+            assert resp.status_code == 403
+            assert (
+                resp.json()["detail"]
+                == "API key users cannot access role-restricted endpoints"
+            )
+
     def test_valid_token_unknown_user_returns_401(self):
         client = _get_client()
         with self._patch_all():
@@ -204,6 +226,58 @@ class TestApiKeyModel:
             assert resp.status_code == 201
             data = resp.json()
             assert "expires_at" in data
+
+
+class TestApiKeyEviction:
+    """Test that _api_keys store is bounded via FIFO eviction."""
+
+    def _register_and_login(self, client, email, password="Secret123!"):
+        client.post("/auth/register", json={"email": email, "password": password})
+        resp = client.post("/auth/login", json={"email": email, "password": password})
+        return resp.json()["access_token"]
+
+    def _patch_all(self):
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
+            stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
+        return stack
+
+    def test_create_api_key_evicts_oldest_when_over_cap(self):
+        """Creating an API key when at cap evicts the oldest entry."""
+        from modules.credit.admin_routes import _MAX_API_KEYS, _api_keys
+
+        saved = dict(_api_keys)
+        _api_keys.clear()
+        # Pre-fill to exactly the cap
+        for i in range(_MAX_API_KEYS):
+            _api_keys[f"prefill-{i}"] = {
+                "org_id": "org-x",
+                "role": "viewer",
+                "expires_at": None,
+            }
+        assert len(_api_keys) == _MAX_API_KEYS
+        first_key = next(iter(_api_keys))
+
+        client = _get_client()
+        with self._patch_all():
+            token = self._register_and_login(client, "evictadmin@test.com")
+            from modules.credit.user_routes import _users
+
+            _users["evictadmin@test.com"]["role"] = "admin"
+            resp = client.post(
+                "/admin/api-keys",
+                json={"org_id": "org-evict", "role": "viewer"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert resp.status_code == 201
+            # The oldest key should have been evicted
+            assert first_key not in _api_keys
+            assert len(_api_keys) <= _MAX_API_KEYS
+            _api_keys.clear()
+            _api_keys.update(saved)
+            _users.pop("evictadmin@test.com", None)
 
 
 class TestIsAdmin:
