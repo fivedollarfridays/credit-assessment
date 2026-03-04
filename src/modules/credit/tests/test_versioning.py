@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modules.credit.config import Settings
@@ -24,6 +25,7 @@ def _get_client():
     return TestClient(app)
 
 
+@pytest.mark.usefixtures("bypass_auth")
 class TestVersionedAssess:
     """Test /v1/assess endpoint."""
 
@@ -57,6 +59,7 @@ class TestUnversionedEndpoints:
         assert resp.status_code in (404, 405)
 
 
+@pytest.mark.usefixtures("bypass_auth")
 class TestDeprecationHeader:
     """Test deprecation header on legacy unversioned /assess."""
 

@@ -44,9 +44,10 @@ def admin_headers():
         "role": "admin",
         "org_id": "org-admin",
     }
-    with patch("modules.credit.roles.settings") as ms:
+    with patch("modules.credit.assess_routes.settings") as ms:
         ms.jwt_secret = "test-secret"
         ms.jwt_algorithm = "HS256"
+        ms.api_key = None
         token = create_access_token(
             subject="admin@test.com",
             secret="test-secret",
@@ -55,6 +56,17 @@ def admin_headers():
         )
         yield {"Authorization": f"Bearer {token}"}
     _users.pop("admin@test.com", None)
+
+
+@pytest.fixture
+def bypass_auth():
+    """Override verify_auth to return a fixed test identity."""
+    from modules.credit.assess_routes import verify_auth
+    from modules.credit.router import app
+
+    app.dependency_overrides[verify_auth] = lambda: "test-user"
+    yield
+    app.dependency_overrides.pop(verify_auth, None)
 
 
 @pytest.fixture

@@ -242,9 +242,10 @@ class TestFlagEndpoints:
         resp = client.delete("/v1/flags/missing", headers=admin_headers)
         assert resp.status_code == 404
 
+    @pytest.mark.usefixtures("bypass_auth")
     def test_evaluate_flag_endpoint(self, client):
         create_flag(key="f", enabled=True)
-        resp = client.get("/v1/flags/f/evaluate", headers={"X-API-Key": "test"})
+        resp = client.get("/v1/flags/f/evaluate")
         assert resp.status_code == 200
         assert resp.json()["enabled"] is True
 

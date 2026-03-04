@@ -193,6 +193,25 @@ class TestUpdateCustomer:
         # Not found case with no fields
         assert update_customer("nobody@test.com") is None
 
+    def test_returns_post_mutation_data(self):
+        """Returned dict must reflect state AFTER mutations, not before."""
+        stale = {"email": "a@b.com", "role": "viewer", "is_active": True}
+        fresh = {"email": "a@b.com", "role": "analyst", "is_active": True}
+        call_count = {"n": 0}
+
+        def mock_get_user(email):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return stale
+            return fresh
+
+        with patch("modules.credit.dashboard.get_user", side_effect=mock_get_user):
+            with patch("modules.credit.dashboard.set_user_role"):
+                result = update_customer("a@b.com", role=Role.ANALYST)
+        assert result is not None
+        assert result["role"] == "analyst"
+        assert call_count["n"] == 2
+
 
 # --- System health ---
 
@@ -215,9 +234,10 @@ class TestDashboardEndpoints:
 
     def test_overview_requires_admin(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -236,9 +256,10 @@ class TestDashboardEndpoints:
         _seed_users()
         _seed_subscriptions()
         _seed_assessments()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -258,9 +279,10 @@ class TestDashboardEndpoints:
 
     def test_customers_list_endpoint(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -279,9 +301,10 @@ class TestDashboardEndpoints:
     def test_customer_detail_endpoint(self, client):
         _seed_users()
         _seed_subscriptions()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -299,9 +322,10 @@ class TestDashboardEndpoints:
 
     def test_customer_detail_not_found(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -318,9 +342,10 @@ class TestDashboardEndpoints:
 
     def test_update_customer_endpoint(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -339,9 +364,10 @@ class TestDashboardEndpoints:
 
     def test_delete_customer_endpoint(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -361,9 +387,10 @@ class TestDashboardEndpoints:
 
     def test_health_endpoint(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -381,9 +408,10 @@ class TestDashboardEndpoints:
 
     def test_customer_update_rejects_invalid_role(self, client):
         _seed_users()
-        with patch("modules.credit.roles.settings") as mock_settings:
+        with patch("modules.credit.assess_routes.settings") as mock_settings:
             mock_settings.jwt_secret = "test-secret"
             mock_settings.jwt_algorithm = "HS256"
+            mock_settings.api_key = None
             from modules.credit.auth import create_access_token
 
             token = create_access_token(

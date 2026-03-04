@@ -19,7 +19,7 @@ def _patch_all():
     from contextlib import ExitStack
 
     stack = ExitStack()
-    for mod in ["router", "auth_routes", "user_routes", "roles"]:
+    for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
         stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
     return stack
 

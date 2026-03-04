@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
@@ -15,7 +18,23 @@ from .webhooks import (
     webhook_exists,
 )
 
+_BLOCKED_HOSTNAMES = {"localhost", "0.0.0.0", "0", "127.0.0.1", "::1"}
+# NOTE: Hostname string matching only. DNS-resolved hostnames are not checked
+# (e.g., evil.com -> 127.0.0.1 passes hostname check but is caught by
+# _is_private_ip for raw IP URLs). Full DNS rebinding protection requires
+# async resolution at delivery time.
+
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+
+def _is_private_ip(hostname: str) -> bool:
+    """Return True if hostname is not a globally routable IP."""
+    cleaned = hostname.strip("[]")
+    try:
+        addr = ipaddress.ip_address(cleaned)
+    except ValueError:
+        return False
+    return not addr.is_global or addr.is_multicast
 
 
 class WebhookCreateRequest(BaseModel):
@@ -28,6 +47,12 @@ class WebhookCreateRequest(BaseModel):
     def validate_url(cls, v: str) -> str:
         if not v.startswith(("https://", "http://")):
             raise ValueError("URL must start with https:// or http://")
+        parsed = urlparse(v)
+        hostname = (parsed.hostname or "").lower()
+        if hostname in _BLOCKED_HOSTNAMES:
+            raise ValueError("URL must not point to localhost or internal addresses")
+        if _is_private_ip(hostname):
+            raise ValueError("URL must not point to private or reserved IP addresses")
         return v
 
     @field_validator("secret")

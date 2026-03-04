@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from fastapi.testclient import TestClient
 
 _VALID_PAYLOAD = {
@@ -14,6 +15,7 @@ _VALID_PAYLOAD = {
 }
 
 
+@pytest.mark.usefixtures("bypass_auth")
 class TestAssessmentPersistence:
     """Test that assessments are persisted to the database."""
 

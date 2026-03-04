@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import secrets
+from collections import OrderedDict
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 from .auth import create_access_token
 from .config import settings
@@ -16,7 +18,17 @@ router = APIRouter(prefix="/auth", tags=["users"])
 
 # In-memory user store — replaced by DB repository in production.
 _users: dict[str, dict] = {}
-_reset_tokens: dict[str, str] = {}
+
+_MAX_RESET_TOKENS = 10_000
+_reset_tokens: OrderedDict[str, str] = OrderedDict()
+
+_ALLOWED_UPDATE_FIELDS: frozenset[str] = frozenset({"is_active", "org_id"})
+
+# Precompiled regex patterns for password validation.
+_RE_UPPERCASE = re.compile(r"[A-Z]")
+_RE_LOWERCASE = re.compile(r"[a-z]")
+_RE_DIGIT = re.compile(r"\d")
+_RE_SPECIAL = re.compile(r"[^A-Za-z0-9]")
 
 
 def get_all_users() -> dict[str, dict]:
@@ -34,18 +46,51 @@ def count_users() -> int:
     return len(_users)
 
 
+def validate_password(password: str) -> str:
+    """Validate password complexity. Returns password if valid, raises ValueError otherwise.
+
+    Requirements: min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character.
+    """
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if not _RE_UPPERCASE.search(password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not _RE_LOWERCASE.search(password):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not _RE_DIGIT.search(password):
+        raise ValueError("Password must contain at least one digit")
+    if not _RE_SPECIAL.search(password):
+        raise ValueError("Password must contain at least one special character")
+    return password
+
+
 def update_user(email: str, **fields: object) -> dict | None:
-    """Update user fields by email. Returns updated user dict or None if not found."""
+    """Update user fields by email. Only allowlisted fields are applied."""
     user = _users.get(email)
     if user is None:
         return None
-    user.update(fields)
+    safe_fields = {k: v for k, v in fields.items() if k in _ALLOWED_UPDATE_FIELDS}
+    user.update(safe_fields)
+    return user
+
+
+def set_user_role(email: str, role: Role) -> dict | None:
+    """Set a user's role. Privileged -- callers must enforce admin auth."""
+    user = _users.get(email)
+    if user is None:
+        return None
+    user["role"] = role.value
     return user
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def check_password_complexity(cls, v: str) -> str:
+        return validate_password(v)
 
 
 class RegisterResponse(BaseModel):
@@ -69,12 +114,16 @@ class ResetRequest(BaseModel):
 
 class ResetResponse(BaseModel):
     message: str = "If the email exists, a reset link has been sent"
-    reset_token: str | None = None
 
 
 class ConfirmResetRequest(BaseModel):
     token: str
     new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def check_password_complexity(cls, v: str) -> str:
+        return validate_password(v)
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
@@ -110,11 +159,12 @@ def login(req: LoginRequest) -> LoginResponse:
 @router.post("/reset-password", response_model=ResetResponse)
 def request_reset(req: ResetRequest) -> ResetResponse:
     """Request a password reset. Returns 200 regardless to prevent enumeration."""
-    token = None
     if req.email in _users:
         token = secrets.token_urlsafe(32)
         _reset_tokens[token] = req.email
-    return ResetResponse(reset_token=token)
+        while len(_reset_tokens) > _MAX_RESET_TOKENS:
+            _reset_tokens.popitem(last=False)
+    return ResetResponse()
 
 
 @router.post("/confirm-reset")

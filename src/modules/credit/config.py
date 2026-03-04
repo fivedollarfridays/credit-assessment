@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+_DEFAULT_JWT_SECRET = "change-me-in-production"
+_DEFAULT_PII_PEPPER = "default-pii-pepper"
 
 
 class Settings(BaseSettings):
@@ -15,7 +19,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     database_url: str = "sqlite+aiosqlite:///./credit.db"
-    jwt_secret: str = "change-me-in-production"
+    jwt_secret: str = _DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
     jwt_expiry_minutes: int = 30
     sentry_dsn: str | None = None
@@ -23,11 +27,26 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
+    pii_pepper: str = _DEFAULT_PII_PEPPER
 
     @property
     def is_production(self) -> bool:
         """Check if running in production."""
         return self.environment == "production"
+
+    @model_validator(mode="after")
+    def _validate_production_secrets(self) -> Settings:
+        """Reject insecure defaults in production."""
+        if self.is_production:
+            if self.jwt_secret == _DEFAULT_JWT_SECRET:
+                raise ValueError(
+                    "JWT_SECRET must be set to a secure value in production"
+                )
+            if self.pii_pepper == _DEFAULT_PII_PEPPER:
+                raise ValueError(
+                    "PII_PEPPER must be set to a secure value in production"
+                )
+        return self
 
 
 # Module-level singleton — parsed once, reused everywhere.

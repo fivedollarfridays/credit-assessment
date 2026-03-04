@@ -10,10 +10,10 @@ class TestJwtConfigSettings:
 
     def test_default_jwt_secret(self):
         with patch.dict("os.environ", {}, clear=True):
-            from modules.credit.config import Settings
+            from modules.credit.config import Settings, _DEFAULT_JWT_SECRET
 
             s = Settings()
-            assert s.jwt_secret == "change-me-in-production"
+            assert s.jwt_secret == _DEFAULT_JWT_SECRET
 
     def test_jwt_secret_from_env(self):
         with patch.dict("os.environ", {"JWT_SECRET": "super-secret-key"}):

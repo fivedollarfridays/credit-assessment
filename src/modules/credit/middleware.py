@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 
 import structlog
@@ -10,6 +11,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from .sentry import set_request_id_tag
+
+_REQUEST_ID_PATTERN = re.compile(r"^[a-zA-Z0-9\-]{1,128}$")
 
 _HSTS_VALUE = "max-age=63072000; includeSubDomains; preload"
 
@@ -69,7 +72,11 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         """Generate or propagate request ID."""
-        request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+        client_id = request.headers.get("x-request-id")
+        if client_id is not None and _REQUEST_ID_PATTERN.match(client_id):
+            request_id = client_id
+        else:
+            request_id = str(uuid.uuid4())
 
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)

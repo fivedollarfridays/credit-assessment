@@ -51,7 +51,7 @@ class TestRoleEnforcement:
         from contextlib import ExitStack
 
         stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "roles"]:
+        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
             stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
         return stack
 
@@ -83,12 +83,12 @@ class TestRoleEnforcement:
             )
             assert resp.status_code == 403
 
-    def test_missing_bearer_returns_401(self):
+    def test_missing_bearer_returns_403(self):
         client = _get_client()
         with self._patch_all():
             resp = client.get("/admin/users")
-            assert resp.status_code == 401
-            assert resp.json()["detail"] == "Missing Bearer token"
+            assert resp.status_code == 403
+            assert resp.json()["detail"] == "Invalid or missing credentials"
 
     def test_invalid_token_returns_401(self):
         client = _get_client()
@@ -98,7 +98,7 @@ class TestRoleEnforcement:
                 headers={"Authorization": "Bearer bad-token"},
             )
             assert resp.status_code == 401
-            assert resp.json()["detail"] == "Invalid token"
+            assert resp.json()["detail"] == "Invalid or expired token"
 
     def test_valid_token_unknown_user_returns_401(self):
         client = _get_client()
@@ -131,7 +131,7 @@ class TestApiKeyModel:
         from contextlib import ExitStack
 
         stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "roles"]:
+        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
             stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
         return stack
 
@@ -204,3 +204,27 @@ class TestApiKeyModel:
             assert resp.status_code == 201
             data = resp.json()
             assert "expires_at" in data
+
+
+class TestIsAdmin:
+    """Test is_admin helper function."""
+
+    def test_is_admin_returns_true_for_admin(self):
+        from modules.credit.roles import is_admin
+
+        assert is_admin({"role": "admin"}) is True
+
+    def test_is_admin_returns_false_for_viewer(self):
+        from modules.credit.roles import is_admin
+
+        assert is_admin({"role": "viewer"}) is False
+
+    def test_is_admin_returns_false_for_none(self):
+        from modules.credit.roles import is_admin
+
+        assert is_admin(None) is False
+
+    def test_is_admin_returns_false_for_missing_role(self):
+        from modules.credit.roles import is_admin
+
+        assert is_admin({}) is False

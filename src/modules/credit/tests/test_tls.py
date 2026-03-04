@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 from modules.credit.config import Settings
 
 _DEV_SETTINGS = Settings(environment="development")
-_PROD_SETTINGS = Settings(environment="production")
+_PROD_SETTINGS = Settings(
+    environment="production", jwt_secret="prod-test-secret", pii_pepper="prod-pepper"
+)
 
 
 def _get_client():

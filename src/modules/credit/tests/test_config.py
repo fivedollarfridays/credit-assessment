@@ -2,6 +2,10 @@
 
 from unittest.mock import patch
 
+import pytest
+
+from modules.credit.config import _DEFAULT_JWT_SECRET, _DEFAULT_PII_PEPPER
+
 
 class TestSettingsDefaults:
     """Test Settings class default values."""
@@ -60,7 +64,14 @@ class TestSettingsFromEnv:
             assert s.api_key == "sk-test-123"
 
     def test_environment_from_env(self):
-        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "ENVIRONMENT": "production",
+                "JWT_SECRET": "prod-env-secret",
+                "PII_PEPPER": "prod-pepper",
+            },
+        ):
             from modules.credit.config import Settings
 
             s = Settings()
@@ -98,7 +109,14 @@ class TestSettingsHelpers:
     """Test helper methods on Settings."""
 
     def test_is_production_true(self):
-        with patch.dict("os.environ", {"ENVIRONMENT": "production"}):
+        with patch.dict(
+            "os.environ",
+            {
+                "ENVIRONMENT": "production",
+                "JWT_SECRET": "prod-test-secret",
+                "PII_PEPPER": "prod-pepper",
+            },
+        ):
             from modules.credit.config import Settings
 
             s = Settings()
@@ -133,6 +151,60 @@ class TestDatabaseSettings:
             assert s.database_url == "postgresql+asyncpg://user:pass@localhost/credit"
 
 
+class TestProductionSecretValidation:
+    """JWT secret must not be the default in production."""
+
+    def test_rejects_default_jwt_secret_in_production(self):
+        from pydantic import ValidationError
+
+        from modules.credit.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(environment="production")
+
+    def test_accepts_custom_jwt_secret_in_production(self):
+        from modules.credit.config import Settings
+
+        s = Settings(
+            environment="production",
+            jwt_secret="a-real-secret-key-value",
+            pii_pepper="real-pepper",
+        )
+        assert s.jwt_secret == "a-real-secret-key-value"
+
+    def test_allows_default_jwt_secret_in_development(self):
+        with patch.dict("os.environ", {}, clear=True):
+            from modules.credit.config import Settings
+
+            s = Settings()
+            assert s.jwt_secret == _DEFAULT_JWT_SECRET
+
+
+class TestPiiPepperConfig:
+    """PII pepper must be configurable and validated in production."""
+
+    def test_default_pii_pepper(self):
+        from modules.credit.config import Settings
+
+        s = Settings()
+        assert s.pii_pepper == _DEFAULT_PII_PEPPER
+
+    def test_pii_pepper_from_env(self):
+        with patch.dict("os.environ", {"PII_PEPPER": "custom-pepper"}):
+            from modules.credit.config import Settings
+
+            s = Settings()
+            assert s.pii_pepper == "custom-pepper"
+
+    def test_rejects_default_pii_pepper_in_production(self):
+        from pydantic import ValidationError
+
+        from modules.credit.config import Settings
+
+        with pytest.raises(ValidationError):
+            Settings(environment="production", jwt_secret="real-secret")
+
+
 class TestBackwardCompatFunctions:
     """Test that legacy standalone functions delegate to the settings singleton."""
 
@@ -153,7 +225,9 @@ class TestBackwardCompatFunctions:
     def test_is_production_delegates_to_settings(self):
         from modules.credit.config import Settings, is_production
 
-        mock = Settings(environment="production")
+        mock = Settings(
+            environment="production", jwt_secret="prod-test-secret", pii_pepper="pp"
+        )
         with patch("modules.credit.config.settings", mock):
             assert is_production() is True
 

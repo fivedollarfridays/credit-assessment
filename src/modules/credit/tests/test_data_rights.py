@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modules.credit.config import Settings
@@ -189,6 +190,7 @@ class TestDataRetention:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("bypass_auth")
 class TestDataRightsEndpoints:
     """Tests for GDPR/CCPA API endpoints."""
 
@@ -213,8 +215,8 @@ class TestDataRightsEndpoints:
 
     def test_delete_endpoint_returns_summary(self) -> None:
         client = TestClient(app)
-        data = client.delete("/v1/user/data", params={"user_id": "del-user"}).json()
-        assert data["user_id"] == "del-user"
+        data = client.delete("/v1/user/data", params={"user_id": "test-user"}).json()
+        assert data["user_id"] == "test-user"
         assert "deleted_at" in data
 
     def test_consent_endpoint_records_consent(self) -> None:
@@ -222,26 +224,95 @@ class TestDataRightsEndpoints:
         client = TestClient(app)
         resp = client.post(
             "/v1/user/consent",
-            json={"user_id": "c-user", "consent_version": "1.0"},
+            json={"user_id": "test-user", "consent_version": "1.0"},
         )
         assert resp.status_code == 200
-        assert check_consent(user_id="c-user", consent_version="1.0") is True
+        assert check_consent(user_id="test-user", consent_version="1.0") is True
 
     def test_data_endpoints_require_auth_when_configured(self) -> None:
+        from modules.credit.assess_routes import verify_auth
+
         locked = Settings(api_key="secret-key")
+        # Remove the dependency override so the real verify_auth runs
+        app.dependency_overrides.pop(verify_auth, None)
+        try:
+            client = TestClient(app)
+            with patch("modules.credit.assess_routes.settings", locked):
+                assert client.get("/v1/user/data-export").status_code == 403
+                assert client.delete("/v1/user/data").status_code == 403
+                assert (
+                    client.post(
+                        "/v1/user/consent",
+                        json={"user_id": "x", "consent_version": "1.0"},
+                    ).status_code
+                    == 403
+                )
+        finally:
+            app.dependency_overrides[verify_auth] = lambda: "test-user"
+
+
+# ---------------------------------------------------------------------------
+# Cycle 6: IDOR protection — ownership enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestIdorProtection:
+    """Tests for IDOR protection: users cannot access other users' data."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_users(self):
+        """Set up test users and auth overrides."""
+        from modules.credit.password import hash_password
+        from modules.credit.user_routes import _users
+
+        _users["user-a@test.com"] = {
+            "email": "user-a@test.com",
+            "password_hash": hash_password("Passw0rd!"),
+            "is_active": True,
+            "role": "viewer",
+            "org_id": "org-a",
+        }
+        _users["admin@idor.com"] = {
+            "email": "admin@idor.com",
+            "password_hash": hash_password("Passw0rd!"),
+            "is_active": True,
+            "role": "admin",
+            "org_id": "org-admin",
+        }
+        yield
+        _users.pop("user-a@test.com", None)
+        _users.pop("admin@idor.com", None)
+
+    def _override_identity(self, identity: str):
+        from modules.credit.assess_routes import verify_auth
+
+        app.dependency_overrides[verify_auth] = lambda: identity
+
+    def test_export_rejects_different_user_for_non_admin(self) -> None:
+        self._override_identity("user-a@test.com")
         client = TestClient(app)
-        with patch("modules.credit.assess_routes.settings", locked):
-            assert (
-                client.get("/v1/user/data-export", params={"user_id": "x"}).status_code
-                == 403
-            )
-            assert (
-                client.delete("/v1/user/data", params={"user_id": "x"}).status_code
-                == 403
-            )
-            assert (
-                client.post(
-                    "/v1/user/consent", json={"user_id": "x", "consent_version": "1.0"}
-                ).status_code
-                == 403
-            )
+        resp = client.get("/v1/user/data-export", params={"user_id": "user-b"})
+        assert resp.status_code == 403
+        assert "another user" in resp.json()["detail"].lower()
+
+    def test_export_allows_admin_override(self) -> None:
+        self._override_identity("admin@idor.com")
+        client = TestClient(app)
+        resp = client.get("/v1/user/data-export", params={"user_id": "user-b"})
+        assert resp.status_code == 200
+        assert resp.json()["user_id"] == "user-b"
+
+    def test_delete_rejects_different_user_for_non_admin(self) -> None:
+        self._override_identity("user-a@test.com")
+        client = TestClient(app)
+        resp = client.delete("/v1/user/data", params={"user_id": "user-b"})
+        assert resp.status_code == 403
+
+    def test_consent_rejects_different_user_for_non_admin(self) -> None:
+        self._override_identity("user-a@test.com")
+        client = TestClient(app)
+        resp = client.post(
+            "/v1/user/consent",
+            json={"user_id": "user-b", "consent_version": "1.0"},
+        )
+        assert resp.status_code == 403

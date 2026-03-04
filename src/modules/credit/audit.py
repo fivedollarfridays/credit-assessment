@@ -24,8 +24,8 @@ def reset_audit_trail() -> None:
 
 
 def hash_pii(value: str) -> str:
-    """HMAC-SHA256 hash of a PII value for audit storage."""
-    pepper = getattr(settings, "jwt_secret", "default-pepper")
+    """HMAC-SHA256 hash of a PII value for audit storage using dedicated pepper."""
+    pepper = settings.pii_pepper
     return hmac.new(pepper.encode(), value.encode(), hashlib.sha256).hexdigest()
 
 

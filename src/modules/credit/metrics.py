@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from fastapi import Depends
 from prometheus_fastapi_instrumentator import Instrumentator
+
+from .assess_routes import verify_auth
 
 
 def setup_metrics(app) -> Instrumentator:
@@ -12,5 +15,10 @@ def setup_metrics(app) -> Instrumentator:
         excluded_handlers=["/metrics"],
     )
     instrumentator.instrument(app)
-    instrumentator.expose(app, endpoint="/metrics", include_in_schema=False)
+    instrumentator.expose(
+        app,
+        endpoint="/metrics",
+        include_in_schema=False,
+        dependencies=[Depends(verify_auth)],
+    )
     return instrumentator

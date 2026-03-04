@@ -6,7 +6,13 @@ from .audit import get_audit_trail
 from .billing import count_active_subscriptions, get_subscription
 from .tenant import get_all_assessments, get_org_assessments
 from .roles import Role
-from .user_routes import count_users, get_all_users, get_user, update_user
+from .user_routes import (
+    count_users,
+    get_all_users,
+    get_user,
+    set_user_role,
+    update_user,
+)
 from .webhooks import get_webhooks
 
 
@@ -67,21 +73,18 @@ def update_customer(
     role: Role | None = None,
     is_active: bool | None = None,
 ) -> dict | None:
-    """Update customer fields. Returns updated customer or None if not found."""
-    fields: dict[str, object] = {}
-    if role is not None:
-        fields["role"] = role.value
-    if is_active is not None:
-        fields["is_active"] = is_active
-    if not fields:
-        user = get_user(email)
-        if user is None:
-            return None
-        return {"email": email, "role": user["role"], "is_active": user["is_active"]}
-    user = update_user(email, **fields)
+    """Update customer fields (admin-only). Returns updated customer or None."""
+    user = get_user(email)
     if user is None:
         return None
-    return {"email": email, "role": user["role"], "is_active": user["is_active"]}
+    # Role is a privileged field — use set_user_role (admin context only).
+    if role is not None:
+        set_user_role(email, role)
+    # is_active goes through the public update_user allowlist.
+    if is_active is not None:
+        update_user(email, is_active=is_active)
+    updated = get_user(email)
+    return {"email": email, "role": updated["role"], "is_active": updated["is_active"]}
 
 
 def get_system_health() -> dict:

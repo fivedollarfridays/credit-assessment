@@ -118,11 +118,11 @@ class TestTokenRefresh:
             assert "access_token" in data
             assert data["token_type"] == "bearer"
 
-    def test_refresh_without_bearer_returns_401(self):
+    def test_refresh_without_bearer_returns_403(self):
         client = _get_client()
         with _patch_settings():
             resp = client.post("/auth/refresh")
-            assert resp.status_code == 401
+            assert resp.status_code == 403
 
     def test_refresh_with_invalid_token_returns_401(self):
         client = _get_client()

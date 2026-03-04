@@ -25,25 +25,28 @@ router = APIRouter()
 async def verify_auth(
     request: Request,
     api_key: str | None = Security(_api_key_header),
-) -> None:
-    """Validate JWT Bearer or legacy API key. Skip auth in dev mode."""
+) -> str:
+    """Validate JWT Bearer or API key. Always requires credentials.
+
+    Returns the authenticated identity (email from JWT sub, or 'api-key-user').
+    """
     bearer = extract_bearer_token(request)
     if bearer is not None:
         try:
-            decode_token(
+            payload = decode_token(
                 bearer,
                 secret=settings.jwt_secret,
                 algorithm=settings.jwt_algorithm,
             )
-            return
+            return payload["sub"]
         except InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     expected = settings.api_key
-    if expected is None:
-        return
-    if api_key != expected:
-        raise HTTPException(status_code=403, detail="Invalid or missing API key")
+    if expected is not None and api_key == expected:
+        return "api-key-user"
+
+    raise HTTPException(status_code=403, detail="Invalid or missing credentials")
 
 
 _assessment_service = CreditAssessmentService()

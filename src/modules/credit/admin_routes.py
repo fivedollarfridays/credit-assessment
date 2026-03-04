@@ -14,6 +14,8 @@ from .user_routes import get_all_users
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+_MAX_API_KEYS = 10_000
+
 # In-memory API key store — replaced by DB in production.
 _api_keys: dict[str, dict] = {}
 
@@ -29,6 +31,23 @@ class ApiKeyResponse(BaseModel):
     org_id: str
     role: str
     expires_at: str | None = None
+
+
+def lookup_api_key(key: str) -> dict | None:
+    """Look up an API key and verify it has not expired.
+
+    TODO: Wire into verify_auth() to enforce expiration on requests.
+    Currently only callable directly -- verify_auth uses settings.api_key
+    string comparison. Tracked for Sprint 11.
+    """
+    entry = _api_keys.get(key)
+    if entry is None:
+        return None
+    expires_at = entry.get("expires_at")
+    if expires_at is not None and expires_at < datetime.now(timezone.utc):
+        del _api_keys[key]  # Lazy deletion
+        return None
+    return entry
 
 
 @router.get("/users", dependencies=[Depends(require_role(Role.ADMIN))])
@@ -57,6 +76,9 @@ def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
     if req.expires_in_days is not None:
         expires_at = datetime.now(timezone.utc) + timedelta(days=req.expires_in_days)
     _api_keys[key] = {"org_id": req.org_id, "role": req.role, "expires_at": expires_at}
+    # Evict oldest entries if over cap
+    while len(_api_keys) > _MAX_API_KEYS:
+        _api_keys.pop(next(iter(_api_keys)))
     return ApiKeyResponse(
         api_key=key,
         org_id=req.org_id,

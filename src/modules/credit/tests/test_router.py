@@ -38,6 +38,7 @@ class TestHealthEndpoint:
         assert response.json()["status"] == "ok"
 
 
+@pytest.mark.usefixtures("bypass_auth")
 class TestAssessEndpoint:
     """Test POST /assess."""
 
