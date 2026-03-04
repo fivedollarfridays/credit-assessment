@@ -19,6 +19,30 @@ _users: dict[str, dict] = {}
 _reset_tokens: dict[str, str] = {}
 
 
+def get_all_users() -> dict[str, dict]:
+    """Return a copy of all users keyed by email."""
+    return dict(_users)
+
+
+def get_user(email: str) -> dict | None:
+    """Get a user by email. Returns None if not found."""
+    return _users.get(email)
+
+
+def count_users() -> int:
+    """Return the number of registered users."""
+    return len(_users)
+
+
+def update_user(email: str, **fields: object) -> dict | None:
+    """Update user fields by email. Returns updated user dict or None if not found."""
+    user = _users.get(email)
+    if user is None:
+        return None
+    user.update(fields)
+    return user
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str

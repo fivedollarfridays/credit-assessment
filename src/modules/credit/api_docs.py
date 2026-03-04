@@ -88,8 +88,8 @@ _INTEGRATION_GUIDE: dict = {
     ),
     "rate_limiting": (
         "Rate limits are applied per subscription tier: "
-        "FREE: 30/minute, STARTER: 30/minute, PRO: 30/minute, "
-        "ENTERPRISE: 30/minute (configurable). "
+        "FREE: 10/minute, STARTER: 60/minute, PRO: 300/minute, "
+        "ENTERPRISE: unlimited. "
         "Response headers include X-RateLimit-Limit, X-RateLimit-Remaining, "
         "and X-RateLimit-Reset."
     ),

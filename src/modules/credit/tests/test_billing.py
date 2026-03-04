@@ -270,3 +270,38 @@ class TestSubscriptionStore:
         assert sub["plan"] == "pro"
         # Clean up
         _subscriptions.pop("known@test.com", None)
+
+    def test_list_subscriptions_empty(self):
+        from modules.credit.billing import _subscriptions, list_subscriptions
+
+        _subscriptions.clear()
+        assert list_subscriptions() == {}
+
+    def test_list_subscriptions_returns_all(self):
+        from modules.credit.billing import (
+            _subscriptions,
+            list_subscriptions,
+            update_subscription,
+        )
+
+        _subscriptions.clear()
+        update_subscription("a@test.com", "sub_1", "active", "pro")
+        update_subscription("b@test.com", "sub_2", "canceled", "starter")
+        result = list_subscriptions()
+        assert len(result) == 2
+        assert "a@test.com" in result
+        assert "b@test.com" in result
+        _subscriptions.clear()
+
+    def test_count_active_subscriptions(self):
+        from modules.credit.billing import (
+            _subscriptions,
+            count_active_subscriptions,
+            update_subscription,
+        )
+
+        _subscriptions.clear()
+        update_subscription("a@test.com", "sub_1", "active", "pro")
+        update_subscription("b@test.com", "sub_2", "canceled", "starter")
+        assert count_active_subscriptions() == 1
+        _subscriptions.clear()

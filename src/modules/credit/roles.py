@@ -23,7 +23,7 @@ def require_role(*allowed: Role):
     allowed_values = {r.value for r in allowed}
 
     def _check(request: Request) -> str:
-        from .user_routes import _users
+        from .user_routes import get_user
 
         bearer = extract_bearer_token(request)
         if bearer is None:
@@ -36,7 +36,7 @@ def require_role(*allowed: Role):
             raise HTTPException(status_code=401, detail="Invalid token")
 
         email = payload["sub"]
-        user = _users.get(email)
+        user = get_user(email)
         if user is None:
             raise HTTPException(status_code=401, detail="User not found")
 

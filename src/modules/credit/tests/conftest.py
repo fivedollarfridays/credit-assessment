@@ -1,5 +1,7 @@
 """Shared fixtures for credit module tests."""
 
+from unittest.mock import patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,6 +28,33 @@ def client() -> TestClient:
     from modules.credit.router import app
 
     return TestClient(app)
+
+
+@pytest.fixture
+def admin_headers():
+    """Create admin user, patch JWT settings, and return auth headers."""
+    from modules.credit.auth import create_access_token
+    from modules.credit.password import hash_password
+    from modules.credit.user_routes import _users
+
+    _users["admin@test.com"] = {
+        "email": "admin@test.com",
+        "password_hash": hash_password("pw"),
+        "is_active": True,
+        "role": "admin",
+        "org_id": "org-admin",
+    }
+    with patch("modules.credit.roles.settings") as ms:
+        ms.jwt_secret = "test-secret"
+        ms.jwt_algorithm = "HS256"
+        token = create_access_token(
+            subject="admin@test.com",
+            secret="test-secret",
+            algorithm="HS256",
+            expire_minutes=30,
+        )
+        yield {"Authorization": f"Bearer {token}"}
+    _users.pop("admin@test.com", None)
 
 
 @pytest.fixture

@@ -42,6 +42,16 @@ def get_subscription(email: str) -> dict | None:
     return _subscriptions.get(email)
 
 
+def list_subscriptions() -> dict[str, dict]:
+    """Return all subscriptions keyed by email."""
+    return dict(_subscriptions)
+
+
+def count_active_subscriptions() -> int:
+    """Count subscriptions with status 'active'."""
+    return sum(1 for s in _subscriptions.values() if s.get("status") == "active")
+
+
 def create_checkout_session(
     *,
     customer_email: str,

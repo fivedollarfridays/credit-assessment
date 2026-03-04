@@ -158,3 +158,50 @@ class TestPasswordReset:
             json={"email": "reset2@example.com", "password": "NewPass456!"},
         )
         assert resp.status_code == 200
+
+
+class TestUserStorePublicAPIs:
+    """Test public accessor functions for user store."""
+
+    def test_get_all_users_empty(self):
+        from modules.credit.user_routes import _users, get_all_users
+
+        saved = dict(_users)
+        _users.clear()
+        assert get_all_users() == {}
+        _users.update(saved)
+
+    def test_get_all_users_returns_copy(self):
+        from modules.credit.user_routes import _users, get_all_users
+
+        _users["test@x.com"] = {"email": "test@x.com", "role": "viewer"}
+        result = get_all_users()
+        assert "test@x.com" in result
+        # Verify the outer dict is a copy (adding/removing keys doesn't affect original)
+        del result["test@x.com"]
+        assert "test@x.com" in _users
+        _users.pop("test@x.com", None)
+
+    def test_get_user_found(self):
+        from modules.credit.user_routes import _users, get_user
+
+        _users["found@x.com"] = {"email": "found@x.com", "role": "viewer"}
+        assert get_user("found@x.com") is not None
+        assert get_user("found@x.com")["email"] == "found@x.com"
+        _users.pop("found@x.com", None)
+
+    def test_get_user_not_found(self):
+        from modules.credit.user_routes import get_user
+
+        assert get_user("nobody@x.com") is None
+
+    def test_count_users(self):
+        from modules.credit.user_routes import _users, count_users
+
+        saved = dict(_users)
+        _users.clear()
+        assert count_users() == 0
+        _users["a@x.com"] = {"email": "a@x.com"}
+        assert count_users() == 1
+        _users.clear()
+        _users.update(saved)

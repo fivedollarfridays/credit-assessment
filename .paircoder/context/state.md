@@ -6,11 +6,11 @@
 
 **Plan:** plan-2026-03-plan-saas-readiness
 **Status:** Planned
-**Current Sprint:** 5
+**Current Sprint:** 8
 
 ## Current Focus
 
-Production operations: load testing, blue/green deploys, alerting, backup/DR, and runbooks.
+Code review fixes from Sprint 7. All must-fix and should-fix items addressed.
 
 ## Task Status
 
@@ -69,10 +69,19 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T7.1 | SDK/client libraries | P2 | 50 | Pending |
-| T7.2 | Webhook system | P2 | 45 | Pending |
-| T7.3 | Dashboard/admin UI | P2 | 70 | Pending |
-| T7.4 | Feature flags | P2 | 30 | Pending |
+| T7.1 | SDK/client libraries | P2 | 50 | ✓ Done |
+| T7.2 | Webhook system | P2 | 45 | ✓ Done |
+| T7.3 | Dashboard/admin UI | P2 | 70 | ✓ Done |
+| T7.4 | Feature flags | P2 | 30 | ✓ Done |
+
+### Sprint 8 — Code Review Fixes (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T8.1 | Webhook fixes: logic bug, webhook_exists(), asyncio.gather safety | P0 | 25 | ✓ Done |
+| T8.2 | Dashboard decoupling: public APIs, eliminate private store imports | P0 | 35 | ✓ Done |
+| T8.3 | Type safety: RuleType enum, Role enum, type annotations | P0 | 20 | ✓ Done |
+| T8.4 | Feature flag robustness: duplicate guard, ValueError handling, conftest | P1 | 20 | ✓ Done |
 
 ### Completed Plans
 
@@ -81,6 +90,57 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 | plan-2026-03-launch-readiness | Launch Readiness | 5/5 Done |
 
 ## What Was Just Done
+
+### Session: 2026-03-04 — Sprint 8: Code Review Fixes (T8.1-T8.4)
+
+- **T8.1**: Fixed webhook_deliveries logic bug (double `get_delivery_log` call + private `_webhooks` import). Added `webhook_exists()` public API. Added `return_exceptions=True` to `asyncio.gather` with `DeliveryRecord` filtering. Endpoint now returns 404 for unknown webhook IDs.
+- **T8.2**: Decoupled dashboard.py from private stores. Added `list_subscriptions()`, `count_active_subscriptions()` to billing.py. Added `get_all_users()`, `get_user()`, `count_users()` to user_routes.py. Rewrote dashboard.py with zero private imports + extracted `_build_customer_info` helper.
+- **T8.3**: Changed `TargetingRuleModel.type` from `str` to `RuleType` enum (422 on invalid). Changed `CustomerUpdate.role` from `str` to `Role` enum (422 on invalid). Added type annotation to `_to_response`.
+- **T8.4**: Added duplicate key guard to `create_flag` (raises `ValueError`). Added `try/except` for invalid percentage values. Added 409 response for duplicate flag creation. Extracted `admin_headers` fixture to conftest.py.
+- 661 tests passing, 0 arch violations, all formatting clean.
+- **Sprint 8 complete!** All 4 code review fix tasks done.
+
+- **T7.4 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T7.4: Feature flags — gradual rollouts
+
+- Created `feature_flags.py`: `FeatureFlag` and `TargetingRule` dataclasses, CRUD operations (create/get/update/delete), `evaluate_flag()` with org/user/percentage targeting, deterministic percentage bucketing via MD5 hash
+- Created `flag_routes.py`: `POST /v1/flags` (create), `GET /v1/flags` (list), `PUT /v1/flags/{key}` (update), `DELETE /v1/flags/{key}` (remove) — admin-only; `GET /v1/flags/{key}/evaluate` — auth-required evaluation endpoint
+- Percentage targeting is deterministic per user (same user always gets same result)
+- Performance test confirms evaluation < 1ms (1000 iterations)
+- 27 new tests in test_feature_flags.py, 649 total tests passing, 0 arch violations
+- **Sprint 7 complete!** All 4 tasks done (T7.1-T7.4). All 30 SaaS readiness tasks complete.
+
+- **T7.3 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T7.3: Dashboard/admin UI — usage analytics
+
+- Created `dashboard.py`: `get_usage_overview()` (total users, assessments, active subs), `get_customer_list()` (enriched with plan/org/assessment count), `get_customer_detail()`, `update_customer()` (role/active toggle), `get_system_health()` (users, audit entries, webhooks)
+- Created `dashboard_routes.py`: `GET /v1/dashboard/overview`, `GET /v1/dashboard/customers`, `GET /v1/dashboard/customers/{email}`, `PUT /v1/dashboard/customers/{email}`, `DELETE /v1/dashboard/customers/{email}` (soft delete), `GET /v1/dashboard/health` — all admin-only via `require_role(Role.ADMIN)`
+- Created `static/dashboard.html`: responsive HTML dashboard with JWT login, stat cards, customer table (with revoke action), health details, auto-refresh every 30s
+- Extracted `disclosures_routes.py` from router.py to fix import count violation (21→20)
+- Consolidated `database` and `logging_config` to module-level imports in router.py
+- 21 new tests in test_dashboard.py, 622 total tests passing, 0 arch violations
+
+- **T7.2 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T7.2: Webhook system — async event notifications
+
+- Created `webhooks.py`: `EventType` enum (assessment.completed, subscription.updated, rate_limit.warning), `WebhookRegistration` dataclass, `compute_signature()` (HMAC-SHA256), `deliver_event()` async delivery with signature headers, `next_retry_delay()` exponential backoff (2^n capped at 300s), in-memory delivery log
+- Created `webhook_routes.py`: `POST /v1/webhooks` (register), `GET /v1/webhooks` (list), `GET /v1/webhooks/{id}/deliveries` (delivery log), `DELETE /v1/webhooks/{id}` (remove)
+- 25 new tests in test_webhooks.py covering: event types, registration, HMAC signatures, delivery success/failure/skip, retry logic, delivery log, all API endpoints
+- 601 total tests passing, 0 arch violations
+
+- **T7.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — T7.1: SDK/client libraries (Python, JavaScript, Go)
+
+- **Python SDK** (`sdks/python/`): httpx-based typed client, ApiKeyAuth/BearerAuth helpers, dataclass models (AccountSummary, CreditProfile, AssessmentResult), exception hierarchy (ApiError, AuthenticationError, RateLimitError, ValidationError). 19 tests pass.
+- **JavaScript SDK** (`sdks/javascript/`): TypeScript with strict mode, fetch-based async client, typed models with camelCase→snake_case serialization, error classes extending Error. 21 tests pass (vitest).
+- **Go SDK** (`sdks/go/`): Idiomatic Go client with functional options (WithAuth, WithTimeout), struct JSON tags for snake_case, error types with Unwrap() for errors.As/Is, httptest-based integration tests. 19 tests pass.
+- **CI workflow** (`.github/workflows/sdk-ci.yml`): Runs Python pytest, TypeScript tsc + vitest, Go test on push/PR to main when sdks/ changes.
+- All 3 SDKs include auth helpers, typed models, and proper error handling.
+- 576 main project tests + 19 Python SDK + 21 JS SDK + 19 Go SDK = 635 total tests passing.
 
 ### Session: 2026-03-04 — Code review fixes (all findings)
 
@@ -405,7 +465,7 @@ Production operations: load testing, blue/green deploys, alerting, backup/DR, an
 
 ## What's Next
 
-Sprint 6 complete! All compliance & documentation tasks done (T6.1-T6.5). Next: Sprint 7 — Growth (T7.1-T7.4: SDK/client libraries, webhook system, dashboard/admin UI, feature flags).
+Sprint 8 complete! All code review findings addressed. 661 tests passing, 0 arch violations. Ready for final review or next sprint planning.
 
 
 ## Blockers

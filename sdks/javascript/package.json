@@ -1,0 +1,20 @@
+{
+  "name": "credit-assessment-client",
+  "version": "1.0.0",
+  "description": "TypeScript/JavaScript SDK for the Credit Assessment API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.4",
+    "vitest": "^3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

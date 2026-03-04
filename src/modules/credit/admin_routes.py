@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from .audit import get_audit_trail
 from .roles import Role, require_role
+from .user_routes import get_all_users
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -33,15 +34,13 @@ class ApiKeyResponse(BaseModel):
 @router.get("/users", dependencies=[Depends(require_role(Role.ADMIN))])
 def list_users() -> list[dict]:
     """List all registered users. Admin only."""
-    from .user_routes import _users
-
     return [
         {
             "email": email,
             "role": u.get("role", Role.VIEWER.value),
             "is_active": u.get("is_active", True),
         }
-        for email, u in _users.items()
+        for email, u in get_all_users().items()
     ]
 
 

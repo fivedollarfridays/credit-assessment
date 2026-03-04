@@ -6,17 +6,18 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .admin_routes import router as admin_router
-from .api_docs import API_DESCRIPTION, API_TAGS
+from .dashboard_routes import dashboard_page_router, router as dashboard_router
 from .assess_routes import router as assess_router
 from .auth_routes import router as auth_router
 from .data_rights_routes import router as data_rights_router
-from .disclosures import get_disclosures
+from .disclosures_routes import router as disclosures_router
 from .docs_routes import router as docs_router
+from .flag_routes import router as flag_router
 from .legal_routes import router as legal_router
 from .user_routes import router as user_router
+from .webhook_routes import router as webhook_router
 from .config import settings
-from .database import check_db_health, create_engine, get_session_factory
-from .logging_config import configure_logging
+from . import api_docs, database, logging_config
 from .observability import setup_observability
 from .rate_limit import RateLimitHeaderMiddleware, limiter, register_rate_limit_handler
 from .middleware import (
@@ -31,11 +32,13 @@ from .models_db import Base
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
-    configure_logging(json_output=settings.is_production, log_level=settings.log_level)
-    engine = create_engine(settings.database_url)
+    logging_config.configure_logging(
+        json_output=settings.is_production, log_level=settings.log_level
+    )
+    engine = database.create_engine(settings.database_url)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    app.state.db_session_factory = get_session_factory(engine)
+    app.state.db_session_factory = database.get_session_factory(engine)
     yield
     await engine.dispose()
 
@@ -43,8 +46,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Credit Assessment API",
     version="1.0.0",
-    description=API_DESCRIPTION,
-    openapi_tags=API_TAGS,
+    description=api_docs.API_DESCRIPTION,
+    openapi_tags=api_docs.API_TAGS,
     lifespan=lifespan,
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
@@ -65,6 +68,10 @@ v1_router.include_router(legal_router)
 v1_router.include_router(data_rights_router)
 v1_router.include_router(docs_router)
 v1_router.include_router(assess_router)
+v1_router.include_router(webhook_router)
+v1_router.include_router(dashboard_router)
+v1_router.include_router(disclosures_router)
+v1_router.include_router(flag_router)
 
 # Legacy unversioned routers
 app.include_router(auth_router)
@@ -73,13 +80,14 @@ app.include_router(admin_router)
 app.include_router(legal_router)
 app.include_router(data_rights_router)
 app.include_router(docs_router)
+app.include_router(disclosures_router)
 app.include_router(assess_router, deprecated=True)
 register_rate_limit_handler(app)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
 app.add_middleware(RequestIdMiddleware)
@@ -105,7 +113,7 @@ async def ready(request: Request) -> dict:
     factory = getattr(request.app.state, "db_session_factory", None)
     if factory is not None:
         try:
-            await check_db_health(factory)
+            await database.check_db_health(factory)
             checks["database"] = "ok"
         except Exception:
             checks["database"] = "unavailable"
@@ -113,17 +121,6 @@ async def ready(request: Request) -> dict:
     return checks
 
 
-@app.get("/disclosures")
-def disclosures() -> dict:
-    """Return FCRA Section 505 disclosures and legal notices."""
-    return get_disclosures()
-
-
-@v1_router.get("/disclosures")
-def v1_disclosures() -> dict:
-    """Return FCRA Section 505 disclosures and legal notices (v1)."""
-    return get_disclosures()
-
-
 # Include v1 router after all v1 routes are defined
 app.include_router(v1_router)
+app.include_router(dashboard_page_router)

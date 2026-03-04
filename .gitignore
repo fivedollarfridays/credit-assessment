@@ -19,6 +19,9 @@ agent_pack.tgz
 .coverage
 htmlcov/
 
+# Node
+node_modules/
+
 # PairCoder — ephemeral/session data
 .paircoder/routing_decision_*.json
 .paircoder/time-tracking-cache.json
