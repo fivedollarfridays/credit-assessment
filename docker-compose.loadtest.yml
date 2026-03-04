@@ -1,0 +1,28 @@
+services:
+  api:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - API_KEY=${API_KEY:-test-key}
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  locust:
+    image: locustio/locust:latest
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./loadtests:/mnt/locust:ro
+    command: -f /mnt/locust/locustfile.py --host http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy

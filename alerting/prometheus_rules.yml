@@ -1,0 +1,37 @@
+groups:
+  - name: credit_assessment
+    rules:
+      - alert: HighErrorRate
+        expr: >
+          rate(http_requests_total{status=~"5.."}[5m])
+          / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate exceeds 5% over 5 minutes"
+          runbook_url: "/docs/runbooks/service-outage.md"
+
+      - alert: HighLatencyP95
+        expr: >
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High p95 latency detected"
+          description: "p95 latency exceeds 500ms over 5 minutes"
+          runbook_url: "/docs/runbooks/service-outage.md"
+
+      - alert: HealthCheckFailure
+        expr: up{job="credit-assessment"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Health check is failing"
+          description: "Credit assessment service is down"
+          runbook_url: "/docs/runbooks/service-outage.md"

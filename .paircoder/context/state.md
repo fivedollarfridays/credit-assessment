@@ -1,16 +1,16 @@
 # Current State
 
-> Last updated: 2026-03-03
+> Last updated: 2026-03-04
 
 ## Active Plan
 
 **Plan:** plan-2026-03-plan-saas-readiness
 **Status:** Planned
-**Current Sprint:** 2
+**Current Sprint:** 5
 
 ## Current Focus
 
-SaaS readiness: containerize, add CI/CD, structured logging, env management, and documentation.
+Production operations: load testing, blue/green deploys, alerting, backup/DR, and runbooks.
 
 ## Task Status
 
@@ -49,11 +49,11 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T5.1 | Load testing — Locust/K6 scripts | P1 | 35 | Pending |
-| T5.2 | Blue/green deploys | P0 | 50 | Pending |
-| T5.3 | Alerting — PagerDuty/Opsgenie | P1 | 35 | Pending |
-| T5.4 | Backup and disaster recovery | P0 | 45 | Pending |
-| T5.5 | Runbooks — incident response | P2 | 20 | Pending |
+| T5.1 | Load testing — Locust/K6 scripts | P1 | 35 | ✓ Done |
+| T5.2 | Blue/green deploys | P0 | 50 | ✓ Done |
+| T5.3 | Alerting — PagerDuty/Opsgenie | P1 | 35 | ✓ Done |
+| T5.4 | Backup and disaster recovery | P0 | 45 | ✓ Done |
+| T5.5 | Runbooks — incident response | P2 | 20 | ✓ Done |
 
 ### Sprint 6 — Phase 5: Compliance & Documentation (Weeks 11-12)
 
@@ -81,6 +81,55 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 | plan-2026-03-launch-readiness | Launch Readiness | 5/5 Done |
 
 ## What Was Just Done
+
+- **T5.5 done** (auto-updated by hook)
+- **T5.4 done** (auto-updated by hook)
+- **T5.3 done** (auto-updated by hook)
+- **T5.2 done** (auto-updated by hook)
+- **T5.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 — Sprint 5: Production Operations (T5.1-T5.5)
+
+- **T5.1**: Locust load test scripts for /health and /v1/assess, docker-compose.loadtest.yml, AST-based tests
+- **T5.2**: Blue/green deploy utilities (deploy.py), graceful shutdown (SIGTERM), health validation, deploy/rollback scripts
+- **T5.3**: AlertRule dataclass, AlertSeverity enum, Prometheus alerting rules, Alertmanager config with PagerDuty/Slack
+- **T5.4**: BackupConfig/RetentionPolicy dataclasses, retention logic, backup/restore shell scripts
+- **T5.5**: Runbooks for service outage, database recovery, deployment rollback, security incident
+- T5.1-T5.4 implemented in parallel (4 worktree agents), T5.5 done sequentially
+- 454 tests total, 100% coverage, 0 arch errors
+- **Sprint 5 complete!** All 5 tasks done.
+
+- **T5.1 done**
+
+### Session: 2026-03-03 — T5.1: Load testing — Locust/K6 scripts
+
+- Created `loadtests/locustfile.py`: `CreditApiUser(HttpUser)` with `health_check` (weight 1) and `assess` (weight 3) tasks
+- `health_check` hits `GET /health`, `assess` hits `POST /v1/assess` with sample profile payload and X-API-Key header
+- Created `docker-compose.loadtest.yml`: `api` service (app) + `locust` service (locustio/locust image, port 8089)
+- Added `locust>=2.0` to dev dependencies in pyproject.toml
+- 15 tests in test_loadtest.py using AST-based verification (avoids gevent monkey-patching conflicts with asyncio suite)
+- 389 total passing, 100% coverage, 0 arch errors
+
+- **T5.3 done**
+
+### Session: 2026-03-03 — T5.3: Alerting — PagerDuty/Opsgenie
+
+- Created `alerting.py`: `AlertSeverity` enum (CRITICAL/WARNING/INFO), `AlertRule` dataclass, 3 default rules (high_error_rate, high_latency_p95, health_check_failure)
+- `get_alert_rules()` returns copy of default rules, `check_error_rate()` and `check_latency()` for threshold evaluation
+- Created `alerting/prometheus_rules.yml`: HighErrorRate (>5%, 2m), HighLatencyP95 (>500ms, 5m), HealthCheckFailure (up==0, 1m) with runbook annotations
+- Created `alerting/alertmanager.yml`: route critical to PagerDuty, warnings to Slack, default webhook receiver
+- Escalation policies: critical alerts route to PagerDuty, warning alerts route to Slack channel
+- 27 new tests in test_alerting.py, 401 total passing, 100% coverage, 0 arch errors
+
+- **T5.4 done**
+
+### Session: 2026-03-03 — T5.4: Backup and disaster recovery
+
+- Created `backup.py`: `RetentionPolicy` (daily=7, weekly=4, monthly=12), `BackupConfig` (validates database_url), `get_backup_filename()` (UTC timestamp), `should_retain()` (tiered retention logic)
+- Created `scripts/backup.sh`: automated `pg_dump | gzip` backup with cron-ready header
+- Created `scripts/restore.sh`: `gunzip | psql` restore with file-existence check
+- Both scripts are executable and document RTO/RPO < 1 hour
+- 22 new tests in test_backup.py, 396 total passing, 100% coverage on backup.py, 0 arch errors
 
 - **T4.6 done** (auto-updated by hook)
 
@@ -279,7 +328,7 @@ SaaS readiness: containerize, add CI/CD, structured logging, env management, and
 
 ## What's Next
 
-Sprint 4 complete (6/6 tasks). Next: Sprint 5 — Production Operations (T5.1-T5.5).
+Sprint 5 complete (5/5 tasks). Next: Sprint 6 — Compliance & Documentation (T6.1-T6.5).
 
 
 ## Blockers

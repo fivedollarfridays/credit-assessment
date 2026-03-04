@@ -1,0 +1,50 @@
+# Blue/green deployment overlay for docker-compose.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.deploy.yml up
+services:
+  api-blue:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8001:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_KEY=${API_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://credit:credit@db:5432/credit}
+      - DEPLOY_SLOT=blue
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  api-green:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8002:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_KEY=${API_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://credit:credit@db:5432/credit}
+      - DEPLOY_SLOT=green
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
