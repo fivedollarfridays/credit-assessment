@@ -23,9 +23,7 @@ _RE_DIGIT = re.compile(r"\d")
 _RE_SPECIAL = re.compile(r"[^A-Za-z0-9]")
 
 
-def create_user(
-    email: str, *, password_hash: str, role: str, org_id: str
-) -> dict:
+def create_user(email: str, *, password_hash: str, role: str, org_id: str) -> dict:
     """Create a new user. Raises ValueError if email already registered."""
     if email in _users:
         raise ValueError("Email already registered")

@@ -174,7 +174,9 @@ class TestDelivery:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
-        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
+        with patch(
+            "modules.credit.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -195,7 +197,9 @@ class TestDelivery:
             events=[EventType.SUBSCRIPTION_UPDATED],
             secret="s",
         )
-        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
+        with patch(
+            "modules.credit.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -216,7 +220,9 @@ class TestDelivery:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 500
-        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
+        with patch(
+            "modules.credit.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -262,7 +268,9 @@ class TestDeliveryLog:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
-        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
+        with patch(
+            "modules.credit.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)

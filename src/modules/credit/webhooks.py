@@ -80,9 +80,7 @@ def webhook_exists(webhook_id: str) -> bool:
 
 def get_subscribed_webhooks(event_type: EventType) -> list[WebhookRegistration]:
     """Return active webhooks subscribed to the given event type."""
-    return [
-        wh for wh in _webhooks.values() if event_type in wh.events and wh.is_active
-    ]
+    return [wh for wh in _webhooks.values() if event_type in wh.events and wh.is_active]
 
 
 def delete_webhook(webhook_id: str) -> bool:
