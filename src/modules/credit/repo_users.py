@@ -51,13 +51,6 @@ class UserRepository:
         await self._session.commit()
         return result.rowcount > 0
 
-    async def update_fields(self, email: str, **fields) -> bool:
-        result = await self._session.execute(
-            update(User).where(User.email == email).values(**fields)
-        )
-        await self._session.commit()
-        return result.rowcount > 0
-
     async def delete_by_email(self, email: str) -> bool:
         result = await self._session.execute(delete(User).where(User.email == email))
         await self._session.commit()

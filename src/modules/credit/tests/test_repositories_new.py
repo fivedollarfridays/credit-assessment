@@ -360,14 +360,14 @@ class TestFeatureFlagRepository:
 
         asyncio.run(_run())
 
-    def test_update(self, db_factory):
+    def test_set_enabled(self, db_factory):
         from modules.credit.repo_flags import FeatureFlagRepository
 
         async def _run():
             async with db_factory() as s:
                 repo = FeatureFlagRepository(s)
                 await repo.create(key="f1", description="", enabled=False)
-                updated = await repo.update("f1", enabled=True)
+                updated = await repo.set_enabled("f1", enabled=True)
                 assert updated is True
                 flag = await repo.get("f1")
                 assert flag.enabled is True

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models_db import AssessmentRecord, AuditLog
@@ -42,10 +42,12 @@ class AssessmentRepository:
         """Retrieve an assessment record by ID, or None if not found."""
         return await self._session.get(AssessmentRecord, record_id)
 
-    async def list_assessments(self) -> list[AssessmentRecord]:
-        """Return all assessment records ordered by creation time."""
+    async def list_assessments(self, *, limit: int = 100) -> list[AssessmentRecord]:
+        """Return assessment records ordered by creation time."""
         result = await self._session.execute(
-            select(AssessmentRecord).order_by(AssessmentRecord.created_at.desc())
+            select(AssessmentRecord)
+            .order_by(AssessmentRecord.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 
@@ -80,8 +82,6 @@ class AuditRepository:
 
     async def count(self) -> int:
         """Count total audit entries."""
-        from sqlalchemy import func
-
         result = await self._session.execute(select(func.count(AuditLog.id)))
         return result.scalar_one()
 

@@ -94,10 +94,13 @@ class WebhookDeliveryRepository:
         await self._session.refresh(entry)
         return entry
 
-    async def get_by_webhook(self, webhook_id: str) -> list[WebhookDeliveryDB]:
+    async def get_by_webhook(
+        self, webhook_id: str, *, limit: int = 100
+    ) -> list[WebhookDeliveryDB]:
         result = await self._session.execute(
             select(WebhookDeliveryDB)
             .where(WebhookDeliveryDB.webhook_id == webhook_id)
             .order_by(WebhookDeliveryDB.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())

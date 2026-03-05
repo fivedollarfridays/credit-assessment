@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models_db import FeatureFlagDB
@@ -37,9 +38,11 @@ class FeatureFlagRepository:
         result = await self._session.execute(select(FeatureFlagDB))
         return list(result.scalars().all())
 
-    async def update(self, key: str, **fields) -> bool:
+    async def set_enabled(self, key: str, *, enabled: bool) -> bool:
         result = await self._session.execute(
-            update(FeatureFlagDB).where(FeatureFlagDB.key == key).values(**fields)
+            sa_update(FeatureFlagDB)
+            .where(FeatureFlagDB.key == key)
+            .values(enabled=enabled)
         )
         await self._session.commit()
         return result.rowcount > 0
