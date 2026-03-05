@@ -57,7 +57,9 @@ class TestInferItemType:
     def test_collection_classified(self):
         from modules.credit.types import NegativeItemType, _infer_item_type
 
-        assert _infer_item_type("collection_medical_2500") == NegativeItemType.COLLECTION
+        assert (
+            _infer_item_type("collection_medical_2500") == NegativeItemType.COLLECTION
+        )
 
     def test_late_payment_classified(self):
         from modules.credit.types import NegativeItemType, _infer_item_type
@@ -72,7 +74,10 @@ class TestInferItemType:
     def test_identity_theft_classified(self):
         from modules.credit.types import NegativeItemType, _infer_item_type
 
-        assert _infer_item_type("identity_theft_account") == NegativeItemType.IDENTITY_THEFT
+        assert (
+            _infer_item_type("identity_theft_account")
+            == NegativeItemType.IDENTITY_THEFT
+        )
 
     def test_unknown_defaults_to_late_payment(self):
         from modules.credit.types import NegativeItemType, _infer_item_type

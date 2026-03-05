@@ -217,7 +217,9 @@ class TestDisputePathwayStructuredItems:
         gen = DisputePathwayGenerator()
         pathway = gen.generate_pathway(profile)
         assert len(pathway.steps) >= 1
-        collection_steps = [s for s in pathway.steps if "collection" in s.action.lower()]
+        collection_steps = [
+            s for s in pathway.steps if "collection" in s.action.lower()
+        ]
         assert len(collection_steps) >= 1
         assert "FDCPA" in collection_steps[0].legal_basis
 

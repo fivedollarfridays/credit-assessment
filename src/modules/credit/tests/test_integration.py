@@ -62,7 +62,9 @@ class TestCoverageGaps:
     def test_infer_wrong_balance(self):
         from modules.credit.types import NegativeItemType, _infer_item_type
 
-        assert _infer_item_type("wrong_balance_on_card") == NegativeItemType.WRONG_BALANCE
+        assert (
+            _infer_item_type("wrong_balance_on_card") == NegativeItemType.WRONG_BALANCE
+        )
 
     def test_infer_obsolete_item(self):
         from modules.credit.types import NegativeItemType, _infer_item_type
