@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-sprint-17
+**Plan:** plan-2026-03-sprint-18
 **Status:** Pending
-**Current Sprint:** 17
+**Current Sprint:** 18
 
 ## Current Focus
 
-Production readiness roadmap planned (Sprints 17-20). Sprint 16 complete. Ready to start Sprint 17.
+Sprint 17 complete (database foundation). Ready for Sprint 18 (auth & security hardening).
 
 ## Task Status
 
@@ -155,9 +155,9 @@ Production readiness roadmap planned (Sprints 17-20). Sprint 16 complete. Ready 
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T17.1 | Expand ORM models with missing tables and columns | P0 | 55 | Pending |
-| T17.2 | Initialize Alembic migrations with initial schema | P0 | 35 | Pending |
-| T17.3 | Create repository classes for all new models | P0 | 60 | Pending |
+| T17.1 | Expand ORM models with missing tables and columns | P0 | 55 | ✓ Done |
+| T17.2 | Initialize Alembic migrations with initial schema | P0 | 35 | ✓ Done |
+| T17.3 | Create repository classes for all new models | P0 | 60 | ✓ Done |
 
 ### Sprint 18 — Auth & Security Hardening (Feature)
 
@@ -185,6 +185,19 @@ Production readiness roadmap planned (Sprints 17-20). Sprint 16 complete. Ready 
 | T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | Pending |
 
 ## What Was Just Done
+
+- **T17.3 done** (auto-updated by hook)
+
+- **T17.2 done** (auto-updated by hook)
+
+- **T17.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 17: Database Foundation (T17.1-T17.3)
+
+- **T17.1**: Expanded models_db.py with 9 new/updated ORM models: User (added role, org_id), AssessmentRecord (added user_id, org_id), AuditLog (added user_id_hash, org_id), Subscription, ConsentRecord, UserAssessment, ResetToken, WebhookRegistrationDB, WebhookDeliveryDB, ApiKeyDB, FeatureFlagDB. 10 model tests.
+- **T17.2**: Alembic migrations working — 3 migration scripts (initial → schema expansion → user_assessments+reset_tokens). Full upgrade/downgrade/upgrade lifecycle verified.
+- **T17.3**: Created 8 repository modules (repo_users.py, repo_billing.py, repo_data_rights.py, repo_webhooks.py, repo_api_keys.py, repo_flags.py) + expanded AuditRepository with count/list_by_action. 28 repository tests. All files under 400 lines, 0 arch violations.
+- 835 tests passing, 0 ruff issues.
 
 - **T16.1 done** (auto-updated by hook)
 

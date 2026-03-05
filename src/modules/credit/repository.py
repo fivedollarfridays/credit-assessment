@@ -57,11 +57,39 @@ class AuditRepository:
         self._session = session
 
     async def log_action(
-        self, *, action: str, resource: str, detail: dict | None = None
+        self,
+        *,
+        action: str,
+        resource: str,
+        detail: dict | None = None,
+        user_id_hash: str | None = None,
+        org_id: str | None = None,
     ) -> AuditLog:
         """Create an audit log entry."""
-        entry = AuditLog(action=action, resource=resource, detail=detail)
+        entry = AuditLog(
+            action=action,
+            resource=resource,
+            detail=detail,
+            user_id_hash=user_id_hash,
+            org_id=org_id,
+        )
         self._session.add(entry)
         await self._session.commit()
         await self._session.refresh(entry)
         return entry
+
+    async def count(self) -> int:
+        """Count total audit entries."""
+        from sqlalchemy import func
+
+        result = await self._session.execute(select(func.count(AuditLog.id)))
+        return result.scalar_one()
+
+    async def list_by_action(self, action: str) -> list[AuditLog]:
+        """Return audit entries filtered by action."""
+        result = await self._session.execute(
+            select(AuditLog)
+            .where(AuditLog.action == action)
+            .order_by(AuditLog.created_at.desc())
+        )
+        return list(result.scalars().all())
