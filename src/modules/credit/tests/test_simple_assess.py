@@ -130,6 +130,16 @@ class TestSimpleAssessEndpoint:
         assert resp.status_code == 422
 
 
+class TestScoreToBand:
+    """Unit tests for _score_to_band helper."""
+
+    def test_out_of_range_raises(self):
+        from modules.credit.assess_routes import _score_to_band
+
+        with pytest.raises(ValueError, match="out of range"):
+            _score_to_band(200)
+
+
 class TestSimpleAssessAuth:
     """Auth is required for /v1/assess/simple."""
 

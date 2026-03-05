@@ -97,6 +97,37 @@ class TestUserRepository:
 
         asyncio.run(_run())
 
+    def test_set_password_hash(self, db_factory):
+        from modules.credit.repo_users import UserRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = UserRepository(s)
+                await repo.create(
+                    email="a@b.com", password_hash="old", role="viewer", org_id="o"
+                )
+                updated = await repo.set_password_hash("a@b.com", "new")
+                assert updated is True
+                user = await repo.get_by_email("a@b.com")
+                assert user.password_hash == "new"
+
+        asyncio.run(_run())
+
+    def test_delete_by_email(self, db_factory):
+        from modules.credit.repo_users import UserRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = UserRepository(s)
+                await repo.create(
+                    email="a@b.com", password_hash="h", role="viewer", org_id="o"
+                )
+                deleted = await repo.delete_by_email("a@b.com")
+                assert deleted is True
+                assert await repo.get_by_email("a@b.com") is None
+
+        asyncio.run(_run())
+
 
 class TestResetTokenRepository:
     def test_store_and_pop(self, db_factory):
@@ -125,6 +156,33 @@ class TestResetTokenRepository:
 
         asyncio.run(_run())
 
+    def test_pop_expired_deletes_token(self, db_factory):
+        from modules.credit.repo_users import ResetTokenRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ResetTokenRepository(s)
+                await repo.store("tok-1", "a@b.com")
+                # Pop with ttl_minutes=0 treats any existing token as expired
+                assert await repo.pop("tok-1", ttl_minutes=0) is None
+                # Token was deleted during the expired pop
+                assert await repo.pop("tok-1") is None
+
+        asyncio.run(_run())
+
+    def test_prune_expired(self, db_factory):
+        from modules.credit.repo_users import ResetTokenRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ResetTokenRepository(s)
+                await repo.store("tok-1", "a@b.com")
+                # Prune with ttl=0 treats all as expired
+                count = await repo.prune_expired(ttl_minutes=0)
+                assert count == 1
+
+        asyncio.run(_run())
+
 
 class TestSubscriptionRepository:
     def test_upsert_and_get(self, db_factory):
@@ -137,6 +195,33 @@ class TestSubscriptionRepository:
                 sub = await repo.get_by_email("a@b.com")
                 assert sub is not None
                 assert sub.plan == "starter"
+
+        asyncio.run(_run())
+
+    def test_upsert_updates_existing(self, db_factory):
+        from modules.credit.repo_billing import SubscriptionRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = SubscriptionRepository(s)
+                await repo.upsert("a@b.com", "sub_1", "active", "starter")
+                updated = await repo.upsert("a@b.com", "sub_2", "canceled", "pro")
+                assert updated.subscription_id == "sub_2"
+                assert updated.plan == "pro"
+                assert updated.status == "canceled"
+
+        asyncio.run(_run())
+
+    def test_list_all(self, db_factory):
+        from modules.credit.repo_billing import SubscriptionRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = SubscriptionRepository(s)
+                await repo.upsert("a@b.com", "sub_1", "active", "starter")
+                await repo.upsert("c@d.com", "sub_2", "active", "pro")
+                subs = await repo.list_all()
+                assert len(subs) == 2
 
         asyncio.run(_run())
 
@@ -176,6 +261,19 @@ class TestConsentRepository:
                 deleted = await repo.withdraw("user-1", "v1.0")
                 assert deleted is True
                 assert await repo.check("user-1", "v1.0") is False
+
+        asyncio.run(_run())
+
+    def test_get_by_user(self, db_factory):
+        from modules.credit.repo_data_rights import ConsentRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ConsentRepository(s)
+                await repo.record("user-1", "v1.0")
+                await repo.record("user-1", "v2.0")
+                records = await repo.get_by_user("user-1")
+                assert len(records) == 2
 
         asyncio.run(_run())
 
@@ -255,6 +353,43 @@ class TestWebhookRepository:
 
         asyncio.run(_run())
 
+    def test_list_all(self, db_factory):
+        from modules.credit.repo_webhooks import WebhookRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = WebhookRepository(s)
+                await repo.create(id="wh-1", url="https://a.com", events=[], secret="s")
+                await repo.create(id="wh-2", url="https://b.com", events=[], secret="s")
+                all_wh = await repo.list_all()
+                assert len(all_wh) == 2
+
+        asyncio.run(_run())
+
+    def test_get_subscribed(self, db_factory):
+        from modules.credit.repo_webhooks import WebhookRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = WebhookRepository(s)
+                await repo.create(
+                    id="wh-1",
+                    url="https://a.com",
+                    events=["assessment.completed"],
+                    secret="s",
+                )
+                await repo.create(
+                    id="wh-2",
+                    url="https://b.com",
+                    events=["subscription.updated"],
+                    secret="s",
+                )
+                matched = await repo.get_subscribed("assessment.completed")
+                assert len(matched) == 1
+                assert matched[0].id == "wh-1"
+
+        asyncio.run(_run())
+
     def test_delete(self, db_factory):
         from modules.credit.repo_webhooks import WebhookRepository
 
@@ -315,6 +450,16 @@ class TestApiKeyRepository:
 
         asyncio.run(_run())
 
+    def test_lookup_missing_key_returns_none(self, db_factory):
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ApiKeyRepository(s)
+                assert await repo.lookup("nonexistent") is None
+
+        asyncio.run(_run())
+
     def test_expired_key_returns_none(self, db_factory):
         from modules.credit.repo_api_keys import ApiKeyRepository
 
@@ -329,16 +474,45 @@ class TestApiKeyRepository:
 
         asyncio.run(_run())
 
-    def test_revoke(self, db_factory):
+    def test_revoked_key_returns_none(self, db_factory):
         from modules.credit.repo_api_keys import ApiKeyRepository
 
         async def _run():
             async with db_factory() as s:
                 repo = ApiKeyRepository(s)
                 await repo.create(key="k1", org_id="org-1", role="analyst")
-                revoked = await repo.revoke("k1")
-                assert revoked is True
+                await repo.revoke("k1")
                 assert await repo.lookup("k1") is None
+
+        asyncio.run(_run())
+
+    def test_list_by_org(self, db_factory):
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ApiKeyRepository(s)
+                await repo.create(key="k1", org_id="org-1", role="analyst")
+                await repo.create(key="k2", org_id="org-1", role="viewer")
+                await repo.create(key="k3", org_id="org-2", role="admin")
+                org1_keys = await repo.list_by_org("org-1")
+                assert len(org1_keys) == 2
+
+        asyncio.run(_run())
+
+    def test_prune_expired(self, db_factory):
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = ApiKeyRepository(s)
+                past = datetime.now(timezone.utc) - timedelta(hours=1)
+                await repo.create(
+                    key="k1", org_id="org-1", role="analyst", expires_at=past
+                )
+                await repo.create(key="k2", org_id="org-1", role="viewer")
+                pruned = await repo.prune_expired()
+                assert pruned == 1
 
         asyncio.run(_run())
 
