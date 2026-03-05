@@ -20,13 +20,16 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
-pip install -e ".[dev]"
+make install
+
+# Set up pre-commit hooks
+pre-commit install
 
 # Run tests
-coverage run -m pytest src/modules/credit/tests/ -v
+make test
 
 # Start the development server
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+make dev
 ```
 
 ## API Reference
@@ -42,10 +45,12 @@ Returns `{"status": "ok"}`.
 ### Credit Assessment
 
 ```
-POST /assess
+POST /v1/assess
 Content-Type: application/json
-X-API-Key: your-api-key  (required if API_KEY env var is set)
+X-API-Key: your-api-key
 ```
+
+> **Note:** The legacy `POST /assess` endpoint still works but is deprecated. Use `/v1/assess`.
 
 **Request:**
 
@@ -110,7 +115,10 @@ X-API-Key: your-api-key  (required if API_KEY env var is set)
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `API_KEY` | API authentication key (empty = auth disabled) | _(none)_ |
+| `JWT_SECRET` | JWT signing secret | `change-me-in-production` |
 | `ENVIRONMENT` | Deployment environment | `development` |
+| `DATABASE_URL` | Database connection string | `sqlite+aiosqlite:///./credit.db` |
+| `REDIS_URL` | Redis URL for rate limiting | _(none, falls back to in-memory)_ |
 | `CORS_ORIGINS` | Allowed CORS origins (JSON array) | `["http://localhost:3000"]` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `HOST` | Server bind address | `0.0.0.0` |
@@ -122,14 +130,28 @@ Copy `.env.example` to `.env` for local configuration:
 cp .env.example .env
 ```
 
+## Make Targets
+
+```bash
+make install   # Install dependencies
+make dev       # Start dev server (port 8000)
+make test      # Run tests
+make coverage  # Run tests with coverage report
+make lint      # Run linter
+make fmt       # Auto-format code
+make check     # Run all checks (lint + format + tests)
+make docker    # Build Docker image
+make clean     # Remove build artifacts
+```
+
 ## Testing
 
 ```bash
-# Run all tests
-coverage run -m pytest src/modules/credit/tests/ -v
+# Run all tests (787+, 100% coverage)
+make test
 
-# Check coverage (must be 100%)
-coverage report --show-missing
+# Run with coverage report
+make coverage
 
 # Run specific test file
 pytest src/modules/credit/tests/test_assessment.py -v
@@ -139,16 +161,33 @@ pytest src/modules/credit/tests/test_assessment.py -v
 
 ```
 src/modules/credit/
-  types.py             # Domain models, enums, constants (Pydantic v2)
-  config.py            # Settings class (pydantic-settings)
-  assessment.py        # Credit scoring engine
-  dispute_pathway.py   # Legal dispute pathway generator
-  router.py            # FastAPI endpoints (/health, /assess)
-  logging_config.py    # Structured logging (structlog)
-  middleware.py        # Request ID middleware
-  tests/               # 220+ tests, 100% coverage
+  config.py              # Settings (pydantic-settings)
+  router.py              # FastAPI app + route mounting
+  auth.py                # JWT tokens, API key auth
+  auth_routes.py         # /auth/token, /auth/refresh
+  user_store.py          # User data-access layer
+  user_routes.py         # Registration, login, password reset
+  roles.py               # RBAC (admin/analyst/viewer)
+  assess_routes.py       # POST /v1/assess endpoint
+  assessment.py          # Credit scoring engine
+  dispute_pathway.py     # Legal dispute pathway generator
+  tenant.py              # Multi-tenant org isolation
+  billing.py             # Stripe billing integration
+  rate_limit.py          # Per-customer rate limiting
+  webhooks.py            # Webhook registration CRUD
+  webhook_delivery.py    # Webhook delivery + HMAC signatures
+  feature_flags.py       # Gradual rollout flags
+  audit.py               # Compliance audit trail
+  data_rights.py         # GDPR/CCPA data handling
+  dashboard.py           # Admin usage analytics
+  middleware.py          # Request IDs, HSTS, HTTPS redirect
+  metrics.py             # Prometheus instrumentation
+  database.py            # SQLAlchemy async engine
+  models_db.py           # ORM models
+  repository.py          # Database repositories
+  tests/                 # 787+ tests, 100% coverage
 ```
 
 ## License
 
-TBD
+MIT License. See [LICENSE](LICENSE).
