@@ -4,21 +4,6 @@ from unittest.mock import MagicMock, patch
 
 from modules.credit.config import Settings
 
-_BILLING_SETTINGS = Settings(
-    jwt_secret="test-secret",
-    api_key=None,
-    stripe_secret_key="sk_test_fake",
-    stripe_webhook_secret="whsec_test_fake",
-)
-
-
-def _get_client():
-    from fastapi.testclient import TestClient
-
-    from modules.credit.router import app
-
-    return TestClient(app)
-
 
 class TestBillingPlanEnum:
     """Test BillingPlan enum values."""

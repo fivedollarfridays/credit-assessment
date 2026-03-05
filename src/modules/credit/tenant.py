@@ -63,6 +63,20 @@ def count_org_assessments(org_id: str) -> int:
     return len(_org_assessments.get(org_id, []))
 
 
+def delete_user_org_assessments(user_id: str) -> int:
+    """Delete all org assessments for a user. Returns count deleted."""
+    deleted = 0
+    for org_id in list(_org_assessments):
+        before = len(_org_assessments[org_id])
+        _org_assessments[org_id] = [
+            a for a in _org_assessments[org_id] if a.get("user_id") != user_id
+        ]
+        deleted += before - len(_org_assessments[org_id])
+        if not _org_assessments[org_id]:
+            del _org_assessments[org_id]
+    return deleted
+
+
 def get_all_assessments() -> list[dict]:
     """Get all assessments across all orgs. Admin only."""
     result = []

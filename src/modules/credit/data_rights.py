@@ -79,7 +79,7 @@ def export_user_data(user_id: str) -> dict:
 
 def delete_user_data(user_id: str) -> dict:
     """Delete all data for a user (GDPR Article 17 / CCPA right to delete)."""
-    from .tenant import _org_assessments
+    from .tenant import delete_user_org_assessments
 
     consent_keys = [k for k in _consent_records if k.startswith(f"{user_id}:")]
     for key in consent_keys:
@@ -88,18 +88,7 @@ def delete_user_data(user_id: str) -> dict:
     assessments = _user_assessments.pop(user_id, [])
 
     # Also remove from org-scoped store (GDPR completeness).
-    # Scans all orgs because users may have cross-org assessments.
-    # O(orgs × assessments-per-org) is acceptable for the in-memory MVP store.
-    # When migrating to a DB, scope to the user's known org(s) via index.
-    org_deleted = 0
-    for org_id in list(_org_assessments):
-        before = len(_org_assessments[org_id])
-        _org_assessments[org_id] = [
-            a for a in _org_assessments[org_id] if a.get("user_id") != user_id
-        ]
-        org_deleted += before - len(_org_assessments[org_id])
-        if not _org_assessments[org_id]:
-            del _org_assessments[org_id]
+    org_deleted = delete_user_org_assessments(user_id)
 
     return {
         "user_id": user_id,

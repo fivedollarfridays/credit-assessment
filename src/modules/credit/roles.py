@@ -7,7 +7,7 @@ import enum
 from fastapi import HTTPException, Request, Security
 
 from .assess_routes import verify_auth
-from .auth import API_KEY_IDENTITY, _api_key_header
+from .auth import API_KEY_IDENTITY, api_key_header
 
 
 class Role(str, enum.Enum):
@@ -31,7 +31,7 @@ def require_role(*allowed: Role):
 
     async def _check(
         request: Request,
-        api_key: str | None = Security(_api_key_header),
+        api_key: str | None = Security(api_key_header),
     ) -> str:
         from .user_routes import get_user
 

@@ -16,7 +16,7 @@ from .config import settings
 API_KEY_IDENTITY = "api-key-user"
 
 # Shared API key header dependency (single definition for the whole app).
-_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 class InvalidTokenError(Exception):

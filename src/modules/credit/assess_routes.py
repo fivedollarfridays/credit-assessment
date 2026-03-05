@@ -13,7 +13,7 @@ from .assessment import CreditAssessmentService
 from .auth import (
     API_KEY_IDENTITY,
     InvalidTokenError,
-    _api_key_header,
+    api_key_header,
     decode_token,
     extract_bearer_token,
 )
@@ -27,7 +27,7 @@ router = APIRouter()
 
 async def verify_auth(
     request: Request,
-    api_key: str | None = Security(_api_key_header),
+    api_key: str | None = Security(api_key_header),
 ) -> str:
     """Validate JWT Bearer or API key. Always requires credentials.
 

@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-Sprint 13: Code Review Fixes (Sprint 12 Review)
+**Plan:** plan-2026-03-Sprint 14: Code Review Fixes (Sprint 13 Review)
 **Status:** Complete
-**Current Sprint:** 13
+**Current Sprint:** 14
 
 ## Current Focus
 
-Sprint 13 complete. All 2 tasks done (T13.1, T13.2). Ready for commit.
+Sprint 14 complete. All 2 tasks done (T14.1, T14.2). Ready for commit.
 
 ## Task Status
 
@@ -130,7 +130,24 @@ Sprint 13 complete. All 2 tasks done (T13.1, T13.2). Ready for commit.
 | T13.1 | Test helper cleanup: missed files + deduplication | P1 | 50 | ✓ Done |
 | T13.2 | Code quality: audit invariant comment + GDPR org-scope doc + unbounded store docs | P1 | 20 | ✓ Done |
 
+### Sprint 14 — Code Review Fixes (Sprint 13 Review)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T14.1 | Test infrastructure: admin_headers fix, dead code, deduplication | P1 | 40 | ✓ Done |
+| T14.2 | Encapsulate tenant store mutation + rename api_key_header | P1 | 30 | ✓ Done |
+
 ## What Was Just Done
+
+- **T14.2 done** (auto-updated by hook)
+
+- **T14.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 14: Code Review Fixes (Sprint 13 Review)
+
+- **T14.1**: Fixed `admin_headers` fixture to use `patch_auth_settings(_TEST_SETTINGS)` (patches 4 auth modules instead of just assess_routes). Added login status assertion to `register_and_login`. Removed dead `_BILLING_SETTINGS` and `_get_client()` from test_billing.py. Replaced duplicate `_SETTINGS`/`_VALID_PAYLOAD` in test_versioning.py and test_rate_limiting.py with conftest imports. Updated stale TODO in admin_routes.py.
+- **T14.2**: Added `delete_user_org_assessments(user_id)` to tenant.py; data_rights.py now calls it instead of directly mutating `_org_assessments`. Renamed `_api_key_header` → `api_key_header` in auth.py, assess_routes.py, roles.py, test_auth_consolidation.py.
+- 777 tests passing, 0 ruff issues.
 
 - **T13.2 done** (auto-updated by hook)
 

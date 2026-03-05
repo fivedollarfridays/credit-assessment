@@ -22,6 +22,7 @@ def register_and_login(
     """Register a user and return their JWT token."""
     client.post("/auth/register", json={"email": email, "password": password})
     resp = client.post("/auth/login", json={"email": email, "password": password})
+    assert resp.status_code == 200, f"Login failed: {resp.text}"
     return resp.json()["access_token"]
 
 
@@ -67,14 +68,11 @@ def admin_headers():
         "role": "admin",
         "org_id": "org-admin",
     }
-    with patch("modules.credit.assess_routes.settings") as ms:
-        ms.jwt_secret = "test-secret"
-        ms.jwt_algorithm = "HS256"
-        ms.api_key = None
+    with patch_auth_settings(_TEST_SETTINGS):
         token = create_access_token(
             subject="admin@test.com",
-            secret="test-secret",
-            algorithm="HS256",
+            secret=_TEST_SETTINGS.jwt_secret,
+            algorithm=_TEST_SETTINGS.jwt_algorithm,
             expire_minutes=30,
         )
         yield {"Authorization": f"Bearer {token}"}

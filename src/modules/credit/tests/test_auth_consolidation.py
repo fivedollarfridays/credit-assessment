@@ -27,22 +27,22 @@ class TestApiKeyIdentityConstant:
 
 
 # ---------------------------------------------------------------------------
-# Cycle 2: _api_key_header singleton
+# Cycle 2: api_key_header singleton
 # ---------------------------------------------------------------------------
 
 
 class TestApiKeyHeaderSingleton:
-    """_api_key_header must be defined once in auth.py."""
+    """api_key_header must be defined once in auth.py."""
 
-    def test_api_key_header_exists(self):
-        from modules.credit.auth import _api_key_header
+    def testapi_key_header_exists(self):
+        from modules.credit.auth import api_key_header
 
-        assert _api_key_header is not None
+        assert api_key_header is not None
 
-    def test_api_key_header_name(self):
-        from modules.credit.auth import _api_key_header
+    def testapi_key_header_name(self):
+        from modules.credit.auth import api_key_header
 
-        assert _api_key_header.model.name == "X-API-Key"
+        assert api_key_header.model.name == "X-API-Key"
 
 
 # ---------------------------------------------------------------------------

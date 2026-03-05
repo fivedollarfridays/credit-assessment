@@ -5,17 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from modules.credit.config import Settings
-
-_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
-
-_VALID_PAYLOAD = {
-    "current_score": 740,
-    "score_band": "good",
-    "overall_utilization": 20.0,
-    "account_summary": {"total_accounts": 8, "open_accounts": 6},
-    "payment_history_pct": 98.0,
-    "average_account_age_months": 72,
-}
+from modules.credit.tests.conftest import VALID_ASSESS_PAYLOAD, _TEST_SETTINGS
 
 
 def _get_client():
@@ -82,20 +72,20 @@ class TestRateLimitHeaders:
 
     def test_response_includes_rate_limit_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert "X-RateLimit-Limit" in resp.headers
 
     def test_response_includes_remaining_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert "X-RateLimit-Remaining" in resp.headers
 
     def test_response_includes_reset_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert "X-RateLimit-Reset" in resp.headers
 
 

@@ -39,7 +39,7 @@ def lookup_api_key(key: str) -> dict | None:
 
     TODO: Wire into verify_auth() to enforce expiration on requests.
     Currently only callable directly -- verify_auth uses settings.api_key
-    string comparison. Tracked for Sprint 11.
+    string comparison. Deferred to DB migration sprint.
     """
     entry = _api_keys.get(key)
     if entry is None:

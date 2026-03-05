@@ -5,18 +5,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from modules.credit.config import Settings
-
-_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
-
-_VALID_PAYLOAD = {
-    "current_score": 740,
-    "score_band": "good",
-    "overall_utilization": 20.0,
-    "account_summary": {"total_accounts": 8, "open_accounts": 6},
-    "payment_history_pct": 98.0,
-    "average_account_age_months": 72,
-}
+from modules.credit.tests.conftest import VALID_ASSESS_PAYLOAD, _TEST_SETTINGS
 
 
 def _get_client():
@@ -31,14 +20,14 @@ class TestVersionedAssess:
 
     def test_v1_assess_returns_200(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/v1/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/v1/assess", json=VALID_ASSESS_PAYLOAD)
             assert resp.status_code == 200
 
     def test_v1_assess_returns_assessment_result(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/v1/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/v1/assess", json=VALID_ASSESS_PAYLOAD)
             data = resp.json()
             assert "readiness" in data
             assert "barrier_severity" in data
@@ -65,26 +54,26 @@ class TestDeprecationHeader:
 
     def test_legacy_assess_still_works(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert resp.status_code == 200
 
     def test_legacy_assess_has_deprecation_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert "Deprecation" in resp.headers
 
     def test_legacy_assess_has_sunset_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
             assert "Sunset" in resp.headers
 
     def test_v1_assess_no_deprecation_header(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
-            resp = client.post("/v1/assess", json=_VALID_PAYLOAD)
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
+            resp = client.post("/v1/assess", json=VALID_ASSESS_PAYLOAD)
             assert "Deprecation" not in resp.headers
 
 
@@ -93,7 +82,7 @@ class TestVersionedAuth:
 
     def test_v1_auth_register(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
             resp = client.post(
                 "/v1/auth/register",
                 json={"email": "v1user@test.com", "password": "Secret123!"},
@@ -102,7 +91,7 @@ class TestVersionedAuth:
 
     def test_v1_auth_login(self):
         client = _get_client()
-        with patch("modules.credit.router.settings", _SETTINGS):
+        with patch("modules.credit.router.settings", _TEST_SETTINGS):
             client.post(
                 "/v1/auth/register",
                 json={"email": "v1login@test.com", "password": "Secret123!"},
