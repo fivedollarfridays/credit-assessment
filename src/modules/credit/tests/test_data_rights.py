@@ -174,6 +174,27 @@ class TestDataExport:
 
         asyncio.run(_run())
 
+    def test_export_includes_db_assessments(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                from modules.credit.repo_assessments import AssessmentRepository
+
+                repo = AssessmentRepository(session)
+                await repo.save_assessment(
+                    credit_score=720,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=85,
+                    request_payload={},
+                    response_payload={"score": 720},
+                    user_id="db-user",
+                )
+                result = await export_user_data(session, user_id="db-user")
+                assert len(result["assessments"]) == 1
+                assert result["assessments"][0]["score"] == 720
+
+        asyncio.run(_run())
+
     def test_export_stores_user_assessment(self, db_factory) -> None:
         async def _run():
             async with db_factory() as session:
@@ -384,6 +405,23 @@ class TestDataRightsEndpoints:
                 json={"user_id": "test-user", "consent_version": "1.0"},
             )
             assert resp.status_code == 200
+
+    def test_consent_withdraw_endpoint(self) -> None:
+        with TestClient(app) as client:
+            # Record consent first
+            client.post(
+                "/v1/user/consent",
+                json={"user_id": "test-user", "consent_version": "2.0"},
+            )
+            resp = client.request(
+                "DELETE",
+                "/v1/user/consent",
+                json={"user_id": "test-user", "consent_version": "2.0"},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "withdrawn"
+            assert data["version"] == "2.0"
 
     def test_data_endpoints_require_auth_when_configured(self) -> None:
         from modules.credit.assess_routes import verify_auth

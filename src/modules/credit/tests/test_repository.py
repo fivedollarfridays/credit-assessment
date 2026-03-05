@@ -214,6 +214,32 @@ class TestAuditLog:
 
         asyncio.run(_run())
 
+    def test_list_entries_filter_by_org_id(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="a",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-1",
+                )
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="b",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-2",
+                )
+                entries = await repo.list_entries(org_id="org-1")
+                assert len(entries) == 1
+                assert entries[0]["org_id"] == "org-1"
+
+        asyncio.run(_run())
+
     def test_purge_old_entries(self, db_factory):
         from modules.credit.repository import AuditRepository
 

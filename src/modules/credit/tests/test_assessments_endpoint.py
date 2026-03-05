@@ -105,6 +105,27 @@ class TestAssessmentsOrgScoping:
                 assert key in item
 
 
+class TestAssessmentsOrgIdBranch:
+    """Cover the org_id branch (lines 264-265) when JWT includes org_id."""
+
+    def test_org_id_in_jwt_queries_by_org(self, client):
+        from modules.credit.assess_routes import verify_auth
+        from modules.credit.auth import AuthIdentity
+        from modules.credit.router import app
+
+        _seed_assessments(app, "org-user@test.com", "org-jwt", count=2)
+        app.dependency_overrides[verify_auth] = lambda: AuthIdentity(
+            identity="org-user@test.com", org_id="org-jwt"
+        )
+        try:
+            resp = client.get("/v1/assessments")
+            data = resp.json()
+            assert resp.status_code == 200
+            assert data["total"] == 2
+        finally:
+            app.dependency_overrides.pop(verify_auth, None)
+
+
 class TestAssessmentsStaticApiKey:
     def test_static_api_key_returns_empty(self, client):
         from modules.credit.config import Settings
