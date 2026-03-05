@@ -14,6 +14,7 @@ from .disclosures_routes import router as disclosures_router
 from .docs_routes import router as docs_router
 from .flag_routes import router as flag_router
 from .legal_routes import router as legal_router
+from .simulate_routes import router as simulate_router
 from .user_routes import router as user_router
 from .webhook_routes import router as webhook_router
 from .config import settings
@@ -72,6 +73,7 @@ v1_router.include_router(webhook_router)
 v1_router.include_router(dashboard_router)
 v1_router.include_router(disclosures_router)
 v1_router.include_router(flag_router)
+v1_router.include_router(simulate_router)
 
 # Legacy unversioned routers
 app.include_router(auth_router)

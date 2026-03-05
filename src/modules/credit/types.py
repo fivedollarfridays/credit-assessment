@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated
-
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .disclosures import FCRA_DISCLAIMER
 
@@ -81,6 +79,53 @@ class ActionPriority(str, Enum):
     LOW = "low"
 
 
+class NegativeItemType(str, Enum):
+    """Classification of negative credit items."""
+
+    LATE_PAYMENT = "late_payment"
+    CHARGE_OFF = "charge_off"
+    COLLECTION = "collection"
+    IDENTITY_THEFT = "identity_theft"
+    WRONG_BALANCE = "wrong_balance"
+    OBSOLETE_ITEM = "obsolete_item"
+    UNAUTHORIZED_INQUIRY = "unauthorized_inquiry"
+    DOFD_ERROR = "dofd_error"
+
+
+class NegativeItem(BaseModel):
+    """Structured negative credit item with metadata."""
+
+    type: NegativeItemType
+    description: str = Field(max_length=200)
+    creditor: str | None = None
+    amount: float | None = Field(default=None, ge=0.0)
+    date_reported: str | None = None
+    date_of_first_delinquency: str | None = None
+    status: str | None = None
+
+
+def _infer_item_type(text: str) -> NegativeItemType:
+    """Infer NegativeItemType from a free-text string."""
+    lower = text.lower()
+    if "collection" in lower:
+        return NegativeItemType.COLLECTION
+    if "charge_off" in lower or "chargeoff" in lower:
+        return NegativeItemType.CHARGE_OFF
+    if "late" in lower:
+        return NegativeItemType.LATE_PAYMENT
+    if "identity" in lower or "theft" in lower:
+        return NegativeItemType.IDENTITY_THEFT
+    if "balance" in lower or "wrong" in lower:
+        return NegativeItemType.WRONG_BALANCE
+    if "obsolete" in lower:
+        return NegativeItemType.OBSOLETE_ITEM
+    if "inquiry" in lower:
+        return NegativeItemType.UNAUTHORIZED_INQUIRY
+    if "dofd" in lower or "delinquency" in lower:
+        return NegativeItemType.DOFD_ERROR
+    return NegativeItemType.LATE_PAYMENT
+
+
 SCORE_BANDS: dict[str, dict[str, int]] = {
     "excellent": {"min": 750, "max": 850},
     "good": {"min": 700, "max": 749},
@@ -115,9 +160,21 @@ class CreditProfile(BaseModel):
     account_summary: AccountSummary
     payment_history_pct: float = Field(ge=0.0, le=100.0)
     average_account_age_months: int = Field(ge=0, le=1200)
-    negative_items: list[Annotated[str, Field(max_length=200)]] = Field(
-        default=[], max_length=50
-    )
+    negative_items: list[NegativeItem] = Field(default=[], max_length=50)
+
+    @field_validator("negative_items", mode="before")
+    @classmethod
+    def _coerce_negative_items(cls, v: list) -> list:
+        """Coerce plain strings into NegativeItem objects."""
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                result.append(
+                    {"type": _infer_item_type(item).value, "description": item}
+                )
+            else:
+                result.append(item)
+        return result
 
     @model_validator(mode="after")
     def _check_score_band(self) -> CreditProfile:

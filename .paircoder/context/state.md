@@ -1,16 +1,16 @@
 # Current State
 
-> Last updated: 2026-03-04
+> Last updated: 2026-03-05
 
 ## Active Plan
 
-**Plan:** plan-2026-03-sprint-18
-**Status:** Pending
-**Current Sprint:** 18
+**Plan:** plan-2026-03-sprint-21
+**Status:** Planning
+**Current Sprint:** 19 (next to execute)
 
 ## Current Focus
 
-Sprint 18 complete (auth & security hardening). All 4 tasks done. Next: Sprint 19 (compliance & data persistence).
+Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-23: INERTIA feature parity (structured items, simulation, letter generation, dispute lifecycle, score history). Next to execute: Sprint 19.
 
 ## Task Status
 
@@ -184,7 +184,78 @@ Sprint 18 complete (auth & security hardening). All 4 tasks done. Next: Sprint 1
 | T20.2 | Migrate webhooks + delivery log + feature flags to DB | P1 | 50 | Pending |
 | T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | Pending |
 
+### Sprint 21 — Structured Credit Data + Score Simulation (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T21.1 | Structured NegativeItem type | P0 | 45 | ✓ Done |
+| T21.2 | Score impact simulation engine | P0 | 50 | ✓ Done |
+| T21.3 | Simulation endpoint | P0 | 40 | ✓ Done |
+
+### Sprint 22 — Dispute Letter Generation (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T22.1 | Letter template system | P0 | 50 | Pending |
+| T22.2 | Letter generation engine | P0 | 45 | Pending |
+| T22.3 | Letter generation endpoint | P0 | 40 | Pending |
+
+### Sprint 23 — Dispute Lifecycle + Score History (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T23.1 | Dispute tracking model | P0 | 50 | Pending |
+| T23.2 | Dispute lifecycle endpoints | P0 | 45 | Pending |
+| T23.3 | Score history tracking | P1 | 40 | Pending |
+
 ## What Was Just Done
+
+- **T21.3 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T21.3: Simulation Endpoint
+
+- Created `simulate_routes.py` with `POST /v1/simulate` and `POST /v1/simulate/simple`
+- `SimulationRequest` accepts full `CreditProfile` + 1-10 actions
+- `SimpleSimulationRequest` accepts `SimpleCreditProfile` + actions (auto-converts)
+- `SimulationResponse` extends `SimulationResult` with FCRA projection disclaimer
+- Auth required (reuses `verify_auth` from assess_routes), rate-limited at 30/min
+- Registered router in `router.py` under v1 prefix
+- 10 new tests in `test_simulate_routes.py`, all 914 tests pass
+
+### Session: 2026-03-05 -- T21.2: Score Impact Simulation Engine
+
+- Created `simulation.py` with `SimulationAction`, `SimulationResult`, and `ScoreSimulator`
+- All 10 `ActionType` values have handlers: PAY_DOWN_DEBT, REDUCE_UTILIZATION, REMOVE_COLLECTION, DISPUTE_NEGATIVE, PAY_ON_TIME, BECOME_AUTHORIZED_USER, OPEN_SECURED_CARD, KEEP_ACCOUNTS_OPEN, AVOID_NEW_INQUIRIES, DIVERSIFY_CREDIT_MIX
+- Uses existing `get_utilization_impact()` brackets for utilization-based actions
+- Multiple actions stack sequentially with compound effects
+- Score deltas bounded (no single action >100pts), projected score clamped to [300, 850]
+- Pure computation — no DB, no side effects
+- 26 new tests across `test_simulation.py` and `test_simulation_combined.py`, all 904 tests pass
+
+### Session: 2026-03-05 -- T21.1: Structured NegativeItem Type
+
+- Added `NegativeItemType` enum (8 types) and `NegativeItem` Pydantic model to `types.py`
+- Added `_infer_item_type()` coercion function for backward-compatible string-to-NegativeItem conversion
+- Changed `CreditProfile.negative_items` from `list[str]` to `list[NegativeItem]` with `@field_validator(mode="before")` for auto-coercion
+- Updated `DisputePathwayGenerator._build_item_steps()` to use `NegativeItem.type` directly via `_get_issue_type()`
+- Fixed `test_validation.py` to access `.description` on coerced NegativeItem objects
+- 33 new tests in `test_negative_item.py`, all 878 tests pass, 0 ruff issues, arch check clean
+
+### Session: 2026-03-05 -- Planning Sprints 21-23 (INERTIA Feature Parity)
+
+- Analyzed INERTIA-SERVICE repo for feature gaps
+- Identified 7 gaps, mapped to 3 sprints (21-23) with 9 tasks
+- Sprint 21: Structured NegativeItem type + score simulation (what-if)
+- Sprint 22: Dispute letter generation (templates, engine, endpoint)
+- Sprint 23: Dispute lifecycle tracking + score history
+- Credit report parsing deferred to future sprint (large scope, low priority)
+- All 9 task files created with full implementation plans and acceptance criteria
+
+## What's Next
+
+Sprint 21 complete. Next: Sprint 19 (persistence), Sprint 20 (commercial), then Sprint 22 (dispute letter generation).
+
+---
 
 - **T18.4 done** (auto-updated by hook)
 

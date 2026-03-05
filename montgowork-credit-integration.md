@@ -437,6 +437,60 @@ All 5 outputs confirmed present:
 
 ## 7. Python Proxy Snippet (httpx async)
 
+### Recommended: Using `/assess/simple`
+
+```python
+"""MontGoWork credit assessment proxy — calls credit API's simple endpoint."""
+
+import httpx
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+router = APIRouter(prefix="/api/credit", tags=["credit"])
+
+CREDIT_API_BASE = "http://localhost:8000"
+CREDIT_API_KEY = "dev-test-key"
+
+
+class SimpleCreditRequest(BaseModel):
+    """Flat fields — no score_band derivation or AccountSummary needed."""
+    credit_score: int = Field(ge=300, le=850)
+    utilization_percent: float = Field(ge=0.0, le=100.0)
+    total_accounts: int = Field(ge=0)
+    open_accounts: int = Field(ge=0)
+    negative_items: list[str] = []
+    payment_history_percent: float = Field(ge=0.0, le=100.0)
+    oldest_account_months: int = Field(ge=0)
+    total_balance: float = 0.0
+    total_credit_limit: float = 0.0
+    monthly_payments: float = 0.0
+
+
+@router.post("/assess")
+async def assess_credit(profile: SimpleCreditRequest):
+    """Proxy to the credit assessment microservice (simple endpoint)."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{CREDIT_API_BASE}/v1/assess/simple",
+            json=profile.model_dump(),
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": CREDIT_API_KEY,
+            },
+        )
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=resp.json().get("detail", "Credit API error"),
+        )
+    return resp.json()
+```
+
+### Legacy: Using `/assess` (full CreditProfile)
+
+<details>
+<summary>Click to expand if you need the full-schema version</summary>
+
 ```python
 """MontGoWork credit assessment proxy — calls Shawn's credit API."""
 
@@ -446,7 +500,6 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/credit", tags=["credit"])
 
-# Point at the credit assessment service
 CREDIT_API_BASE = "http://localhost:8000"
 CREDIT_API_KEY = "dev-test-key"
 
@@ -481,6 +534,8 @@ async def assess_credit(profile: CreditProfileRequest):
         )
     return resp.json()
 ```
+
+</details>
 
 ### Usage from MontGoWork Frontend
 
@@ -538,12 +593,63 @@ Dev runs plain HTTP on port 8000. No TLS setup needed. HTTPS is enforced only wh
 
 ---
 
+## 9. Recommended: Use `/assess/simple` Instead
+
+Your proxy currently builds the full `CreditProfile` — deriving `score_band`, constructing `AccountSummary`, estimating `average_account_age_months`. Our `/v1/assess/simple` endpoint does all of that for you:
+
+```json
+POST /v1/assess/simple
+{
+  "credit_score": 520,
+  "utilization_percent": 85.0,
+  "total_accounts": 8,
+  "open_accounts": 4,
+  "negative_items": ["collection_medical_2500", "late_payment_30day_auto"],
+  "payment_history_percent": 72.0,
+  "oldest_account_months": 60,
+  "total_balance": 12750.0,
+  "total_credit_limit": 15000.0,
+  "monthly_payments": 380.0
+}
+```
+
+**Why switch:**
+- No `score_band` derivation needed — the API derives it from `credit_score`
+- No `AccountSummary` construction — just pass flat fields
+- `oldest_account_months` instead of `average_account_age_months` — easier for users to know
+- Same response schema, same auth, same rate limits
+- If we change score band boundaries, your code stays correct automatically
+
+**What changes in MontGoWork's proxy:**
+- Remove `score_to_band()` helper
+- Remove `AccountSummary` construction
+- Change endpoint from `/v1/assess` to `/v1/assess/simple`
+- Pass flat fields directly from your intake form
+
+---
+
+## 10. Rate Limits
+
+Your proxy should be aware of rate limits, especially during demo flows with pre-crawl + assessment:
+
+| Limit | Value | Scope |
+|-------|-------|-------|
+| `/v1/assess` and `/v1/assess/simple` | 30 requests/minute | Per client IP |
+| Dev mode | In-memory counter, resets on server restart |
+| Rate limit headers | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
+| Over limit | HTTP 429 with `Retry-After` header |
+
+For a hackathon demo this is unlikely to matter, but if you batch-process multiple users or retry aggressively, you could hit it.
+
+---
+
 ## Quick Reference Card
 
 ```
-START:   API_KEY=dev-test-key uvicorn main:app --app-dir src --reload --port 8000
-HEALTH:  curl http://localhost:8000/health
-ASSESS:  POST http://localhost:8000/v1/assess  +  X-API-Key: dev-test-key
-SCHEMA:  GET  http://localhost:8000/openapi.json  (full OpenAPI spec)
-DOCS:    GET  http://localhost:8000/docs          (Swagger UI, dev only)
+START:    API_KEY=dev-test-key uvicorn main:app --app-dir src --reload --port 8000
+HEALTH:   curl http://localhost:8000/health
+SIMPLE:   POST http://localhost:8000/v1/assess/simple  +  X-API-Key: dev-test-key  (recommended)
+FULL:     POST http://localhost:8000/v1/assess         +  X-API-Key: dev-test-key  (if you need full control)
+SCHEMA:   GET  http://localhost:8000/openapi.json  (full OpenAPI spec)
+DOCS:     GET  http://localhost:8000/docs          (Swagger UI, dev only)
 ```

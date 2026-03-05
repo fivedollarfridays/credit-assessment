@@ -69,6 +69,12 @@ _DATA_USAGE_NOTICE: str = (
 )
 
 
+PROJECTION_DISCLAIMER: str = (
+    "Score projections are estimates based on general FICO scoring factors. "
+    "Actual results may vary. This is not financial advice."
+)
+
+
 def get_disclosures() -> dict[str, str]:
     """Return all required disclosure texts as a structured dictionary."""
     return {
@@ -76,4 +82,5 @@ def get_disclosures() -> dict[str, str]:
         "adverse_action_notice_template": ADVERSE_ACTION_NOTICE_TEMPLATE,
         "consumer_rights": _CONSUMER_RIGHTS,
         "data_usage_notice": _DATA_USAGE_NOTICE,
+        "projection_disclaimer": PROJECTION_DISCLAIMER,
     }

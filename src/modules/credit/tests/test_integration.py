@@ -59,31 +59,28 @@ class TestCoverageGaps:
         assert result["low"] > 0
         assert result["high"] > 0
 
-    def test_classify_wrong_balance(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+    def test_infer_wrong_balance(self):
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("wrong_balance_on_card") == "wrong_balance"
+        assert _infer_item_type("wrong_balance_on_card") == NegativeItemType.WRONG_BALANCE
 
-    def test_classify_obsolete_item(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+    def test_infer_obsolete_item(self):
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("obsolete_item_7yr") == "obsolete_item"
+        assert _infer_item_type("obsolete_item_7yr") == NegativeItemType.OBSOLETE_ITEM
 
-    def test_classify_unauthorized_inquiry(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+    def test_infer_unauthorized_inquiry(self):
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
         assert (
-            gen._classify_issue_type("unauthorized_inquiry") == "unauthorized_inquiry"
+            _infer_item_type("unauthorized_inquiry")
+            == NegativeItemType.UNAUTHORIZED_INQUIRY
         )
 
-    def test_classify_dofd_error(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+    def test_infer_dofd_error(self):
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("dofd_error_on_account") == "dofd_error"
+        assert _infer_item_type("dofd_error_on_account") == NegativeItemType.DOFD_ERROR
 
     def test_get_score_band_fallback(self):
         """Cover the fallback return in get_score_band for out-of-range scores."""
@@ -113,13 +110,8 @@ class TestCoverageGaps:
         descriptions = [b.description for b in barriers]
         assert any("above 50%" in d for d in descriptions)
 
-    def test_classifier_unknown_issue_logs_warning(self):
-        """Cover logger.warning for unknown issue type fallback."""
-        from unittest.mock import patch
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+    def test_infer_unknown_defaults_to_late_payment(self):
+        """Unknown strings default to LATE_PAYMENT."""
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        with patch("modules.credit.dispute_pathway.logger") as mock_logger:
-            result = gen._classify_issue_type("some_unknown_thing")
-            assert result == "late_payment"
-            mock_logger.warning.assert_called_once()
+        assert _infer_item_type("some_unknown_thing") == NegativeItemType.LATE_PAYMENT
