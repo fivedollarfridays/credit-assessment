@@ -10,11 +10,11 @@ from pydantic import BaseModel, field_validator
 
 from .assess_routes import verify_auth
 from .config import settings
+from .webhook_delivery import get_delivery_log
 from .webhooks import (
     EventType,
     create_webhook,
     delete_webhook,
-    get_delivery_log,
     get_webhooks,
     webhook_exists,
 )

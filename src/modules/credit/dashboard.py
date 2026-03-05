@@ -6,7 +6,7 @@ from .audit import count_audit_entries
 from .billing import count_active_subscriptions, get_subscription
 from .roles import Role
 from .tenant import count_all_assessments, count_org_assessments
-from .user_routes import (
+from .user_store import (
     count_users,
     get_all_users,
     get_user,

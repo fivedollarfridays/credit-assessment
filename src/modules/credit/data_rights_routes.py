@@ -12,7 +12,7 @@ from .data_rights import (
     record_consent,
 )
 from .roles import is_admin
-from .user_routes import get_user
+from .user_store import get_user
 
 router = APIRouter(prefix="/user", tags=["data-rights"])
 

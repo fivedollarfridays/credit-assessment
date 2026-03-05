@@ -59,7 +59,7 @@ def admin_headers():
     """Create admin user, patch JWT settings, and return auth headers."""
     from modules.credit.auth import create_access_token
     from modules.credit.password import hash_password
-    from modules.credit.user_routes import _users
+    from modules.credit.user_store import _users
 
     _users["admin@test.com"] = {
         "email": "admin@test.com",

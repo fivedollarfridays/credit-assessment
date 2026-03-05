@@ -134,7 +134,7 @@ class TestPasswordReset:
         assert resp.status_code == 400
 
     def test_confirm_reset_changes_password(self):
-        from modules.credit.user_routes import _reset_tokens
+        from modules.credit.user_store import _reset_tokens
 
         client = _get_client()
         client.post(
@@ -170,7 +170,7 @@ class TestUserStorePublicAPIs:
     """Test public accessor functions for user store."""
 
     def test_get_all_users_empty(self):
-        from modules.credit.user_routes import _users, get_all_users
+        from modules.credit.user_store import _users, get_all_users
 
         saved = dict(_users)
         _users.clear()
@@ -178,7 +178,7 @@ class TestUserStorePublicAPIs:
         _users.update(saved)
 
     def test_get_all_users_returns_copy(self):
-        from modules.credit.user_routes import _users, get_all_users
+        from modules.credit.user_store import _users, get_all_users
 
         _users["test@x.com"] = {"email": "test@x.com", "role": "viewer"}
         result = get_all_users()
@@ -189,7 +189,7 @@ class TestUserStorePublicAPIs:
         _users.pop("test@x.com", None)
 
     def test_get_user_found(self):
-        from modules.credit.user_routes import _users, get_user
+        from modules.credit.user_store import _users, get_user
 
         _users["found@x.com"] = {"email": "found@x.com", "role": "viewer"}
         assert get_user("found@x.com") is not None
@@ -197,12 +197,12 @@ class TestUserStorePublicAPIs:
         _users.pop("found@x.com", None)
 
     def test_get_user_not_found(self):
-        from modules.credit.user_routes import get_user
+        from modules.credit.user_store import get_user
 
         assert get_user("nobody@x.com") is None
 
     def test_count_users(self):
-        from modules.credit.user_routes import _users, count_users
+        from modules.credit.user_store import _users, count_users
 
         saved = dict(_users)
         _users.clear()
@@ -254,7 +254,7 @@ class TestUpdateUserFieldAllowlist:
 
     def test_rejects_role_injection(self):
         """Passing role= to update_user must NOT change the user's role."""
-        from modules.credit.user_routes import _users, update_user
+        from modules.credit.user_store import _users, update_user
 
         _users["inject1@x.com"] = {
             "email": "inject1@x.com",
@@ -269,7 +269,7 @@ class TestUpdateUserFieldAllowlist:
 
     def test_rejects_password_hash_injection(self):
         """Passing password_hash= to update_user must NOT change the hash."""
-        from modules.credit.user_routes import _users, update_user
+        from modules.credit.user_store import _users, update_user
 
         _users["inject2@x.com"] = {
             "email": "inject2@x.com",
@@ -284,7 +284,7 @@ class TestUpdateUserFieldAllowlist:
 
     def test_allows_is_active(self):
         """is_active is an allowed field and should be updated."""
-        from modules.credit.user_routes import _users, update_user
+        from modules.credit.user_store import _users, update_user
 
         _users["allow1@x.com"] = {
             "email": "allow1@x.com",
@@ -305,28 +305,28 @@ class TestPasswordComplexity:
 
     def test_rejects_short_password(self):
         """Passwords under 8 characters must be rejected."""
-        from modules.credit.user_routes import validate_password
+        from modules.credit.user_store import validate_password
 
         with pytest.raises(ValueError, match="at least 8 characters"):
             validate_password("Ab1!xyz")
 
     def test_rejects_no_uppercase(self):
         """Passwords without uppercase letters must be rejected."""
-        from modules.credit.user_routes import validate_password
+        from modules.credit.user_store import validate_password
 
         with pytest.raises(ValueError, match="uppercase"):
             validate_password("abcdefg1!")
 
     def test_rejects_no_digit(self):
         """Passwords without digits must be rejected."""
-        from modules.credit.user_routes import validate_password
+        from modules.credit.user_store import validate_password
 
         with pytest.raises(ValueError, match="digit"):
             validate_password("Abcdefgh!")
 
     def test_rejects_no_special_char(self):
         """Passwords without special characters or lowercase must be rejected."""
-        from modules.credit.user_routes import validate_password
+        from modules.credit.user_store import validate_password
 
         with pytest.raises(ValueError, match="special character"):
             validate_password("Abcdefg1")
@@ -335,14 +335,14 @@ class TestPasswordComplexity:
 
     def test_accepts_valid_password(self):
         """A password meeting all criteria should be accepted."""
-        from modules.credit.user_routes import validate_password
+        from modules.credit.user_store import validate_password
 
         result = validate_password("Secret123!")
         assert result == "Secret123!"
 
     def test_confirm_reset_rejects_weak_password(self):
         """The confirm-reset endpoint must reject weak passwords."""
-        from modules.credit.user_routes import _reset_tokens
+        from modules.credit.user_store import _reset_tokens
 
         client = _get_client()
         client.post(
@@ -368,7 +368,7 @@ class TestSetUserRole:
 
     def test_set_user_role_updates_role(self):
         from modules.credit.roles import Role
-        from modules.credit.user_routes import _users, set_user_role
+        from modules.credit.user_store import _users, set_user_role
 
         _users["role-test@x.com"] = {
             "email": "role-test@x.com",
@@ -384,6 +384,73 @@ class TestSetUserRole:
 
     def test_set_user_role_returns_none_for_missing(self):
         from modules.credit.roles import Role
-        from modules.credit.user_routes import set_user_role
+        from modules.credit.user_store import set_user_role
 
         assert set_user_role("nobody@x.com", Role.ADMIN) is None
+
+
+class TestUserStoreMutations:
+    """Test create_user, store/pop reset token, set_password_hash."""
+
+    def test_create_user_stores_and_returns(self):
+        from modules.credit.user_store import _users, create_user
+
+        _users.pop("cu@x.com", None)
+        user = create_user("cu@x.com", password_hash="h", role="viewer", org_id="org-1")
+        assert user["email"] == "cu@x.com"
+        assert user["is_active"] is True
+        assert _users["cu@x.com"] is user
+        _users.pop("cu@x.com", None)
+
+    def test_create_user_duplicate_raises(self):
+        from modules.credit.user_store import _users, create_user
+
+        _users["dup@x.com"] = {"email": "dup@x.com"}
+        with pytest.raises(ValueError, match="already registered"):
+            create_user("dup@x.com", password_hash="h", role="viewer", org_id="org-1")
+        _users.pop("dup@x.com", None)
+
+    def test_store_reset_token(self):
+        from modules.credit.user_store import _reset_tokens, store_reset_token
+
+        store_reset_token("tok-1", "a@x.com")
+        assert _reset_tokens["tok-1"] == "a@x.com"
+        _reset_tokens.pop("tok-1", None)
+
+    def test_store_reset_token_evicts_oldest(self):
+        from modules.credit.user_store import (
+            _MAX_RESET_TOKENS,
+            _reset_tokens,
+            store_reset_token,
+        )
+
+        saved = dict(_reset_tokens)
+        _reset_tokens.clear()
+        for i in range(_MAX_RESET_TOKENS):
+            _reset_tokens[f"old-{i}"] = f"u{i}@x.com"
+        store_reset_token("new-tok", "new@x.com")
+        assert len(_reset_tokens) == _MAX_RESET_TOKENS
+        assert "old-0" not in _reset_tokens
+        assert "new-tok" in _reset_tokens
+        _reset_tokens.clear()
+        _reset_tokens.update(saved)
+
+    def test_pop_reset_token_found(self):
+        from modules.credit.user_store import _reset_tokens, pop_reset_token
+
+        _reset_tokens["pop-tok"] = "pop@x.com"
+        assert pop_reset_token("pop-tok") == "pop@x.com"
+        assert "pop-tok" not in _reset_tokens
+
+    def test_pop_reset_token_missing(self):
+        from modules.credit.user_store import pop_reset_token
+
+        assert pop_reset_token("nonexistent") is None
+
+    def test_set_password_hash(self):
+        from modules.credit.user_store import _users, set_password_hash
+
+        _users["pw@x.com"] = {"email": "pw@x.com", "password_hash": "old"}
+        set_password_hash("pw@x.com", "new-hash")
+        assert _users["pw@x.com"]["password_hash"] == "new-hash"
+        _users.pop("pw@x.com", None)

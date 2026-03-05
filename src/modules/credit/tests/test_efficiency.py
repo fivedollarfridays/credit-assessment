@@ -236,7 +236,7 @@ class TestDashboardUsesCountFunctions:
     def test_customer_list_uses_count_org_assessments(self) -> None:
         """get_customer_list should call count_org_assessments per customer."""
         from modules.credit.dashboard import get_customer_list
-        from modules.credit.user_routes import _users
+        from modules.credit.user_store import _users
         from modules.credit.password import hash_password
 
         _users.clear()

@@ -292,7 +292,7 @@ class TestIdorProtection:
     def _setup_users(self):
         """Set up test users and auth overrides."""
         from modules.credit.password import hash_password
-        from modules.credit.user_routes import _users
+        from modules.credit.user_store import _users
 
         _users["user-a@test.com"] = {
             "email": "user-a@test.com",

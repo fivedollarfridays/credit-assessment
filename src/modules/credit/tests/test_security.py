@@ -16,7 +16,7 @@ from modules.credit.auth import create_access_token
 from modules.credit.config import Settings, _DEFAULT_JWT_SECRET, _DEFAULT_PII_PEPPER
 from modules.credit.router import app
 from modules.credit.tests.conftest import VALID_ASSESS_PAYLOAD
-from modules.credit.user_routes import (
+from modules.credit.user_store import (
     _MAX_RESET_TOKENS,
     _RE_DIGIT,
     _RE_LOWERCASE,
@@ -237,7 +237,7 @@ class TestResetTokenCap:
 
     def test_reset_token_eviction_bounds_store(self):
         """Driving eviction through endpoint keeps store bounded."""
-        from modules.credit.user_routes import _users
+        from modules.credit.user_store import _users
 
         saved = type(_reset_tokens)(_reset_tokens)
         _reset_tokens.clear()

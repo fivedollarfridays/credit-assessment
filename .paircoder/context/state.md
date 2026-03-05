@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-Sprint 14: Code Review Fixes (Sprint 13 Review)
-**Status:** Complete
-**Current Sprint:** 14
+**Plan:** plan-2026-03-plan-2026-03-sprint-15
+**Status:** In Progress
+**Current Sprint:** 15
 
 ## Current Focus
 
-Sprint 14 complete. All 2 tasks done (T14.1, T14.2). Ready for commit.
+Sprint 15 complete. All 3 tasks done (T15.1, T15.2, T15.3). Ready for commit.
 
 ## Task Status
 
@@ -137,7 +137,31 @@ Sprint 14 complete. All 2 tasks done (T14.1, T14.2). Ready for commit.
 | T14.1 | Test infrastructure: admin_headers fix, dead code, deduplication | P1 | 40 | ✓ Done |
 | T14.2 | Encapsulate tenant store mutation + rename api_key_header | P1 | 30 | ✓ Done |
 
+### Sprint 15 — Module Decomposition & Dependency Pinning (Refactor)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T15.1 | Decompose webhooks.py into webhooks.py + webhook_delivery.py | P0 | 40 | ✓ Done |
+| T15.2 | Decompose user_routes.py into user_routes.py + user_store.py | P0 | 45 | ✓ Done |
+| T15.3 | Pin dependency upper bounds in pyproject.toml | P1 | 15 | ✓ Done |
+
 ## What Was Just Done
+
+- **T15.3 done** (auto-updated by hook)
+
+- **T15.3**: Added `<next-major` upper bounds to all 28 dependencies in `pyproject.toml` (18 in `[project.dependencies]`, 10 in `[project.optional-dependencies.dev]`). `pip install -e ".[dev]"` succeeds, 777 tests passing.
+
+- **T15.2 done** (auto-updated by hook)
+
+- **T15.2**: Extracted 6 data-access functions (`get_all_users`, `get_user`, `count_users`, `validate_password`, `update_user`, `set_user_role`) plus stores/constants (`_users`, `_reset_tokens`, `_MAX_RESET_TOKENS`, `_ALLOWED_UPDATE_FIELDS`, regex patterns) from `user_routes.py` into `user_store.py` (75 lines, 6 functions). `user_routes.py` now has 4 route handlers only (103 lines). Updated imports in 5 source files (`dashboard.py`, `data_rights_routes.py`, `admin_routes.py`, `roles.py`, `user_routes.py`) and 9 test files.
+- 777 tests passing, 0 arch errors.
+
+- **T15.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 15: T15.1 Decompose webhooks.py
+
+- **T15.1**: Split `webhooks.py` (204 lines) into registration CRUD (`webhooks.py`, 83 lines, 6 functions) and delivery subsystem (`webhook_delivery.py`, 129 lines, 6 functions). Moved `compute_signature`, `next_retry_delay`, `get_delivery_log`, `_send_one`, `deliver_event`, `reset_delivery_log` plus `WebhookDeliveryStatus`, `DeliveryRecord`, and `_delivery_log` store to `webhook_delivery.py`. Updated imports in `webhook_routes.py` and `test_webhooks.py`. Updated 5 mock patch targets from `modules.credit.webhooks.httpx` → `modules.credit.webhook_delivery.httpx`. Lazy import in `reset_webhooks()` avoids circular dependency.
+- 777 tests passing, 0 arch errors.
 
 - **T14.2 done** (auto-updated by hook)
 
@@ -712,7 +736,7 @@ Sprint 14 complete. All 2 tasks done (T14.1, T14.2). Ready for commit.
 
 ## What's Next
 
-T12.1 and T12.2 done. Ready for next task. 772 tests passing, 0 arch errors.
+Sprint 15 complete. All 3 tasks done. Ready for commit. 777 tests passing, 0 arch errors.
 
 
 ## Blockers

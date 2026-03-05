@@ -11,16 +11,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from modules.credit.router import app
-from modules.credit.webhooks import (
-    EventType,
+from modules.credit.webhook_delivery import (
     WebhookDeliveryStatus,
-    WebhookRegistration,
     compute_signature,
-    create_webhook,
     deliver_event,
     get_delivery_log,
-    get_webhooks,
     next_retry_delay,
+)
+from modules.credit.webhooks import (
+    EventType,
+    WebhookRegistration,
+    create_webhook,
+    get_subscribed_webhooks,
+    get_webhooks,
     reset_webhooks,
     webhook_exists,
 )
@@ -112,6 +115,33 @@ class TestWebhookRegistration:
         )
         assert len(get_webhooks(owner_id="org1")) == 1
 
+    def test_get_subscribed_webhooks_filters_by_event(self):
+        create_webhook(
+            url="https://a.com/h",
+            events=[EventType.ASSESSMENT_COMPLETED],
+            secret="s",
+        )
+        create_webhook(
+            url="https://b.com/h",
+            events=[EventType.SUBSCRIPTION_UPDATED],
+            secret="s",
+        )
+        matching = get_subscribed_webhooks(EventType.ASSESSMENT_COMPLETED)
+        assert len(matching) == 1
+        assert matching[0].url == "https://a.com/h"
+
+    def test_get_subscribed_webhooks_excludes_inactive(self):
+        wh = create_webhook(
+            url="https://a.com/h",
+            events=[EventType.ASSESSMENT_COMPLETED],
+            secret="s",
+        )
+        wh.is_active = False
+        assert get_subscribed_webhooks(EventType.ASSESSMENT_COMPLETED) == []
+
+    def test_get_subscribed_webhooks_empty(self):
+        assert get_subscribed_webhooks(EventType.RATE_LIMIT_WARNING) == []
+
 
 # --- HMAC Signature ---
 
@@ -144,7 +174,7 @@ class TestDelivery:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
-        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_client_cls:
+        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -165,7 +195,7 @@ class TestDelivery:
             events=[EventType.SUBSCRIPTION_UPDATED],
             secret="s",
         )
-        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_client_cls:
+        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -186,7 +216,7 @@ class TestDelivery:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 500
-        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_client_cls:
+        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -232,7 +262,7 @@ class TestDeliveryLog:
         )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
-        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_client_cls:
+        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)
@@ -354,7 +384,7 @@ class TestWebhookEndpoints:
             events=[EventType.ASSESSMENT_COMPLETED],
             secret="secret",
         )
-        with patch("modules.credit.webhooks.httpx.AsyncClient") as mock_cls:
+        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_cls:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=False)

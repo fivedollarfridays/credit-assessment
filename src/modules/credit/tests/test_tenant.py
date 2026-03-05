@@ -37,7 +37,7 @@ class TestUserOrgAssociation:
                 "/auth/register",
                 json={"email": "orguser@test.com", "password": "Secret123!"},
             )
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             user = _users.get("orguser@test.com")
             assert "org_id" in user

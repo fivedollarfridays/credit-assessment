@@ -33,7 +33,7 @@ def require_role(*allowed: Role):
         request: Request,
         api_key: str | None = Security(api_key_header),
     ) -> str:
-        from .user_routes import get_user
+        from .user_store import get_user
 
         identity = await verify_auth(request, api_key)
         if identity == API_KEY_IDENTITY:

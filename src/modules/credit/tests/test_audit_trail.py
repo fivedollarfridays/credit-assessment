@@ -19,7 +19,7 @@ from modules.credit.audit import (
 from modules.credit.retention import purge_by_age
 from modules.credit.router import app
 from modules.credit.tests.conftest import patch_auth_settings, register_and_login
-from modules.credit.user_routes import _users
+from modules.credit.user_store import _users
 
 
 # ---------------------------------------------------------------------------

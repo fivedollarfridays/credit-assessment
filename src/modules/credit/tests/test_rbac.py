@@ -47,7 +47,7 @@ class TestRoleEnforcement:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "admin@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["admin@test.com"]["role"] = "admin"
 
@@ -61,7 +61,7 @@ class TestRoleEnforcement:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "viewer@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["viewer@test.com"]["role"] = "viewer"
 
@@ -129,7 +129,7 @@ class TestApiKeyModel:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "keyadmin@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["keyadmin@test.com"]["role"] = "admin"
 
@@ -146,7 +146,7 @@ class TestApiKeyModel:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "revokeadmin@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["revokeadmin@test.com"]["role"] = "admin"
 
@@ -168,7 +168,7 @@ class TestApiKeyModel:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "revoke404@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["revoke404@test.com"]["role"] = "admin"
 
@@ -182,7 +182,7 @@ class TestApiKeyModel:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "expadmin@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["expadmin@test.com"]["role"] = "admin"
 
@@ -218,7 +218,7 @@ class TestApiKeyEviction:
         client = _get_client()
         with patch_auth_settings():
             token = register_and_login(client, "evictadmin@test.com")
-            from modules.credit.user_routes import _users
+            from modules.credit.user_store import _users
 
             _users["evictadmin@test.com"]["role"] = "admin"
             resp = client.post(

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from .audit import get_audit_trail
 from .roles import Role, require_role
-from .user_routes import get_all_users
+from .user_store import get_all_users
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

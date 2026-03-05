@@ -23,7 +23,7 @@ def _clean():
     from modules.credit.audit import reset_audit_trail
     from modules.credit.billing import _subscriptions
     from modules.credit.tenant import _org_assessments
-    from modules.credit.user_routes import _users
+    from modules.credit.user_store import _users
 
     _users.clear()
     _subscriptions.clear()
@@ -43,7 +43,7 @@ def client() -> TestClient:
 
 def _seed_users():
     from modules.credit.password import hash_password
-    from modules.credit.user_routes import _users
+    from modules.credit.user_store import _users
 
     _users["alice@acme.com"] = {
         "email": "alice@acme.com",
@@ -297,7 +297,7 @@ class TestDashboardEndpoints:
             "/v1/dashboard/customers/bob@corp.com", headers=admin_headers
         )
         assert resp.status_code == 200
-        from modules.credit.user_routes import _users
+        from modules.credit.user_store import _users
 
         assert _users["bob@corp.com"]["is_active"] is False
 
