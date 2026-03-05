@@ -115,7 +115,7 @@ class TestCreditProfileValidation:
     def test_accepts_200_char_negative_item(self) -> None:
         item = "x" * 200
         profile = self._make_profile(negative_items=[item])
-        assert len(profile.negative_items[0]) == 200
+        assert len(profile.negative_items[0].description) == 200
 
     def test_rejects_mismatched_score_band(self) -> None:
         with pytest.raises(ValidationError, match="score_band"):

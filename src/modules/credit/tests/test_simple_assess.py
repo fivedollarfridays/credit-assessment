@@ -131,13 +131,13 @@ class TestSimpleAssessEndpoint:
 
 
 class TestScoreToBand:
-    """Unit tests for _score_to_band helper."""
+    """Unit tests for get_score_band helper (used by SimpleCreditProfile)."""
 
-    def test_out_of_range_raises(self):
-        from modules.credit.assess_routes import _score_to_band
+    def test_out_of_range_falls_back(self):
+        from modules.credit.assessment import get_score_band
+        from modules.credit.types import ScoreBand
 
-        with pytest.raises(ValueError, match="out of range"):
-            _score_to_band(200)
+        assert get_score_band(200) == ScoreBand.VERY_POOR
 
 
 class TestSimpleAssessAuth:

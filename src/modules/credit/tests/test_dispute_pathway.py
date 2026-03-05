@@ -51,38 +51,38 @@ class TestIssuePatterns:
             assert isinstance(pattern["priority"], ActionPriority)
 
 
-class TestClassifyIssueType:
-    """Test issue type classification from negative item strings."""
+class TestInferItemType:
+    """Test _infer_item_type from types.py (used for string coercion)."""
 
     def test_collection_classified(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("collection_medical_2500") == "collection"
+        assert (
+            _infer_item_type("collection_medical_2500") == NegativeItemType.COLLECTION
+        )
 
     def test_late_payment_classified(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("late_payment_30day") == "late_payment"
+        assert _infer_item_type("late_payment_30day") == NegativeItemType.LATE_PAYMENT
 
     def test_charge_off_classified(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("charge_off_credit_card") == "charge_off"
+        assert _infer_item_type("charge_off_credit_card") == NegativeItemType.CHARGE_OFF
 
     def test_identity_theft_classified(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("identity_theft_account") == "identity_theft"
+        assert (
+            _infer_item_type("identity_theft_account")
+            == NegativeItemType.IDENTITY_THEFT
+        )
 
     def test_unknown_defaults_to_late_payment(self):
-        from modules.credit.dispute_pathway import DisputePathwayGenerator
+        from modules.credit.types import NegativeItemType, _infer_item_type
 
-        gen = DisputePathwayGenerator()
-        assert gen._classify_issue_type("unknown_thing") == "late_payment"
+        assert _infer_item_type("unknown_thing") == NegativeItemType.LATE_PAYMENT
 
 
 class TestGeneratePathway:

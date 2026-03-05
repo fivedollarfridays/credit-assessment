@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TypedDict
 
 from .types import (
@@ -13,8 +12,6 @@ from .types import (
     HIGH_UTILIZATION_THRESHOLD,
     LegalTheory,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class IssuePattern(TypedDict):
@@ -143,41 +140,20 @@ class DisputePathwayGenerator:
             legal_theories=sorted(all_theories),
         )
 
-    def _classify_issue_type(self, item_str: str) -> str:
-        """Classify issue type from a negative item string."""
-        lower = item_str.lower()
-        if "collection" in lower:
-            return "collection"
-        if "charge_off" in lower or "chargeoff" in lower:
-            return "charge_off"
-        if "late" in lower:
-            return "late_payment"
-        if "identity" in lower or "theft" in lower:
-            return "identity_theft"
-        if "balance" in lower or "wrong" in lower:
-            return "wrong_balance"
-        if "obsolete" in lower:
-            return "obsolete_item"
-        if "inquiry" in lower:
-            return "unauthorized_inquiry"
-        if "dofd" in lower or "delinquency" in lower:
-            return "dofd_error"
-        logger.warning("Unknown issue type '%s', defaulting to late_payment", item_str)
-        return "late_payment"
-
     def _build_item_steps(
         self, profile: CreditProfile
     ) -> list[tuple[DisputeStep, IssuePattern]]:
         """Build dispute steps from negative items."""
         result: list[tuple[DisputeStep, IssuePattern]] = []
         for item in profile.negative_items:
-            issue_type = self._classify_issue_type(item)
+            issue_type = item.type.value
             pattern = ISSUE_PATTERNS[issue_type]
+            desc = item.description
             step = DisputeStep(
                 step_number=0,
-                action=f"{pattern['action']}: {item}",
+                action=f"{pattern['action']}: {desc}",
                 description=(
-                    f"File dispute for {issue_type.replace('_', ' ')}: {item}"
+                    f"File dispute for {issue_type.replace('_', ' ')}: {desc}"
                 ),
                 legal_basis=pattern["legal_basis"],
                 estimated_days=pattern["estimated_days"],

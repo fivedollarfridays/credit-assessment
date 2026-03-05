@@ -15,7 +15,7 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field, model_validator
 
-from .assessment import CreditAssessmentService
+from .assessment import CreditAssessmentService, get_score_band
 from .auth import (
     API_KEY_IDENTITY,
     AuthIdentity,
@@ -33,8 +33,8 @@ from .types import (
     AccountSummary,
     CreditAssessmentResult,
     CreditProfile,
-    SCORE_BANDS,
-    ScoreBand,
+    NegativeItemType,
+    _infer_item_type,
 )
 
 router = APIRouter()
@@ -162,14 +162,6 @@ async def assess(
 _OLDEST_TO_AVG_FACTOR = 0.6  # heuristic: average account age ≈ 60% of oldest
 
 
-def _score_to_band(score: int) -> ScoreBand:
-    """Derive ScoreBand from a numeric credit score."""
-    for band_name, bounds in SCORE_BANDS.items():
-        if bounds["min"] <= score <= bounds["max"]:
-            return ScoreBand(band_name)
-    raise ValueError(f"Score {score} out of range 300-850")
-
-
 class SimpleCreditProfile(BaseModel):
     """Simplified credit profile — user-friendly fields, backend derives the rest."""
 
@@ -194,11 +186,13 @@ class SimpleCreditProfile(BaseModel):
         """Convert to the full CreditProfile used by the assessment engine."""
         closed = self.total_accounts - self.open_accounts
         collections = sum(
-            1 for item in self.negative_items if item.startswith("collection")
+            1
+            for item in self.negative_items
+            if _infer_item_type(item) == NegativeItemType.COLLECTION
         )
         return CreditProfile(
             current_score=self.credit_score,
-            score_band=_score_to_band(self.credit_score),
+            score_band=get_score_band(self.credit_score),
             overall_utilization=self.utilization_percent,
             account_summary=AccountSummary(
                 total_accounts=self.total_accounts,
