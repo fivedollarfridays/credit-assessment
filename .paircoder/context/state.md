@@ -172,9 +172,9 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T19.1 | Migrate audit trail to database | P0 | 45 | Pending |
-| T19.2 | Migrate consent + user assessments to database (GDPR) | P0 | 50 | Pending |
-| T19.3 | Migrate tenant org_assessments to DB + history endpoint | P0 | 50 | Pending |
+| T19.1 | Migrate audit trail to database | P0 | 45 | ✓ Done |
+| T19.2 | Migrate consent + user assessments to database (GDPR) | P0 | 50 | ✓ Done |
+| T19.3 | Migrate tenant org_assessments to DB + history endpoint | P0 | 50 | ✓ Done |
 
 ### Sprint 20 — Commercial & Ops Hardening (Feature)
 
@@ -209,6 +209,51 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 | T23.3 | Score history tracking | P1 | 40 | Pending |
 
 ## What Was Just Done
+
+- **T19.3 done** (auto-updated by hook)
+
+- **T19.3 done**
+
+### Session: 2026-03-05 -- T19.3: Migrate Tenant org_assessments to DB + History Endpoint
+
+- Removed in-memory `_org_assessments` dict and `defaultdict` from `tenant.py`
+- All tenant functions now async, accept `AsyncSession`, delegate to `AssessmentRepository`
+- Added `get_by_org_id(limit, offset)`, `count_all()`, `count_by_org_id()` to `AssessmentRepository`
+- Added `GET /v1/assessments` history endpoint with pagination (limit/offset), org-scoped or user-scoped
+- Updated `dashboard.py` to await async `count_all_assessments` / `count_org_assessments`
+- Removed redundant `delete_user_org_assessments` call from `delete_user_data` (DB deletion covers it)
+- Extracted `AssessmentRepository` into `repo_assessments.py` to fix arch violation (16→8 functions per file)
+- Updated all imports across source and test files
+- Rewrote `test_tenant.py`, `test_dashboard.py`, `test_efficiency.py` with async/DB pattern
+- 928 tests pass, 0 ruff issues, 0 arch violations
+
+- **T19.2 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T19.2: Migrate Consent + User Assessments to Database
+
+- Removed in-memory `_consent_records` and `_user_assessments` dicts from `data_rights.py`
+- All data_rights functions now async, accept `AsyncSession`, delegate to `ConsentRepository` and `UserAssessmentRepository`
+- Added `ConsentRepository.delete_by_user()` for GDPR deletion cascade
+- Added `AssessmentRepository.save_assessment(user_id=...)`, `get_by_user_id()`, `delete_by_user_id()` for per-user DB assessments
+- Updated `_persist_assessment()` in `assess_routes.py` to pass authenticated `user_id`
+- Updated `data_rights_routes.py` to pass DB session to async data_rights functions
+- `export_user_data` now includes DB-persisted assessments via `get_by_user_id`
+- `delete_user_data` now removes DB assessments via `delete_by_user_id`
+- `purge_expired_data` uses SQL DELETE with date filter instead of in-memory purge
+- Rewrote `test_data_rights.py` with async/DB pattern, 4 new repo tests
+- 923 tests pass, 0 ruff issues
+
+### Session: 2026-03-05 -- T19.1: Migrate Audit Trail to Database
+
+- Removed in-memory `_audit_entries` deque from `audit.py`
+- Expanded `AuditLog` ORM model with `request_summary` and `result_summary` JSON columns
+- Expanded `AuditRepository` with `create_entry`, `list_entries` (action/org_id/limit filters), `purge_old` methods
+- Rewrote `audit.py` functions as async — `create_audit_entry`, `get_audit_trail`, `count_audit_entries`, `purge_audit_trail` all take `AsyncSession` and delegate to `AuditRepository`
+- Updated `admin_routes.py` audit-log endpoint to async with DB session
+- Updated `dashboard.py` `get_system_health` to await `count_audit_entries`
+- Updated `user_routes.py` lockout audit entry to async
+- Rewrote `test_audit_trail.py`, updated `test_efficiency.py`, `test_dashboard.py`, `test_user_endpoints.py`
+- 919 tests pass, 0 ruff issues
 
 - **T21.3 done** (auto-updated by hook)
 

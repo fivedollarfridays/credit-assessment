@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from modules.credit.audit import reset_audit_trail
 from modules.credit.billing import _subscriptions
-from modules.credit.tenant import _org_assessments
 
 from .conftest import create_test_user
 
@@ -15,12 +15,8 @@ from .conftest import create_test_user
 def _clean_in_memory_stores():
     """Reset in-memory stores that haven't migrated to DB yet."""
     _subscriptions.clear()
-    _org_assessments.clear()
-    reset_audit_trail()
     yield
     _subscriptions.clear()
-    _org_assessments.clear()
-    reset_audit_trail()
 
 
 def _seed_subscriptions():
@@ -36,16 +32,43 @@ def _seed_subscriptions():
     }
 
 
-def _seed_assessments():
-    from modules.credit.tenant import store_org_assessment
+def _seed_assessments(app):
+    from modules.credit.repo_assessments import AssessmentRepository
 
-    store_org_assessment(
-        "org-alice", {"score": 85, "timestamp": "2026-03-01T00:00:00Z"}
-    )
-    store_org_assessment(
-        "org-alice", {"score": 72, "timestamp": "2026-03-02T00:00:00Z"}
-    )
-    store_org_assessment("org-bob", {"score": 60, "timestamp": "2026-03-01T00:00:00Z"})
+    factory = app.state.db_session_factory
+
+    async def _insert():
+        async with factory() as session:
+            repo = AssessmentRepository(session)
+            await repo.save_assessment(
+                credit_score=85,
+                score_band="good",
+                barrier_severity="low",
+                readiness_score=80,
+                request_payload={},
+                response_payload={},
+                org_id="org-alice",
+            )
+            await repo.save_assessment(
+                credit_score=72,
+                score_band="good",
+                barrier_severity="low",
+                readiness_score=70,
+                request_payload={},
+                response_payload={},
+                org_id="org-alice",
+            )
+            await repo.save_assessment(
+                credit_score=60,
+                score_band="fair",
+                barrier_severity="medium",
+                readiness_score=55,
+                request_payload={},
+                response_payload={},
+                org_id="org-bob",
+            )
+
+    asyncio.run(_insert())
 
 
 def _seed_users(app):
@@ -72,7 +95,7 @@ class TestUsageOverview:
 
         _seed_users(app)
         _seed_subscriptions()
-        _seed_assessments()
+        _seed_assessments(app)
         resp = client.get("/v1/dashboard/overview", headers=admin_headers)
         assert resp.status_code == 200
         data = resp.json()
@@ -112,7 +135,7 @@ class TestCustomerList:
 
         _seed_users(app)
         _seed_subscriptions()
-        _seed_assessments()
+        _seed_assessments(app)
         resp = client.get("/v1/dashboard/customers", headers=admin_headers)
         assert resp.status_code == 200
         customers = resp.json()
@@ -143,7 +166,7 @@ class TestCustomerDetail:
 
         _seed_users(app)
         _seed_subscriptions()
-        _seed_assessments()
+        _seed_assessments(app)
         resp = client.get(
             "/v1/dashboard/customers/alice@acme.com", headers=admin_headers
         )

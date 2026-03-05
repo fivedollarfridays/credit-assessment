@@ -92,6 +92,9 @@ class NegativeItemType(str, Enum):
     DOFD_ERROR = "dofd_error"
 
 
+_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+
+
 class NegativeItem(BaseModel):
     """Structured negative credit item with metadata."""
 
@@ -99,8 +102,8 @@ class NegativeItem(BaseModel):
     description: str = Field(max_length=200)
     creditor: str | None = None
     amount: float | None = Field(default=None, ge=0.0)
-    date_reported: str | None = None
-    date_of_first_delinquency: str | None = None
+    date_reported: str | None = Field(default=None, pattern=_DATE_PATTERN)
+    date_of_first_delinquency: str | None = Field(default=None, pattern=_DATE_PATTERN)
     status: str | None = None
 
 

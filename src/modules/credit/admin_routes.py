@@ -74,10 +74,14 @@ async def create_api_key(
 
 
 @router.get("/audit-log", dependencies=[Depends(require_role(Role.ADMIN))])
-def audit_log(action: str | None = None, limit: int | None = None) -> dict:
+async def audit_log(
+    action: str | None = None,
+    limit: int | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Query audit trail entries with optional filters."""
-    entries = get_audit_trail(action=action, limit=limit)
-    return {"entries": entries, "total": len(entries)}
+    entries = await get_audit_trail(db, action=action, limit=limit)
+    return {"entries": entries, "count": len(entries)}
 
 
 @router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])

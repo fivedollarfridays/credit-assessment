@@ -1,5 +1,9 @@
 """Tests for tenant isolation — T4.5 TDD."""
 
+import asyncio
+
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.models_db import Base
 from modules.credit.tests.conftest import patch_auth_settings
 
 
@@ -9,6 +13,18 @@ def _get_client():
     from modules.credit.router import app
 
     return TestClient(app)
+
+
+def _make_db():
+    engine = create_engine("sqlite+aiosqlite://")
+    factory = get_session_factory(engine)
+
+    async def _init():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    return factory
 
 
 class TestOrgModel:
@@ -31,8 +47,6 @@ class TestUserOrgAssociation:
     """Test users are associated with organizations."""
 
     def test_register_user_with_org(self):
-        import asyncio
-
         from modules.credit.repo_users import UserRepository
 
         with patch_auth_settings():
@@ -61,10 +75,6 @@ class TestApiKeyOrgResolution:
     """Test API keys resolve to correct org."""
 
     def test_api_key_contains_org_id(self):
-        import asyncio
-
-        from modules.credit.database import create_engine, get_session_factory
-        from modules.credit.models_db import Base
         from modules.credit.repo_api_keys import ApiKeyRepository
 
         async def _run():
@@ -133,36 +143,72 @@ class TestCrossTenantIsolation:
     """Test that tenants cannot access each other's data."""
 
     def test_org_store_isolation(self):
-        from modules.credit.tenant import (
-            _org_assessments,
-            get_org_assessments,
-            store_org_assessment,
-        )
+        from modules.credit.repo_assessments import AssessmentRepository
+        from modules.credit.tenant import get_org_assessments
 
-        store_org_assessment("org-A", {"score": 700})
-        store_org_assessment("org-B", {"score": 800})
+        factory = _make_db()
 
-        assert len(get_org_assessments("org-A")) == 1
-        assert get_org_assessments("org-A")[0]["score"] == 700
-        assert len(get_org_assessments("org-B")) == 1
-        assert get_org_assessments("org-B")[0]["score"] == 800
-        assert len(get_org_assessments("org-C")) == 0
+        async def _run():
+            async with factory() as session:
+                repo = AssessmentRepository(session)
+                await repo.save_assessment(
+                    credit_score=700,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=80,
+                    request_payload={},
+                    response_payload={},
+                    org_id="org-A",
+                )
+                await repo.save_assessment(
+                    credit_score=800,
+                    score_band="excellent",
+                    barrier_severity="low",
+                    readiness_score=95,
+                    request_payload={},
+                    response_payload={},
+                    org_id="org-B",
+                )
+                org_a = await get_org_assessments(session, "org-A")
+                org_b = await get_org_assessments(session, "org-B")
+                org_c = await get_org_assessments(session, "org-C")
+                assert len(org_a) == 1
+                assert org_a[0].credit_score == 700
+                assert len(org_b) == 1
+                assert org_b[0].credit_score == 800
+                assert len(org_c) == 0
 
-        # Clean up
-        _org_assessments.clear()
+        asyncio.run(_run())
 
     def test_admin_can_query_across_orgs(self):
-        from modules.credit.tenant import (
-            _org_assessments,
-            get_all_assessments,
-            store_org_assessment,
-        )
+        from modules.credit.tenant import count_all_assessments
 
-        store_org_assessment("org-X", {"score": 700})
-        store_org_assessment("org-Y", {"score": 800})
+        factory = _make_db()
 
-        all_data = get_all_assessments()
-        assert len(all_data) >= 2
+        async def _run():
+            async with factory() as session:
+                from modules.credit.repo_assessments import AssessmentRepository
 
-        # Clean up
-        _org_assessments.clear()
+                repo = AssessmentRepository(session)
+                await repo.save_assessment(
+                    credit_score=700,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=80,
+                    request_payload={},
+                    response_payload={},
+                    org_id="org-X",
+                )
+                await repo.save_assessment(
+                    credit_score=800,
+                    score_band="excellent",
+                    barrier_severity="low",
+                    readiness_score=95,
+                    request_payload={},
+                    response_payload={},
+                    org_id="org-Y",
+                )
+                total = await count_all_assessments(session)
+                assert total >= 2
+
+        asyncio.run(_run())

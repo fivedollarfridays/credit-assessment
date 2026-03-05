@@ -4,27 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import itertools
-from collections import deque
-from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
+from .repository import AuditRepository
 
 # Default retention: ~7 years (FCRA compliance)
 AUDIT_RETENTION_DAYS = 2555
-MAX_AUDIT_ENTRIES = 100_000
-
-_audit_entries: deque[dict] = deque(maxlen=MAX_AUDIT_ENTRIES)
-
-
-def count_audit_entries() -> int:
-    """Return count of audit entries without copying."""
-    return len(_audit_entries)
-
-
-def reset_audit_trail() -> None:
-    """Reset all audit entries (for testing)."""
-    _audit_entries.clear()
 
 
 def hash_pii(value: str) -> str:
@@ -33,7 +20,8 @@ def hash_pii(value: str) -> str:
     return hmac.new(pepper.encode(), value.encode(), hashlib.sha256).hexdigest()
 
 
-def create_audit_entry(
+async def create_audit_entry(
+    session: AsyncSession,
     *,
     action: str,
     user_id: str,
@@ -42,43 +30,46 @@ def create_audit_entry(
     org_id: str | None = None,
 ) -> dict:
     """Create and store an audit trail entry with hashed PII."""
-    entry: dict = {
-        "action": action,
-        "user_id_hash": hash_pii(user_id),
-        "request_summary": request_summary,
-        "result_summary": result_summary,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+    repo = AuditRepository(session)
+    entry = await repo.create_entry(
+        action=action,
+        user_id_hash=hash_pii(user_id),
+        request_summary=request_summary,
+        result_summary=result_summary,
+        org_id=org_id,
+    )
+    return {
+        "action": entry.action,
+        "user_id_hash": entry.user_id_hash,
+        "request_summary": entry.request_summary,
+        "result_summary": entry.result_summary,
+        "org_id": entry.org_id,
+        "timestamp": entry.created_at.isoformat() if entry.created_at else None,
     }
-    if org_id is not None:
-        entry["org_id"] = org_id
-    _audit_entries.append(entry)
-    return entry
 
 
-def get_audit_trail(
+async def get_audit_trail(
+    session: AsyncSession,
     *,
     action: str | None = None,
+    org_id: str | None = None,
     limit: int | None = None,
 ) -> list[dict]:
     """Query audit entries with optional filters."""
-    it = iter(_audit_entries)
-    if action is not None:
-        it = (e for e in it if e["action"] == action)
-    if limit is not None:
-        it = itertools.islice(it, limit)
-    return list(it)
+    repo = AuditRepository(session)
+    return await repo.list_entries(action=action, org_id=org_id, limit=limit)
 
 
-def purge_audit_trail(max_age_days: int = AUDIT_RETENTION_DAYS) -> int:
-    """Purge audit entries older than max_age_days. Returns count purged.
+async def count_audit_entries(session: AsyncSession) -> int:
+    """Return count of audit entries."""
+    repo = AuditRepository(session)
+    return await repo.count()
 
-    Relies on chronological insertion order and consistent ISO 8601 format
-    (datetime.isoformat() produces +00:00 suffix, never Z). Lexicographic
-    comparison is safe under these invariants.
-    """
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
-    purged = 0
-    while _audit_entries and _audit_entries[0]["timestamp"] < cutoff:
-        _audit_entries.popleft()
-        purged += 1
-    return purged
+
+async def purge_audit_trail(
+    session: AsyncSession,
+    max_age_days: int = AUDIT_RETENTION_DAYS,
+) -> int:
+    """Purge audit entries older than max_age_days. Returns count purged."""
+    repo = AuditRepository(session)
+    return await repo.purge_old(max_age_days=max_age_days)

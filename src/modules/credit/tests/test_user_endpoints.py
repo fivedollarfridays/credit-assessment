@@ -493,9 +493,10 @@ class TestAccountLockout:
 
     def test_lockout_creates_audit_entry(self, client):
         """Lockout event is logged to audit trail."""
-        from modules.credit.audit import get_audit_trail, reset_audit_trail
+        import asyncio
 
-        reset_audit_trail()
+        from modules.credit.audit import get_audit_trail
+
         client.post(
             "/auth/register",
             json={"email": "auditlock@example.com", "password": "Secret123!"},
@@ -505,8 +506,14 @@ class TestAccountLockout:
                 "/auth/login",
                 json={"email": "auditlock@example.com", "password": "WrongP1!"},
             )
-        entries = get_audit_trail(action="account_locked")
-        assert len(entries) == 1
+        factory = client.app.state.db_session_factory
+
+        async def _check():
+            async with factory() as session:
+                return await get_audit_trail(session, action="account_locked")
+
+        entries = asyncio.run(_check())
+        assert len(entries) >= 1
         assert entries[0]["request_summary"]["email"] == "auditlock@example.com"
 
     def test_deactivated_user_cannot_login(self, client):

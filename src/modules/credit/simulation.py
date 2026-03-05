@@ -7,13 +7,28 @@ from pydantic import BaseModel
 from .assessment import get_utilization_impact
 from .types import ActionType, CreditProfile, NegativeItem, ScoreImpact
 
+# Score impact ranges by action type (low, high) — based on FICO factor weight
+# approximations. PAY_DOWN_DEBT and REDUCE_UTILIZATION are computed dynamically.
+FIXED_ACTION_IMPACTS: dict[ActionType, tuple[int, int]] = {
+    ActionType.REMOVE_COLLECTION: (20, 50),
+    ActionType.DISPUTE_NEGATIVE: (10, 40),
+    ActionType.PAY_ON_TIME: (5, 15),
+    ActionType.BECOME_AUTHORIZED_USER: (5, 20),
+    ActionType.OPEN_SECURED_CARD: (3, 10),
+    ActionType.KEEP_ACCOUNTS_OPEN: (0, 5),
+    ActionType.AVOID_NEW_INQUIRIES: (0, 5),
+    ActionType.DIVERSIFY_CREDIT_MIX: (3, 10),
+}
+
+PAY_ON_TIME_PCT_INCREMENT = 2.0
+
 
 class SimulationAction(BaseModel):
     """A proposed credit improvement action for simulation."""
 
     action_type: ActionType
     target_amount: float | None = None
-    target_item: str | NegativeItem | None = None
+    target_item: str | NegativeItem | None = None  # reserved for item-level targeting
 
 
 class SimulationResult(BaseModel):
@@ -128,7 +143,8 @@ class ScoreSimulator:
             return
         state.collection_count -= 1
         state.negative_count = max(0, state.negative_count - 1)
-        state.add_impact(20, 50)
+        low, high = FIXED_ACTION_IMPACTS[ActionType.REMOVE_COLLECTION]
+        state.add_impact(low, high)
 
     def _handle_dispute_negative(
         self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
@@ -136,40 +152,26 @@ class ScoreSimulator:
         if state.negative_count <= 0:
             return
         state.negative_count -= 1
-        state.add_impact(10, 40)
+        low, high = FIXED_ACTION_IMPACTS[ActionType.DISPUTE_NEGATIVE]
+        state.add_impact(low, high)
 
     def _handle_pay_on_time(
         self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
     ) -> None:
         if state.payment_history_pct >= 100.0:
             return
-        state.payment_history_pct = min(100.0, state.payment_history_pct + 2.0)
-        state.add_impact(5, 15)
+        state.payment_history_pct = min(
+            100.0, state.payment_history_pct + PAY_ON_TIME_PCT_INCREMENT
+        )
+        low, high = FIXED_ACTION_IMPACTS[ActionType.PAY_ON_TIME]
+        state.add_impact(low, high)
 
-    def _handle_become_authorized_user(
+    def _handle_fixed_impact(
         self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
     ) -> None:
-        state.add_impact(5, 20)
-
-    def _handle_open_secured_card(
-        self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
-    ) -> None:
-        state.add_impact(3, 10)
-
-    def _handle_keep_accounts_open(
-        self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
-    ) -> None:
-        state.add_impact(0, 5)
-
-    def _handle_avoid_new_inquiries(
-        self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
-    ) -> None:
-        state.add_impact(0, 5)
-
-    def _handle_diversify_credit_mix(
-        self, action: SimulationAction, state: _WorkingState, profile: CreditProfile
-    ) -> None:
-        state.add_impact(3, 10)
+        """Handle actions with fixed score impact ranges."""
+        low, high = FIXED_ACTION_IMPACTS[action.action_type]
+        state.add_impact(low, high)
 
 
 _ACTION_HANDLERS = {
@@ -178,9 +180,9 @@ _ACTION_HANDLERS = {
     ActionType.REMOVE_COLLECTION: ScoreSimulator._handle_remove_collection,
     ActionType.DISPUTE_NEGATIVE: ScoreSimulator._handle_dispute_negative,
     ActionType.PAY_ON_TIME: ScoreSimulator._handle_pay_on_time,
-    ActionType.BECOME_AUTHORIZED_USER: ScoreSimulator._handle_become_authorized_user,
-    ActionType.OPEN_SECURED_CARD: ScoreSimulator._handle_open_secured_card,
-    ActionType.KEEP_ACCOUNTS_OPEN: ScoreSimulator._handle_keep_accounts_open,
-    ActionType.AVOID_NEW_INQUIRIES: ScoreSimulator._handle_avoid_new_inquiries,
-    ActionType.DIVERSIFY_CREDIT_MIX: ScoreSimulator._handle_diversify_credit_mix,
+    ActionType.BECOME_AUTHORIZED_USER: ScoreSimulator._handle_fixed_impact,
+    ActionType.OPEN_SECURED_CARD: ScoreSimulator._handle_fixed_impact,
+    ActionType.KEEP_ACCOUNTS_OPEN: ScoreSimulator._handle_fixed_impact,
+    ActionType.AVOID_NEW_INQUIRIES: ScoreSimulator._handle_fixed_impact,
+    ActionType.DIVERSIFY_CREDIT_MIX: ScoreSimulator._handle_fixed_impact,
 }

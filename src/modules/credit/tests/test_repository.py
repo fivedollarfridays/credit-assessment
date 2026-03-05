@@ -26,7 +26,7 @@ class TestSaveAssessment:
     """Test saving assessment records."""
 
     def test_save_returns_record_with_id(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -45,7 +45,7 @@ class TestSaveAssessment:
         asyncio.run(_run())
 
     def test_save_persists_to_database(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -71,7 +71,7 @@ class TestGetAssessment:
     """Test retrieving assessment records."""
 
     def test_get_nonexistent_returns_none(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -82,7 +82,7 @@ class TestGetAssessment:
         asyncio.run(_run())
 
     def test_list_assessments_returns_all(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -112,18 +112,149 @@ class TestGetAssessment:
 class TestAuditLog:
     """Test audit log operations."""
 
-    def test_log_action_creates_entry(self, db_factory):
+    def test_create_entry_stores_request_and_result(self, db_factory):
         from modules.credit.repository import AuditRepository
 
         async def _run():
             async with db_factory() as session:
                 repo = AuditRepository(session)
-                entry = await repo.log_action(
+                entry = await repo.create_entry(
                     action="assess",
-                    resource="credit_profile",
-                    detail={"score": 740},
+                    user_id_hash="abc123",
+                    request_summary={"score": 650},
+                    result_summary={"readiness": 55},
                 )
                 assert entry.id is not None
                 assert entry.action == "assess"
+                assert entry.request_summary == {"score": 650}
+                assert entry.result_summary == {"readiness": 55}
+                assert entry.user_id_hash == "abc123"
+
+        asyncio.run(_run())
+
+    def test_create_entry_with_org_id(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                entry = await repo.create_entry(
+                    action="assess",
+                    user_id_hash="x",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-abc",
+                )
+                assert entry.org_id == "org-abc"
+
+        asyncio.run(_run())
+
+    def test_list_entries_returns_all(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="a",
+                    request_summary={},
+                    result_summary={},
+                )
+                await repo.create_entry(
+                    action="export",
+                    user_id_hash="b",
+                    request_summary={},
+                    result_summary={},
+                )
+                entries = await repo.list_entries()
+                assert len(entries) == 2
+
+        asyncio.run(_run())
+
+    def test_list_entries_filter_by_action(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="a",
+                    request_summary={},
+                    result_summary={},
+                )
+                await repo.create_entry(
+                    action="export",
+                    user_id_hash="b",
+                    request_summary={},
+                    result_summary={},
+                )
+                entries = await repo.list_entries(action="assess")
+                assert len(entries) == 1
+                assert entries[0]["action"] == "assess"
+
+        asyncio.run(_run())
+
+    def test_list_entries_with_limit(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                for i in range(5):
+                    await repo.create_entry(
+                        action="assess",
+                        user_id_hash=f"u{i}",
+                        request_summary={},
+                        result_summary={},
+                    )
+                entries = await repo.list_entries(limit=3)
+                assert len(entries) == 3
+
+        asyncio.run(_run())
+
+    def test_list_entries_filter_by_org_id(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="a",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-1",
+                )
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="b",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-2",
+                )
+                entries = await repo.list_entries(org_id="org-1")
+                assert len(entries) == 1
+                assert entries[0]["org_id"] == "org-1"
+
+        asyncio.run(_run())
+
+    def test_purge_old_entries(self, db_factory):
+        from modules.credit.repository import AuditRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AuditRepository(session)
+                await repo.create_entry(
+                    action="assess",
+                    user_id_hash="a",
+                    request_summary={},
+                    result_summary={},
+                )
+                # Recent entry should not be purged
+                purged = await repo.purge_old(max_age_days=2555)
+                assert purged == 0
+                assert await repo.count() == 1
 
         asyncio.run(_run())

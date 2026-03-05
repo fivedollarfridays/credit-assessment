@@ -65,10 +65,14 @@ class AuditLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     action: Mapped[str] = mapped_column(String(50), nullable=False)
-    resource: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource: Mapped[str] = mapped_column(
+        String(100), nullable=False, server_default=""
+    )
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     user_id_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     org_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    request_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    result_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

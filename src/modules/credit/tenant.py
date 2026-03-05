@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .repo_assessments import AssessmentRepository
 from .roles import is_admin
 
 
@@ -38,48 +40,19 @@ class ScopedAssessmentRepository:
         self.org_id = org_id
 
 
-# In-memory org-scoped assessment store — unbounded, acceptable for MVP.
-# Cap or migrate to DB before production.
-_org_assessments: dict[str, list[dict]] = defaultdict(list)
-
-
-def store_org_assessment(org_id: str, assessment: dict) -> None:
-    """Store an assessment scoped to an organization."""
-    _org_assessments[org_id].append(assessment)
-
-
-def get_org_assessments(org_id: str) -> list[dict]:
+async def get_org_assessments(session: AsyncSession, org_id: str) -> list:
     """Get assessments for a specific organization."""
-    return list(_org_assessments.get(org_id, []))
+    repo = AssessmentRepository(session)
+    return await repo.get_by_org_id(org_id)
 
 
-def count_all_assessments() -> int:
-    """Count all assessments across all orgs without copying."""
-    return sum(len(v) for v in _org_assessments.values())
+async def count_all_assessments(session: AsyncSession) -> int:
+    """Count all assessments across all orgs."""
+    repo = AssessmentRepository(session)
+    return await repo.count_all()
 
 
-def count_org_assessments(org_id: str) -> int:
-    """Count assessments for a specific org without copying."""
-    return len(_org_assessments.get(org_id, []))
-
-
-def delete_user_org_assessments(user_id: str) -> int:
-    """Delete all org assessments for a user. Returns count deleted."""
-    deleted = 0
-    for org_id in list(_org_assessments):
-        before = len(_org_assessments[org_id])
-        _org_assessments[org_id] = [
-            a for a in _org_assessments[org_id] if a.get("user_id") != user_id
-        ]
-        deleted += before - len(_org_assessments[org_id])
-        if not _org_assessments[org_id]:
-            del _org_assessments[org_id]
-    return deleted
-
-
-def get_all_assessments() -> list[dict]:
-    """Get all assessments across all orgs. Admin only."""
-    result = []
-    for assessments in _org_assessments.values():
-        result.extend(assessments)
-    return result
+async def count_org_assessments(session: AsyncSession, org_id: str) -> int:
+    """Count assessments for a specific org."""
+    repo = AssessmentRepository(session)
+    return await repo.count_by_org_id(org_id)
