@@ -5,9 +5,9 @@ from __future__ import annotations
 import enum
 
 from fastapi import HTTPException, Request, Security
-from fastapi.security import APIKeyHeader
 
 from .assess_routes import verify_auth
+from .auth import API_KEY_IDENTITY, _api_key_header
 
 
 class Role(str, enum.Enum):
@@ -25,9 +25,6 @@ def is_admin(user_data: dict | None) -> bool:
     return user_data.get("role") == Role.ADMIN.value
 
 
-_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
 def require_role(*allowed: Role):
     """FastAPI dependency that checks the user has an allowed role."""
     allowed_values = {r.value for r in allowed}
@@ -39,7 +36,7 @@ def require_role(*allowed: Role):
         from .user_routes import get_user
 
         identity = await verify_auth(request, api_key)
-        if identity == "api-key-user":
+        if identity == API_KEY_IDENTITY:
             raise HTTPException(
                 status_code=403,
                 detail="API key users cannot access role-restricted endpoints",

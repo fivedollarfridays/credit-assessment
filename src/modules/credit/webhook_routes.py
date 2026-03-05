@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
 from .assess_routes import verify_auth
+from .config import settings
 from .webhooks import (
     EventType,
     create_webhook,
@@ -47,6 +48,8 @@ class WebhookCreateRequest(BaseModel):
     def validate_url(cls, v: str) -> str:
         if not v.startswith(("https://", "http://")):
             raise ValueError("URL must start with https:// or http://")
+        if settings.is_production and v.startswith("http://"):
+            raise ValueError("Production webhooks require https://")
         parsed = urlparse(v)
         hostname = (parsed.hostname or "").lower()
         if hostname in _BLOCKED_HOSTNAMES:

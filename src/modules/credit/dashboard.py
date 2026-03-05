@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from .audit import get_audit_trail
+from .audit import count_audit_entries
 from .billing import count_active_subscriptions, get_subscription
-from .tenant import get_all_assessments, get_org_assessments
 from .roles import Role
+from .tenant import count_all_assessments, count_org_assessments
 from .user_routes import (
     count_users,
     get_all_users,
@@ -13,7 +13,7 @@ from .user_routes import (
     set_user_role,
     update_user,
 )
-from .webhooks import get_webhooks
+from .webhooks import count_webhooks
 
 
 def _build_customer_info(
@@ -25,7 +25,7 @@ def _build_customer_info(
     """Build a customer info dict from user, subscription, and assessment data."""
     return {
         "email": email,
-        "role": user.get("role", "viewer"),
+        "role": user.get("role", Role.VIEWER.value),
         "is_active": user.get("is_active", True),
         "org_id": user.get("org_id", ""),
         "plan": sub["plan"] if sub else None,
@@ -35,10 +35,9 @@ def _build_customer_info(
 
 def get_usage_overview() -> dict:
     """Aggregate usage statistics across all stores."""
-    total_assessments = len(get_all_assessments())
     return {
         "total_users": count_users(),
-        "total_assessments": total_assessments,
+        "total_assessments": count_all_assessments(),
         "active_subscriptions": count_active_subscriptions(),
     }
 
@@ -49,8 +48,9 @@ def get_customer_list() -> list[dict]:
     for email, user in get_all_users().items():
         sub = get_subscription(email)
         org_id = user.get("org_id", "")
-        assessments = get_org_assessments(org_id)
-        customers.append(_build_customer_info(email, user, sub, len(assessments)))
+        customers.append(
+            _build_customer_info(email, user, sub, count_org_assessments(org_id))
+        )
     return customers
 
 
@@ -61,8 +61,7 @@ def get_customer_detail(email: str) -> dict | None:
         return None
     sub = get_subscription(email)
     org_id = user.get("org_id", "")
-    assessments = get_org_assessments(org_id)
-    info = _build_customer_info(email, user, sub, len(assessments))
+    info = _build_customer_info(email, user, sub, count_org_assessments(org_id))
     info["subscription_status"] = sub["status"] if sub else None
     return info
 
@@ -92,6 +91,6 @@ def get_system_health() -> dict:
     return {
         "status": "ok",
         "users": count_users(),
-        "audit_entries": len(get_audit_trail()),
-        "webhooks": len(get_webhooks()),
+        "audit_entries": count_audit_entries(),
+        "webhooks": count_webhooks(),
     }

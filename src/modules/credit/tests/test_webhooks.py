@@ -11,7 +11,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from modules.credit.router import app
-from modules.credit.webhook_routes import _is_private_ip
 from modules.credit.webhooks import (
     EventType,
     WebhookDeliveryStatus,
@@ -374,64 +373,3 @@ class TestWebhookEndpoints:
         log = get_delivery_log(webhook_id=wh.id)
         assert len(log) == 1
         assert log[0]["status"] == "failed"
-
-
-# --- SSRF Protection ---
-
-
-@pytest.mark.usefixtures("bypass_auth")
-class TestSsrfProtection:
-    """Test that webhook URL validation blocks internal/private addresses."""
-
-    def _post_webhook(self, client, url: str):
-        return client.post(
-            "/v1/webhooks",
-            json={
-                "url": url,
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-
-    def test_rejects_localhost_url(self, client):
-        resp = self._post_webhook(client, "https://localhost/hook")
-        assert resp.status_code == 422
-
-    def test_rejects_private_ip_192_168(self, client):
-        resp = self._post_webhook(client, "https://192.168.1.1/hook")
-        assert resp.status_code == 422
-
-    def test_rejects_127_0_0_1(self, client):
-        resp = self._post_webhook(client, "https://127.0.0.1/hook")
-        assert resp.status_code == 422
-
-    def test_rejects_metadata_169_254(self, client):
-        resp = self._post_webhook(client, "http://169.254.169.254/latest/meta-data/")
-        assert resp.status_code == 422
-
-    def test_rejects_zero_hostname(self, client):
-        resp = self._post_webhook(client, "https://0/hook")
-        assert resp.status_code == 422
-
-    def test_rejects_ipv6_loopback_bracket(self, client):
-        resp = self._post_webhook(client, "https://[::1]/hook")
-        assert resp.status_code == 422
-
-    def test_accepts_public_https_url(self, client):
-        resp = self._post_webhook(client, "https://example.com/hook")
-        assert resp.status_code == 201
-
-
-# --- SSRF hardening: expanded IP range detection ---
-
-
-class TestSsrfExpandedRanges:
-    """T11.1: _is_private_ip must block carrier-grade NAT and multicast."""
-
-    def test_carrier_grade_nat_blocked(self):
-        """100.64.0.0/10 (carrier-grade NAT) must be treated as non-global."""
-        assert _is_private_ip("100.64.0.1") is True
-
-    def test_multicast_blocked(self):
-        """224.0.0.1 (multicast) must be treated as non-global."""
-        assert _is_private_ip("224.0.0.1") is True

@@ -2,11 +2,9 @@
 
 from unittest.mock import MagicMock, patch
 
-from fastapi.testclient import TestClient
-
 from modules.credit.config import Settings
 
-_SETTINGS = Settings(
+_BILLING_SETTINGS = Settings(
     jwt_secret="test-secret",
     api_key=None,
     stripe_secret_key="sk_test_fake",
@@ -15,24 +13,11 @@ _SETTINGS = Settings(
 
 
 def _get_client():
+    from fastapi.testclient import TestClient
+
     from modules.credit.router import app
 
     return TestClient(app)
-
-
-def _patch_all():
-    from contextlib import ExitStack
-
-    stack = ExitStack()
-    for mod in ["router", "auth_routes", "user_routes", "assess_routes", "billing"]:
-        stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
-    return stack
-
-
-def _register_and_login(client, email, password="Secret123!"):
-    client.post("/auth/register", json={"email": email, "password": password})
-    resp = client.post("/auth/login", json={"email": email, "password": password})
-    return resp.json()["access_token"]
 
 
 class TestBillingPlanEnum:

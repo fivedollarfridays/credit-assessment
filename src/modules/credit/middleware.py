@@ -22,13 +22,13 @@ class HstsMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, prod_check=None) -> None:
         super().__init__(app)
-        self._prod_check = prod_check or (lambda: False)
+        self._is_prod = (prod_check or (lambda: False))()
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         response = await call_next(request)
-        if self._prod_check():
+        if self._is_prod:
             response.headers["strict-transport-security"] = _HSTS_VALUE
         return response
 
@@ -38,12 +38,12 @@ class HttpsRedirectMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, prod_check=None) -> None:
         super().__init__(app)
-        self._prod_check = prod_check or (lambda: False)
+        self._is_prod = (prod_check or (lambda: False))()
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        if self._prod_check() and request.url.scheme == "http":
+        if self._is_prod and request.url.scheme == "http":
             url = request.url.replace(scheme="https")
             return Response(status_code=307, headers={"location": str(url)})
         return await call_next(request)

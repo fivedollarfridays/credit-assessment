@@ -127,7 +127,10 @@ class TestDemoUsersDisabledInProduction:
             jwt_secret="real-secret-value-here",
             pii_pepper="pp",
         )
-        with patch("modules.credit.auth_routes.settings", mock):
+        with (
+            patch("modules.credit.auth_routes.settings", mock),
+            patch("modules.credit.auth.settings", mock),
+        ):
             resp = client.post(
                 "/auth/token",
                 json={"username": "admin", "password": "admin"},

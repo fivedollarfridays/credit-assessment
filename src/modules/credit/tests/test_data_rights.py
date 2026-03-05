@@ -150,6 +150,35 @@ class TestDataDeletion:
         assert summary["consent_records_deleted"] == 0
         assert summary["assessments_deleted"] == 0
 
+    def test_delete_also_removes_org_assessments(self) -> None:
+        """GDPR: delete_user_data must also purge tenant._org_assessments."""
+        from modules.credit.tenant import _org_assessments
+
+        reset_data_rights()
+        _org_assessments.clear()
+        _org_assessments["org-1"].append({"user_id": "d-org", "score": 700})
+        _org_assessments["org-1"].append({"user_id": "other", "score": 800})
+        _org_assessments["org-2"].append({"user_id": "d-org", "score": 600})
+
+        summary = delete_user_data(user_id="d-org")
+        assert summary["org_assessments_deleted"] == 2
+        # Only "other" remains in org-1
+        assert len(_org_assessments["org-1"]) == 1
+        assert _org_assessments["org-1"][0]["user_id"] == "other"
+        # org-2 should be cleaned up entirely
+        assert "org-2" not in _org_assessments
+        _org_assessments.clear()
+
+    def test_delete_org_assessments_empty_returns_zero(self) -> None:
+        """No org assessments to delete returns 0 for org_assessments_deleted."""
+        from modules.credit.tenant import _org_assessments
+
+        reset_data_rights()
+        _org_assessments.clear()
+        summary = delete_user_data(user_id="nobody")
+        assert summary["org_assessments_deleted"] == 0
+        _org_assessments.clear()
+
 
 # ---------------------------------------------------------------------------
 # Cycle 4: Data retention / purge

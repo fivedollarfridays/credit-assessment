@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-plan-2026-03-code-review-fixes-sprint9
+**Plan:** plan-2026-03-Sprint 13: Code Review Fixes (Sprint 12 Review)
 **Status:** Complete
-**Current Sprint:** 11
+**Current Sprint:** 13
 
 ## Current Focus
 
-Sprint 11 complete. All 3 code review fix tasks done (T11.1, T11.2, T11.3).
+Sprint 13 complete. All 2 tasks done (T13.1, T13.2). Ready for commit.
 
 ## Task Status
 
@@ -109,13 +109,81 @@ Sprint 11 complete. All 3 code review fix tasks done (T11.1, T11.2, T11.3).
 | T11.2 | JWT consolidation + _api_keys bounds | P0 | 25 | ✓ Done |
 | T11.3 | Code quality polish | P1 | 15 | ✓ Done |
 
+### Sprint 12 — Code Review Fixes (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T12.1 | Auth constants + model consolidation | P0 | 25 | ✓ Done |
+| T12.2 | Efficiency: count functions + middleware caching + purge optimization | P1 | 20 | ✓ Done |
+| T12.3 | Test deduplication + GDPR cross-store fix + webhook HTTPS | P1 | 20 | ✓ Done |
+
 ### Completed Plans
 
 | Plan | Title | Tasks |
 |------|-------|-------|
 | plan-2026-03-launch-readiness | Launch Readiness | 5/5 Done |
 
+### Sprint 13 — Code Review Fixes (Sprint 12 Review)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T13.1 | Test helper cleanup: missed files + deduplication | P1 | 50 | ✓ Done |
+| T13.2 | Code quality: audit invariant comment + GDPR org-scope doc + unbounded store docs | P1 | 20 | ✓ Done |
+
 ## What Was Just Done
+
+- **T13.2 done** (auto-updated by hook)
+
+- **T13.1 done** (auto-updated by hook)
+
+### Session: 2026-03-04 -- Sprint 13: Code Review Fixes (Sprint 12 Review)
+
+- **T13.1**: Extracted `_post_webhook` to module level in test_webhook_security.py (was duplicated in 2 classes). Removed unused conftest imports from test_billing.py. Replaced local `_patch_settings()` in test_auth_endpoints.py with shared `patch_auth_settings`. Renamed `patch_all_settings` → `patch_auth_settings` across conftest.py, test_rbac.py, test_tenant.py, test_audit_trail.py. Replaced `_admin_auth` fixture in test_dashboard.py with conftest `admin_headers`. Fixed 3 lint errors (unused imports in test_auth_consolidation.py, test_rbac.py, test_tenant.py).
+- **T13.2**: Added ISO format invariant docstring to `purge_audit_trail`. Added all-org scan rationale comment to `delete_user_data`. Added unbounded store comments to data_rights.py, tenant.py, webhooks.py.
+- 777 tests passing, 0 arch errors, 0 ruff issues.
+
+- **T12.3 done** (auto-updated by hook)
+
+- **T12.3 done**
+
+### Session: 2026-03-04 -- T12.3: Test deduplication + GDPR cross-store fix + webhook HTTPS
+
+- **Shared test helpers in conftest.py**: Added `register_and_login()`, `patch_all_settings()`, and `_TEST_SETTINGS` to conftest.py. Eliminated 3 copies of `_register_and_login` and 3 copies of `_patch_all` from test_rbac.py. Removed duplicates from test_tenant.py, test_billing.py, test_audit_trail.py.
+- **test_dashboard.py deduplication**: Replaced 9 copies of the 10-line "patch settings + create token" block with an `_admin_auth` fixture. File reduced from 449 to ~330 lines.
+- **GDPR cross-store fix**: `delete_user_data()` in `data_rights.py` now also removes user's entries from `tenant._org_assessments`. Returns `org_assessments_deleted` count in summary. 2 new tests.
+- **Webhook HTTPS enforcement**: `webhook_routes.py` now rejects `http://` URLs when `settings.is_production` is True. 3 new tests in `test_webhook_security.py`.
+- **test_webhooks.py split**: Moved SSRF protection tests and HTTPS enforcement tests to `test_webhook_security.py` to fix arch violation (44 > 40 functions).
+- 777 tests passing, 0 arch errors on all modified files.
+
+- **T12.2 done** (auto-updated by hook)
+
+- **T12.1 done** (auto-updated by hook)
+
+- **T12.2 done**
+
+### Session: 2026-03-04 -- T12.2: Efficiency -- count functions + middleware caching + purge optimization
+
+- **`count_audit_entries()`**: Added to `audit.py`. Returns `len(_audit_entries)` without copying.
+- **`count_all_assessments()`**: Added to `tenant.py`. Sums `len(v) for v in _org_assessments.values()` without building a list.
+- **`count_org_assessments(org_id)`**: Added to `tenant.py`. Returns `len(_org_assessments.get(org_id, []))` without copying.
+- **`count_webhooks()`**: Added to `webhooks.py`. Returns `len(_webhooks)` without copying.
+- **`purge_audit_trail` optimized**: Replaced `list(_audit_entries)` copy + `purge_by_age` + clear + extend (3x memory) with `popleft()` loop. Entries are chronologically ordered so oldest are at front. Removed unused `purge_by_age` import.
+- **Dashboard uses count functions exclusively**: Replaced `len(get_all_assessments())` with `count_all_assessments()`, `len(get_org_assessments(...))` with `count_org_assessments(...)`, `len(get_audit_trail())` with `count_audit_entries()`, `len(get_webhooks())` with `count_webhooks()`. Removed `get_audit_trail`, `get_all_assessments`, `get_org_assessments`, `get_webhooks` imports.
+- **Middleware caches `prod_check` at init**: `HstsMiddleware` and `HttpsRedirectMiddleware` now evaluate `prod_check()` once in `__init__` and store as `_is_prod` boolean. No per-request lambda call. Updated `test_tls.py` to use fresh FastAPI apps with middleware configured per test (since caching at init means patching settings post-init has no effect).
+- **`_api_keys` is `OrderedDict`**: Changed from `dict` to `OrderedDict` in `admin_routes.py`. Eviction uses `popitem(last=False)` instead of `pop(next(iter(...)))`.
+- 34 new tests in `test_efficiency.py`. 772 tests passing, 0 arch errors, 0 ruff issues.
+
+- **T12.1 done**
+
+### Session: 2026-03-04 -- T12.1: Auth constants + model consolidation
+
+- **`API_KEY_IDENTITY` constant**: Added to `auth.py`. All 3 source files (`assess_routes.py`, `roles.py`, `auth_routes.py`) now import and use it instead of raw `"api-key-user"` string.
+- **`_api_key_header` singleton**: Defined once in `auth.py`. Removed duplicate definitions from `assess_routes.py` (line 20) and `roles.py` (line 28). Both modules now import from `auth.py`.
+- **`TokenResponse` model**: Defined once in `auth.py`. Removed `TokenResponse` from `auth_routes.py` (lines 32-36) and `LoginResponse` from `user_routes.py` (lines 106-108). Both modules now import `TokenResponse` from `auth.py`.
+- **`issue_token_for()` helper**: Added to `auth.py`, wraps `create_access_token` with settings. Used in `auth_routes.py` (2 calls: issue_token, refresh_token) and `user_routes.py` (1 call: login). Eliminated 3 instances of 4-line `create_access_token(subject=..., secret=settings.jwt_secret, ...)` boilerplate.
+- **Dashboard `"viewer"` string**: Replaced `user.get("role", "viewer")` with `user.get("role", Role.VIEWER.value)` in `dashboard.py:28`.
+- **Test patches updated**: Added `"auth"` to `_patch_all` module lists in 5 test files (`test_auth_endpoints.py`, `test_audit_trail.py`, `test_rbac.py`, `test_tenant.py`, `test_billing.py`) and `test_security.py` since `issue_token_for` reads settings from `auth.py`.
+- 10 new tests in `test_auth_consolidation.py`. 748 tests passing, 0 arch errors, 0 ruff issues.
 
 - **T11.3 done** (auto-updated by hook)
 
@@ -627,7 +695,7 @@ Sprint 11 complete. All 3 code review fix tasks done (T11.1, T11.2, T11.3).
 
 ## What's Next
 
-Sprint 11 complete. All 3 code review fix tasks done. 735 tests passing, 0 arch errors.
+T12.1 and T12.2 done. Ready for next task. 772 tests passing, 0 arch errors.
 
 
 ## Blockers

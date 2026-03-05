@@ -6,16 +6,20 @@ import hashlib
 import hmac
 import itertools
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .config import settings
-from .retention import purge_by_age
 
 # Default retention: ~7 years (FCRA compliance)
 AUDIT_RETENTION_DAYS = 2555
 MAX_AUDIT_ENTRIES = 100_000
 
 _audit_entries: deque[dict] = deque(maxlen=MAX_AUDIT_ENTRIES)
+
+
+def count_audit_entries() -> int:
+    """Return count of audit entries without copying."""
+    return len(_audit_entries)
 
 
 def reset_audit_trail() -> None:
@@ -66,10 +70,15 @@ def get_audit_trail(
 
 
 def purge_audit_trail(max_age_days: int = AUDIT_RETENTION_DAYS) -> int:
-    """Purge audit entries older than max_age_days. Returns count purged."""
-    kept, purged = purge_by_age(
-        list(_audit_entries), timestamp_key="timestamp", max_age_days=max_age_days
-    )
-    _audit_entries.clear()
-    _audit_entries.extend(kept)
+    """Purge audit entries older than max_age_days. Returns count purged.
+
+    Relies on chronological insertion order and consistent ISO 8601 format
+    (datetime.isoformat() produces +00:00 suffix, never Z). Lexicographic
+    comparison is safe under these invariants.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    purged = 0
+    while _audit_entries and _audit_entries[0]["timestamp"] < cutoff:
+        _audit_entries.popleft()
+        purged += 1
     return purged

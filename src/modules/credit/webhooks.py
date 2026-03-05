@@ -62,6 +62,7 @@ class DeliveryRecord:
 
 
 # --- In-memory stores ---
+# _webhooks is unbounded — acceptable for MVP. Cap or migrate to DB.
 
 _webhooks: dict[str, WebhookRegistration] = {}
 _delivery_log: dict[str, deque[dict]] = defaultdict(
@@ -95,6 +96,11 @@ def create_webhook(
     )
     _webhooks[wh.id] = wh
     return wh
+
+
+def count_webhooks() -> int:
+    """Count registered webhooks without copying."""
+    return len(_webhooks)
 
 
 def get_webhooks(*, owner_id: str | None = None) -> list[WebhookRegistration]:

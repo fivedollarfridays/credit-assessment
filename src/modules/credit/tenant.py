@@ -38,7 +38,8 @@ class ScopedAssessmentRepository:
         self.org_id = org_id
 
 
-# In-memory org-scoped assessment store — replaced by DB in production.
+# In-memory org-scoped assessment store — unbounded, acceptable for MVP.
+# Cap or migrate to DB before production.
 _org_assessments: dict[str, list[dict]] = defaultdict(list)
 
 
@@ -50,6 +51,16 @@ def store_org_assessment(org_id: str, assessment: dict) -> None:
 def get_org_assessments(org_id: str) -> list[dict]:
     """Get assessments for a specific organization."""
     return list(_org_assessments.get(org_id, []))
+
+
+def count_all_assessments() -> int:
+    """Count all assessments across all orgs without copying."""
+    return sum(len(v) for v in _org_assessments.values())
+
+
+def count_org_assessments(org_id: str) -> int:
+    """Count assessments for a specific org without copying."""
+    return len(_org_assessments.get(org_id, []))
 
 
 def get_all_assessments() -> list[dict]:

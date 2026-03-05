@@ -1,15 +1,16 @@
 """Tests for RBAC — roles, role enforcement, and API keys — T4.2 TDD."""
 
-from unittest.mock import patch
-
-from fastapi.testclient import TestClient
-
 from modules.credit.config import Settings
-
-_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
+from modules.credit.tests.conftest import (
+    _TEST_SETTINGS,
+    patch_auth_settings,
+    register_and_login,
+)
 
 
 def _get_client():
+    from fastapi.testclient import TestClient
+
     from modules.credit.router import app
 
     return TestClient(app)
@@ -42,23 +43,10 @@ class TestRoleEnum:
 class TestRoleEnforcement:
     """Test role-based access on endpoints."""
 
-    def _register_and_login(self, client, email, password="Secret123!"):
-        client.post("/auth/register", json={"email": email, "password": password})
-        resp = client.post("/auth/login", json={"email": email, "password": password})
-        return resp.json()["access_token"]
-
-    def _patch_all(self):
-        from contextlib import ExitStack
-
-        stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
-            stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
-        return stack
-
     def test_admin_can_list_users(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "admin@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "admin@test.com")
             from modules.credit.user_routes import _users
 
             _users["admin@test.com"]["role"] = "admin"
@@ -71,8 +59,8 @@ class TestRoleEnforcement:
 
     def test_viewer_cannot_access_admin_endpoints(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "viewer@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "viewer@test.com")
             from modules.credit.user_routes import _users
 
             _users["viewer@test.com"]["role"] = "viewer"
@@ -85,14 +73,14 @@ class TestRoleEnforcement:
 
     def test_missing_bearer_returns_403(self):
         client = _get_client()
-        with self._patch_all():
+        with patch_auth_settings():
             resp = client.get("/admin/users")
             assert resp.status_code == 403
             assert resp.json()["detail"] == "Invalid or missing credentials"
 
     def test_invalid_token_returns_401(self):
         client = _get_client()
-        with self._patch_all():
+        with patch_auth_settings():
             resp = client.get(
                 "/admin/users",
                 headers={"Authorization": "Bearer bad-token"},
@@ -104,14 +92,7 @@ class TestRoleEnforcement:
         """API key users cannot access role-restricted endpoints."""
         settings_with_key = Settings(jwt_secret="test-secret", api_key="test-api-key")
         client = _get_client()
-        from contextlib import ExitStack
-
-        stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
-            stack.enter_context(
-                patch(f"modules.credit.{mod}.settings", settings_with_key)
-            )
-        with stack:
+        with patch_auth_settings(settings_with_key):
             resp = client.get(
                 "/admin/users",
                 headers={"X-API-Key": "test-api-key"},
@@ -124,13 +105,13 @@ class TestRoleEnforcement:
 
     def test_valid_token_unknown_user_returns_401(self):
         client = _get_client()
-        with self._patch_all():
+        with patch_auth_settings():
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
                 subject="ghost@test.com",
-                secret=_SETTINGS.jwt_secret,
-                algorithm=_SETTINGS.jwt_algorithm,
+                secret=_TEST_SETTINGS.jwt_secret,
+                algorithm=_TEST_SETTINGS.jwt_algorithm,
                 expire_minutes=30,
             )
             resp = client.get(
@@ -144,23 +125,10 @@ class TestRoleEnforcement:
 class TestApiKeyModel:
     """Test API key creation and management."""
 
-    def _register_and_login(self, client, email, password="Secret123!"):
-        client.post("/auth/register", json={"email": email, "password": password})
-        resp = client.post("/auth/login", json={"email": email, "password": password})
-        return resp.json()["access_token"]
-
-    def _patch_all(self):
-        from contextlib import ExitStack
-
-        stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
-            stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
-        return stack
-
     def test_admin_can_create_api_key(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "keyadmin@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "keyadmin@test.com")
             from modules.credit.user_routes import _users
 
             _users["keyadmin@test.com"]["role"] = "admin"
@@ -176,8 +144,8 @@ class TestApiKeyModel:
 
     def test_admin_can_revoke_api_key(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "revokeadmin@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "revokeadmin@test.com")
             from modules.credit.user_routes import _users
 
             _users["revokeadmin@test.com"]["role"] = "admin"
@@ -198,8 +166,8 @@ class TestApiKeyModel:
 
     def test_revoke_nonexistent_key_returns_404(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "revoke404@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "revoke404@test.com")
             from modules.credit.user_routes import _users
 
             _users["revoke404@test.com"]["role"] = "admin"
@@ -212,8 +180,8 @@ class TestApiKeyModel:
 
     def test_api_key_has_expiration(self):
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "expadmin@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "expadmin@test.com")
             from modules.credit.user_routes import _users
 
             _users["expadmin@test.com"]["role"] = "admin"
@@ -230,19 +198,6 @@ class TestApiKeyModel:
 
 class TestApiKeyEviction:
     """Test that _api_keys store is bounded via FIFO eviction."""
-
-    def _register_and_login(self, client, email, password="Secret123!"):
-        client.post("/auth/register", json={"email": email, "password": password})
-        resp = client.post("/auth/login", json={"email": email, "password": password})
-        return resp.json()["access_token"]
-
-    def _patch_all(self):
-        from contextlib import ExitStack
-
-        stack = ExitStack()
-        for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
-            stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
-        return stack
 
     def test_create_api_key_evicts_oldest_when_over_cap(self):
         """Creating an API key when at cap evicts the oldest entry."""
@@ -261,8 +216,8 @@ class TestApiKeyEviction:
         first_key = next(iter(_api_keys))
 
         client = _get_client()
-        with self._patch_all():
-            token = self._register_and_login(client, "evictadmin@test.com")
+        with patch_auth_settings():
+            token = register_and_login(client, "evictadmin@test.com")
             from modules.credit.user_routes import _users
 
             _users["evictadmin@test.com"]["role"] = "admin"

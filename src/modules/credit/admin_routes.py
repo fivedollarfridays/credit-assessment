@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 _MAX_API_KEYS = 10_000
 
 # In-memory API key store — replaced by DB in production.
-_api_keys: dict[str, dict] = {}
+_api_keys: OrderedDict[str, dict] = OrderedDict()
 
 
 class ApiKeyRequest(BaseModel):
@@ -78,7 +79,7 @@ def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
     _api_keys[key] = {"org_id": req.org_id, "role": req.role, "expires_at": expires_at}
     # Evict oldest entries if over cap
     while len(_api_keys) > _MAX_API_KEYS:
-        _api_keys.pop(next(iter(_api_keys)))
+        _api_keys.popitem(last=False)
     return ApiKeyResponse(
         api_key=key,
         org_id=req.org_id,

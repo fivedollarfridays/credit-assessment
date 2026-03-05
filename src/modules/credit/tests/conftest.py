@@ -1,15 +1,38 @@
 """Shared fixtures for credit module tests."""
 
+from contextlib import ExitStack
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from modules.credit.config import Settings
 from modules.credit.types import (
     AccountSummary,
     CreditProfile,
     ScoreBand,
 )
+
+_TEST_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
+
+
+def register_and_login(
+    client: TestClient, email: str, password: str = "Secret123!"
+) -> str:
+    """Register a user and return their JWT token."""
+    client.post("/auth/register", json={"email": email, "password": password})
+    resp = client.post("/auth/login", json={"email": email, "password": password})
+    return resp.json()["access_token"]
+
+
+def patch_auth_settings(settings: Settings | None = None) -> ExitStack:
+    """Patch settings across all auth-dependent modules. Returns ExitStack."""
+    s = settings or _TEST_SETTINGS
+    stack = ExitStack()
+    for mod in ["router", "auth_routes", "user_routes", "assess_routes", "auth"]:
+        stack.enter_context(patch(f"modules.credit.{mod}.settings", s))
+    return stack
+
 
 # Shared valid payload dict for endpoint tests (matches good_credit_profile).
 VALID_ASSESS_PAYLOAD: dict = {

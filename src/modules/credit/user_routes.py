@@ -9,7 +9,7 @@ from collections import OrderedDict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 
-from .auth import create_access_token
+from .auth import TokenResponse, issue_token_for
 from .config import settings
 from .password import hash_password, verify_password
 from .roles import Role
@@ -103,11 +103,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
 class ResetRequest(BaseModel):
     email: EmailStr
 
@@ -141,19 +136,13 @@ def register(req: RegisterRequest) -> RegisterResponse:
     return RegisterResponse(email=req.email)
 
 
-@router.post("/login", response_model=LoginResponse)
-def login(req: LoginRequest) -> LoginResponse:
+@router.post("/login", response_model=TokenResponse)
+def login(req: LoginRequest) -> TokenResponse:
     """Authenticate user and return JWT token."""
     user = _users.get(req.email)
     if user is None or not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token(
-        subject=req.email,
-        secret=settings.jwt_secret,
-        algorithm=settings.jwt_algorithm,
-        expire_minutes=settings.jwt_expiry_minutes,
-    )
-    return LoginResponse(access_token=token)
+    return TokenResponse(access_token=issue_token_for(req.email))
 
 
 @router.post("/reset-password", response_model=ResetResponse)

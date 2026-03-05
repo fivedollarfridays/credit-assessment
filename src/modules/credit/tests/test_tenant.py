@@ -1,33 +1,14 @@
 """Tests for tenant isolation — T4.5 TDD."""
 
-from unittest.mock import patch
-
-from fastapi.testclient import TestClient
-
-from modules.credit.config import Settings
-
-_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
+from modules.credit.tests.conftest import patch_auth_settings
 
 
 def _get_client():
+    from fastapi.testclient import TestClient
+
     from modules.credit.router import app
 
     return TestClient(app)
-
-
-def _patch_all():
-    from contextlib import ExitStack
-
-    stack = ExitStack()
-    for mod in ["router", "auth_routes", "user_routes", "assess_routes"]:
-        stack.enter_context(patch(f"modules.credit.{mod}.settings", _SETTINGS))
-    return stack
-
-
-def _register_and_login(client, email, password="Secret123!"):
-    client.post("/auth/register", json={"email": email, "password": password})
-    resp = client.post("/auth/login", json={"email": email, "password": password})
-    return resp.json()["access_token"]
 
 
 class TestOrgModel:
@@ -51,7 +32,7 @@ class TestUserOrgAssociation:
 
     def test_register_user_with_org(self):
         client = _get_client()
-        with _patch_all():
+        with patch_auth_settings():
             client.post(
                 "/auth/register",
                 json={"email": "orguser@test.com", "password": "Secret123!"},

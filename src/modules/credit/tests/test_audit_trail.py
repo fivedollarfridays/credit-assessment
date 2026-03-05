@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -20,6 +18,7 @@ from modules.credit.audit import (
 )
 from modules.credit.retention import purge_by_age
 from modules.credit.router import app
+from modules.credit.tests.conftest import patch_auth_settings, register_and_login
 from modules.credit.user_routes import _users
 
 
@@ -253,46 +252,21 @@ class TestAuditRetention:
 class TestAuditEndpoint:
     """Tests for admin audit log query endpoint."""
 
-    _SETTINGS = None
-
-    @classmethod
-    def _get_settings(cls):
-        if cls._SETTINGS is None:
-            from modules.credit.config import Settings
-
-            cls._SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
-        return cls._SETTINGS
-
-    def _patch_all(self):
-        stack = ExitStack()
-        for mod in ["router", "auth_routes", "assess_routes", "user_routes"]:
-            stack.enter_context(
-                patch(f"modules.credit.{mod}.settings", self._get_settings())
-            )
-        return stack
-
     def _get_admin_token(self, client):
         """Register a user, set admin role, return Bearer token."""
-        client.post(
-            "/auth/register",
-            json={"email": "auditadmin@test.com", "password": "Secret123!"},
-        )
-        resp = client.post(
-            "/auth/login",
-            json={"email": "auditadmin@test.com", "password": "Secret123!"},
-        )
+        token = register_and_login(client, "auditadmin@test.com")
         _users["auditadmin@test.com"]["role"] = "admin"
-        return resp.json()["access_token"]
+        return token
 
     def test_audit_endpoint_requires_admin_auth(self) -> None:
         client = TestClient(app)
-        with self._patch_all():
+        with patch_auth_settings():
             resp = client.get("/v1/admin/audit-log")
             assert resp.status_code in (401, 403)
 
     def test_audit_endpoint_returns_200(self) -> None:
         client = TestClient(app)
-        with self._patch_all():
+        with patch_auth_settings():
             token = self._get_admin_token(client)
             resp = client.get(
                 "/v1/admin/audit-log",
@@ -302,7 +276,7 @@ class TestAuditEndpoint:
 
     def test_audit_endpoint_returns_list(self) -> None:
         client = TestClient(app)
-        with self._patch_all():
+        with patch_auth_settings():
             token = self._get_admin_token(client)
             data = client.get(
                 "/v1/admin/audit-log",
@@ -322,7 +296,7 @@ class TestAuditEndpoint:
         )
 
         client = TestClient(app)
-        with self._patch_all():
+        with patch_auth_settings():
             token = self._get_admin_token(client)
             data = client.get(
                 "/v1/admin/audit-log",
@@ -342,7 +316,7 @@ class TestAuditEndpoint:
             )
 
         client = TestClient(app)
-        with self._patch_all():
+        with patch_auth_settings():
             token = self._get_admin_token(client)
             data = client.get(
                 "/v1/admin/audit-log",

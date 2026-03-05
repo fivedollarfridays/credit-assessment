@@ -42,8 +42,8 @@ def client() -> TestClient:
 
 
 def _seed_users():
-    from modules.credit.user_routes import _users
     from modules.credit.password import hash_password
+    from modules.credit.user_routes import _users
 
     _users["alice@acme.com"] = {
         "email": "alice@acme.com",
@@ -232,200 +232,89 @@ class TestDashboardEndpoints:
         resp = client.get("/v1/dashboard/overview")
         assert resp.status_code in (401, 403)
 
-    def test_overview_requires_admin(self, client):
+    def test_overview_requires_admin(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        # Bob is a viewer, not admin
+        from modules.credit.auth import create_access_token
 
-            token = create_access_token(
-                subject="bob@corp.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/overview",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 403
+        bob_token = create_access_token(
+            subject="bob@corp.com",
+            secret="test-secret",
+            algorithm="HS256",
+            expire_minutes=30,
+        )
+        resp = client.get(
+            "/v1/dashboard/overview",
+            headers={"Authorization": f"Bearer {bob_token}"},
+        )
+        assert resp.status_code == 403
 
-    def test_overview_admin_success(self, client):
+    def test_overview_admin_success(self, client, admin_headers):
         _seed_users()
         _seed_subscriptions()
         _seed_assessments()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.get("/v1/dashboard/overview", headers=admin_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_users"] == 3  # alice + bob + admin@test.com (fixture)
+        assert data["total_assessments"] == 3
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/overview",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["total_users"] == 2
-            assert data["total_assessments"] == 3
-
-    def test_customers_list_endpoint(self, client):
+    def test_customers_list_endpoint(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.get("/v1/dashboard/customers", headers=admin_headers)
+        assert resp.status_code == 200
+        assert len(resp.json()) == 3  # alice + bob + admin@test.com (fixture)
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/customers",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            assert len(resp.json()) == 2
-
-    def test_customer_detail_endpoint(self, client):
+    def test_customer_detail_endpoint(self, client, admin_headers):
         _seed_users()
         _seed_subscriptions()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.get(
+            "/v1/dashboard/customers/alice@acme.com", headers=admin_headers
+        )
+        assert resp.status_code == 200
+        assert resp.json()["email"] == "alice@acme.com"
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/customers/alice@acme.com",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            assert resp.json()["email"] == "alice@acme.com"
-
-    def test_customer_detail_not_found(self, client):
+    def test_customer_detail_not_found(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.get(
+            "/v1/dashboard/customers/nobody@test.com", headers=admin_headers
+        )
+        assert resp.status_code == 404
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/customers/nobody@test.com",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 404
-
-    def test_update_customer_endpoint(self, client):
+    def test_update_customer_endpoint(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.put(
+            "/v1/dashboard/customers/bob@corp.com",
+            json={"role": "analyst"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["role"] == "analyst"
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.put(
-                "/v1/dashboard/customers/bob@corp.com",
-                json={"role": "analyst"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            assert resp.json()["role"] == "analyst"
-
-    def test_delete_customer_endpoint(self, client):
+    def test_delete_customer_endpoint(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.delete(
+            "/v1/dashboard/customers/bob@corp.com", headers=admin_headers
+        )
+        assert resp.status_code == 200
+        from modules.credit.user_routes import _users
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.delete(
-                "/v1/dashboard/customers/bob@corp.com",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            from modules.credit.user_routes import _users
+        assert _users["bob@corp.com"]["is_active"] is False
 
-            assert _users["bob@corp.com"]["is_active"] is False
-
-    def test_health_endpoint(self, client):
+    def test_health_endpoint(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
+        resp = client.get("/v1/dashboard/health", headers=admin_headers)
+        assert resp.status_code == 200
+        assert "status" in resp.json()
 
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.get(
-                "/v1/dashboard/health",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
-            assert "status" in resp.json()
-
-    def test_customer_update_rejects_invalid_role(self, client):
+    def test_customer_update_rejects_invalid_role(self, client, admin_headers):
         _seed_users()
-        with patch("modules.credit.assess_routes.settings") as mock_settings:
-            mock_settings.jwt_secret = "test-secret"
-            mock_settings.jwt_algorithm = "HS256"
-            mock_settings.api_key = None
-            from modules.credit.auth import create_access_token
-
-            token = create_access_token(
-                subject="alice@acme.com",
-                secret="test-secret",
-                algorithm="HS256",
-                expire_minutes=30,
-            )
-            resp = client.put(
-                "/v1/dashboard/customers/bob@corp.com",
-                json={"role": "superadmin"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 422
+        resp = client.put(
+            "/v1/dashboard/customers/bob@corp.com",
+            json={"role": "superadmin"},
+            headers=admin_headers,
+        )
+        assert resp.status_code == 422
 
     def test_put_and_delete_customer_not_found(self, client, admin_headers):
         """PUT and DELETE return 404 for unknown customer emails."""

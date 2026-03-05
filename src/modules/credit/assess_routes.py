@@ -8,16 +8,19 @@ from fastapi import (
     Request,
     Security,
 )
-from fastapi.security import APIKeyHeader
 
 from .assessment import CreditAssessmentService
-from .auth import InvalidTokenError, decode_token, extract_bearer_token
+from .auth import (
+    API_KEY_IDENTITY,
+    InvalidTokenError,
+    _api_key_header,
+    decode_token,
+    extract_bearer_token,
+)
 from .config import settings
 from .rate_limit import limiter
 from .repository import AssessmentRepository
 from .types import CreditAssessmentResult, CreditProfile
-
-_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 router = APIRouter()
 
@@ -44,7 +47,7 @@ async def verify_auth(
 
     expected = settings.api_key
     if expected is not None and api_key == expected:
-        return "api-key-user"
+        return API_KEY_IDENTITY
 
     raise HTTPException(status_code=403, detail="Invalid or missing credentials")
 
