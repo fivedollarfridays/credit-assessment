@@ -190,4 +190,4 @@ src/modules/credit/
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+Proprietary. All rights reserved. See [LICENSE](LICENSE).
