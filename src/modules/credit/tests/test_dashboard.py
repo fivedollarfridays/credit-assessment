@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from modules.credit.audit import reset_audit_trail
 from modules.credit.billing import _subscriptions
 from modules.credit.tenant import _org_assessments
 
@@ -16,11 +15,9 @@ def _clean_in_memory_stores():
     """Reset in-memory stores that haven't migrated to DB yet."""
     _subscriptions.clear()
     _org_assessments.clear()
-    reset_audit_trail()
     yield
     _subscriptions.clear()
     _org_assessments.clear()
-    reset_audit_trail()
 
 
 def _seed_subscriptions():

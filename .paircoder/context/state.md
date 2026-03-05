@@ -172,7 +172,7 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T19.1 | Migrate audit trail to database | P0 | 45 | Pending |
+| T19.1 | Migrate audit trail to database | P0 | 45 | ✓ Done |
 | T19.2 | Migrate consent + user assessments to database (GDPR) | P0 | 50 | Pending |
 | T19.3 | Migrate tenant org_assessments to DB + history endpoint | P0 | 50 | Pending |
 
@@ -209,6 +209,22 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 | T23.3 | Score history tracking | P1 | 40 | Pending |
 
 ## What Was Just Done
+
+- **T19.1 done** (auto-updated by hook)
+
+- **T19.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T19.1: Migrate Audit Trail to Database
+
+- Removed in-memory `_audit_entries` deque from `audit.py`
+- Expanded `AuditLog` ORM model with `request_summary` and `result_summary` JSON columns
+- Expanded `AuditRepository` with `create_entry`, `list_entries` (action/org_id/limit filters), `purge_old` methods
+- Rewrote `audit.py` functions as async — `create_audit_entry`, `get_audit_trail`, `count_audit_entries`, `purge_audit_trail` all take `AsyncSession` and delegate to `AuditRepository`
+- Updated `admin_routes.py` audit-log endpoint to async with DB session
+- Updated `dashboard.py` `get_system_health` to await `count_audit_entries`
+- Updated `user_routes.py` lockout audit entry to async
+- Rewrote `test_audit_trail.py`, updated `test_efficiency.py`, `test_dashboard.py`, `test_user_endpoints.py`
+- 919 tests pass, 0 ruff issues
 
 - **T21.3 done** (auto-updated by hook)
 

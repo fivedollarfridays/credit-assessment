@@ -107,6 +107,6 @@ async def get_system_health(session: AsyncSession) -> dict:
     return {
         "status": "ok",
         "users": await repo.count(),
-        "audit_entries": count_audit_entries(),
+        "audit_entries": await count_audit_entries(session),
         "webhooks": count_webhooks(),
     }

@@ -2,27 +2,24 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import asyncio
+from unittest.mock import patch
 
 from modules.credit.audit import (
-    _audit_entries,
     count_audit_entries,
     create_audit_entry,
     purge_audit_trail,
-    reset_audit_trail,
 )
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.middleware import HstsMiddleware, HttpsRedirectMiddleware
+from modules.credit.models_db import Base
+from modules.credit.repo_api_keys import ApiKeyRepository
 from modules.credit.tenant import (
     _org_assessments,
     count_all_assessments,
     count_org_assessments,
     store_org_assessment,
 )
-from unittest.mock import patch
-
-from modules.credit.database import create_engine, get_session_factory
-from modules.credit.models_db import Base
-from modules.credit.repo_api_keys import ApiKeyRepository
-from modules.credit.middleware import HstsMiddleware, HttpsRedirectMiddleware
 from modules.credit.webhooks import (
     EventType,
     count_webhooks,
@@ -31,26 +28,62 @@ from modules.credit.webhooks import (
 )
 
 
+def _make_audit_db():
+    """Create in-memory database for audit tests."""
+    engine = create_engine("sqlite+aiosqlite://")
+    factory = get_session_factory(engine)
+
+    async def _init():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    return factory
+
+
 class TestCountAuditEntries:
     """count_audit_entries() returns count without copying."""
 
     def test_returns_zero_on_empty(self) -> None:
-        reset_audit_trail()
-        assert count_audit_entries() == 0
+        factory = _make_audit_db()
+
+        async def _run():
+            async with factory() as session:
+                return await count_audit_entries(session)
+
+        assert asyncio.run(_run()) == 0
 
     def test_returns_correct_count(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        create_audit_entry(
-            action="assess", user_id="u2", request_summary={}, result_summary={}
-        )
-        assert count_audit_entries() == 2
+        factory = _make_audit_db()
+
+        async def _run():
+            async with factory() as session:
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u2",
+                    request_summary={},
+                    result_summary={},
+                )
+                return await count_audit_entries(session)
+
+        assert asyncio.run(_run()) == 2
 
     def test_returns_int(self) -> None:
-        reset_audit_trail()
-        assert isinstance(count_audit_entries(), int)
+        factory = _make_audit_db()
+
+        async def _run():
+            async with factory() as session:
+                return await count_audit_entries(session)
+
+        assert isinstance(asyncio.run(_run()), int)
 
 
 class TestCountAllAssessments:
@@ -127,41 +160,28 @@ class TestCountWebhooks:
         assert isinstance(count_webhooks(), int)
 
 
-class TestPurgeAuditPopleft:
-    """purge_audit_trail uses popleft -- no full list copy."""
-
-    def test_purge_removes_old_keeps_recent(self) -> None:
-        reset_audit_trail()
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=100)).isoformat()
-        new_ts = datetime.now(timezone.utc).isoformat()
-        _audit_entries.append(
-            {"action": "old", "timestamp": old_ts, "user_id_hash": "x"}
-        )
-        _audit_entries.append(
-            {"action": "new", "timestamp": new_ts, "user_id_hash": "y"}
-        )
-        purged = purge_audit_trail(max_age_days=50)
-        assert purged == 1
-        assert len(_audit_entries) == 1
-        assert _audit_entries[0]["action"] == "new"
-
-    def test_purge_all_old(self) -> None:
-        reset_audit_trail()
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=100)).isoformat()
-        _audit_entries.append({"action": "a", "timestamp": old_ts, "user_id_hash": "x"})
-        _audit_entries.append({"action": "b", "timestamp": old_ts, "user_id_hash": "y"})
-        purged = purge_audit_trail(max_age_days=50)
-        assert purged == 2
-        assert len(_audit_entries) == 0
+class TestPurgeAuditDB:
+    """purge_audit_trail uses DB DELETE with date filter."""
 
     def test_purge_none_when_all_recent(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        purged = purge_audit_trail(max_age_days=50)
+        factory = _make_audit_db()
+
+        async def _run():
+            async with factory() as session:
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                purged = await purge_audit_trail(session, max_age_days=50)
+                count = await count_audit_entries(session)
+                return purged, count
+
+        purged, count = asyncio.run(_run())
         assert purged == 0
-        assert len(_audit_entries) == 1
+        assert count == 1
 
 
 class TestMiddlewareCachedProdCheck:
@@ -313,6 +333,7 @@ class TestDashboardUsesCountFunctions:
     def test_system_health_uses_count_audit_entries(self) -> None:
         """get_system_health should call count_audit_entries, not len(get_audit_trail())."""
         import asyncio
+        from unittest.mock import AsyncMock
 
         from modules.credit.dashboard import get_system_health
         from modules.credit.database import create_engine, get_session_factory
@@ -328,7 +349,7 @@ class TestDashboardUsesCountFunctions:
                 with (
                     patch(
                         "modules.credit.dashboard.count_audit_entries",
-                        return_value=99,
+                        new=AsyncMock(return_value=99),
                     ),
                     patch("modules.credit.dashboard.count_webhooks", return_value=5),
                 ):

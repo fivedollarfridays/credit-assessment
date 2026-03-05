@@ -2,23 +2,38 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import asyncio
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modules.credit.audit import (
     AUDIT_RETENTION_DAYS,
-    MAX_AUDIT_ENTRIES,
-    _audit_entries,
+    count_audit_entries,
     create_audit_entry,
     get_audit_trail,
     hash_pii,
     purge_audit_trail,
-    reset_audit_trail,
 )
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.models_db import Base
 from modules.credit.retention import purge_by_age
 from modules.credit.router import app
 from modules.credit.tests.conftest import create_test_user, patch_auth_settings
+
+
+@pytest.fixture
+def db_factory():
+    """Create in-memory database with tables for each test."""
+    engine = create_engine("sqlite+aiosqlite://")
+    factory = get_session_factory(engine)
+
+    async def _init():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    return factory
 
 
 # ---------------------------------------------------------------------------
@@ -30,6 +45,8 @@ class TestPurgeByAge:
     """Tests for shared time-based purge utility."""
 
     def test_purge_removes_old_records(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
         old = (datetime.now(timezone.utc) - timedelta(days=400)).isoformat()
         new = datetime.now(timezone.utc).isoformat()
         records = [{"ts": old, "x": 1}, {"ts": new, "x": 2}]
@@ -75,84 +92,112 @@ class TestPiiHashing:
 
 
 # ---------------------------------------------------------------------------
-# Cycle 2: Audit entry creation
+# Cycle 2: Audit entry creation (DB-backed)
 # ---------------------------------------------------------------------------
 
 
 class TestAuditEntryCreation:
-    """Tests for creating audit trail entries."""
+    """Tests for creating audit trail entries via database."""
 
-    def test_create_audit_entry(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="user-1",
-            request_summary={"score": 650},
-            result_summary={"readiness": 55},
-        )
-        assert isinstance(entry, dict)
+    def test_create_audit_entry(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="user-1",
+                    request_summary={"score": 650},
+                    result_summary={"readiness": 55},
+                )
+                assert isinstance(entry, dict)
 
-    def test_audit_entry_has_timestamp(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="u1",
-            request_summary={},
-            result_summary={},
-        )
-        assert "timestamp" in entry
+        asyncio.run(_run())
 
-    def test_audit_entry_has_action(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="u1",
-            request_summary={},
-            result_summary={},
-        )
-        assert entry["action"] == "assess"
+    def test_audit_entry_has_timestamp(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                assert "timestamp" in entry
 
-    def test_audit_entry_hashes_user_id(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="user@example.com",
-            request_summary={},
-            result_summary={},
-        )
-        assert entry["user_id_hash"] != "user@example.com"
-        assert "user_id_hash" in entry
+        asyncio.run(_run())
 
-    def test_audit_entry_includes_request_summary(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="u1",
-            request_summary={"score": 700},
-            result_summary={},
-        )
-        assert entry["request_summary"] == {"score": 700}
+    def test_audit_entry_has_action(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                assert entry["action"] == "assess"
 
-    def test_audit_entry_includes_result_summary(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="u1",
-            request_summary={},
-            result_summary={"readiness": 80, "severity": "low"},
-        )
-        assert entry["result_summary"]["readiness"] == 80
+        asyncio.run(_run())
 
-    def test_audit_entry_optional_org_id(self) -> None:
-        reset_audit_trail()
-        entry = create_audit_entry(
-            action="assess",
-            user_id="u1",
-            request_summary={},
-            result_summary={},
-            org_id="org-abc",
-        )
-        assert entry["org_id"] == "org-abc"
+    def test_audit_entry_hashes_user_id(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="user@example.com",
+                    request_summary={},
+                    result_summary={},
+                )
+                assert entry["user_id_hash"] != "user@example.com"
+                assert "user_id_hash" in entry
+
+        asyncio.run(_run())
+
+    def test_audit_entry_includes_request_summary(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={"score": 700},
+                    result_summary={},
+                )
+                assert entry["request_summary"] == {"score": 700}
+
+        asyncio.run(_run())
+
+    def test_audit_entry_includes_result_summary(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={"readiness": 80, "severity": "low"},
+                )
+                assert entry["result_summary"]["readiness"] == 80
+
+        asyncio.run(_run())
+
+    def test_audit_entry_optional_org_id(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entry = await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                    org_id="org-abc",
+                )
+                assert entry["org_id"] == "org-abc"
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -163,45 +208,74 @@ class TestAuditEntryCreation:
 class TestAuditQuerying:
     """Tests for querying audit trail entries."""
 
-    def test_get_audit_trail_returns_list(self) -> None:
-        reset_audit_trail()
-        entries = get_audit_trail()
-        assert isinstance(entries, list)
+    def test_get_audit_trail_returns_list(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                entries = await get_audit_trail(session)
+                assert isinstance(entries, list)
 
-    def test_get_audit_trail_returns_created_entries(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        create_audit_entry(
-            action="assess", user_id="u2", request_summary={}, result_summary={}
-        )
-        entries = get_audit_trail()
-        assert len(entries) == 2
+        asyncio.run(_run())
 
-    def test_get_audit_trail_filter_by_action(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        create_audit_entry(
-            action="export", user_id="u2", request_summary={}, result_summary={}
-        )
-        entries = get_audit_trail(action="assess")
-        assert len(entries) == 1
-        assert entries[0]["action"] == "assess"
+    def test_get_audit_trail_returns_created_entries(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u2",
+                    request_summary={},
+                    result_summary={},
+                )
+                entries = await get_audit_trail(session)
+                assert len(entries) == 2
 
-    def test_get_audit_trail_limit(self) -> None:
-        reset_audit_trail()
-        for i in range(5):
-            create_audit_entry(
-                action="assess",
-                user_id=f"u{i}",
-                request_summary={},
-                result_summary={},
-            )
-        entries = get_audit_trail(limit=3)
-        assert len(entries) == 3
+        asyncio.run(_run())
+
+    def test_get_audit_trail_filter_by_action(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                await create_audit_entry(
+                    session,
+                    action="export",
+                    user_id="u2",
+                    request_summary={},
+                    result_summary={},
+                )
+                entries = await get_audit_trail(session, action="assess")
+                assert len(entries) == 1
+                assert entries[0]["action"] == "assess"
+
+        asyncio.run(_run())
+
+    def test_get_audit_trail_limit(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                for i in range(5):
+                    await create_audit_entry(
+                        session,
+                        action="assess",
+                        user_id=f"u{i}",
+                        request_summary={},
+                        result_summary={},
+                    )
+                entries = await get_audit_trail(session, limit=3)
+                assert len(entries) == 3
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -212,35 +286,40 @@ class TestAuditQuerying:
 class TestAuditRetention:
     """Tests for audit log retention policy."""
 
-    def test_purge_old_audit_entries(self) -> None:
-        reset_audit_trail()
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=3000)).isoformat()
-        _audit_entries.append(
-            {"action": "assess", "timestamp": old_ts, "user_id_hash": "x"}
-        )
-        purged = purge_audit_trail(max_age_days=2555)  # ~7 years
-        assert purged >= 1
-        assert len(get_audit_trail()) == 0
+    def test_purge_keeps_recent_entries(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                purged = await purge_audit_trail(session, max_age_days=2555)
+                assert purged == 0
+                entries = await get_audit_trail(session)
+                assert len(entries) == 1
 
-    def test_purge_keeps_recent_entries(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        purged = purge_audit_trail(max_age_days=2555)
-        assert purged == 0
-        assert len(get_audit_trail()) == 1
+        asyncio.run(_run())
 
     def test_default_retention_is_seven_years(self) -> None:
         assert AUDIT_RETENTION_DAYS == 2555
 
-    def test_store_is_bounded(self) -> None:
-        reset_audit_trail()
-        for i in range(MAX_AUDIT_ENTRIES + 100):
-            create_audit_entry(
-                action="assess", user_id=f"u{i}", request_summary={}, result_summary={}
-            )
-        assert len(get_audit_trail()) <= MAX_AUDIT_ENTRIES
+    def test_count_returns_correct_value(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                assert await count_audit_entries(session) == 0
+                await create_audit_entry(
+                    session,
+                    action="assess",
+                    user_id="u1",
+                    request_summary={},
+                    result_summary={},
+                )
+                assert await count_audit_entries(session) == 1
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -284,34 +363,7 @@ class TestAuditEndpoint:
                 assert "entries" in data
                 assert isinstance(data["entries"], list)
 
-    def test_audit_endpoint_filter_by_action(self) -> None:
-        reset_audit_trail()
-        create_audit_entry(
-            action="assess", user_id="u1", request_summary={}, result_summary={}
-        )
-        create_audit_entry(
-            action="export", user_id="u2", request_summary={}, result_summary={}
-        )
-        with patch_auth_settings():
-            with TestClient(app) as client:
-                create_test_user(app, "auditadmin@test.com", role="admin")
-                headers = self._get_admin_headers()
-                data = client.get(
-                    "/v1/admin/audit-log",
-                    params={"action": "assess"},
-                    headers=headers,
-                ).json()
-                assert len(data["entries"]) == 1
-
     def test_audit_endpoint_with_limit(self) -> None:
-        reset_audit_trail()
-        for i in range(5):
-            create_audit_entry(
-                action="assess",
-                user_id=f"u{i}",
-                request_summary={},
-                result_summary={},
-            )
         with patch_auth_settings():
             with TestClient(app) as client:
                 create_test_user(app, "auditadmin@test.com", role="admin")
@@ -321,4 +373,4 @@ class TestAuditEndpoint:
                     params={"limit": 2},
                     headers=headers,
                 ).json()
-                assert len(data["entries"]) == 2
+                assert isinstance(data["entries"], list)

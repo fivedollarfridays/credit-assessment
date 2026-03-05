@@ -131,7 +131,8 @@ async def login(
             user.locked_until = now + timedelta(
                 minutes=settings.lockout_duration_minutes
             )
-            create_audit_entry(
+            await create_audit_entry(
+                db,
                 action="account_locked",
                 user_id=req.email,
                 request_summary={"email": req.email},
