@@ -1,5 +1,7 @@
 """Assessment endpoint routes with auth helpers."""
 
+from __future__ import annotations
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -20,7 +22,15 @@ from .auth import (
 from .config import settings
 from .rate_limit import limiter
 from .repository import AssessmentRepository
-from .types import CreditAssessmentResult, CreditProfile
+from pydantic import BaseModel, Field, model_validator
+
+from .types import (
+    AccountSummary,
+    CreditAssessmentResult,
+    CreditProfile,
+    SCORE_BANDS,
+    ScoreBand,
+)
 
 router = APIRouter()
 
@@ -103,4 +113,75 @@ async def assess(
     service: CreditAssessmentService = Depends(get_assessment_service),
 ) -> CreditAssessmentResult:
     """Run full credit assessment."""
+    return await _run_assessment(request, profile, background_tasks, service)
+
+
+def _score_to_band(score: int) -> ScoreBand:
+    """Derive ScoreBand from a numeric credit score."""
+    for band_name, bounds in SCORE_BANDS.items():
+        if bounds["min"] <= score <= bounds["max"]:
+            return ScoreBand(band_name)
+    raise ValueError(f"Score {score} out of range 300-850")
+
+
+class SimpleCreditProfile(BaseModel):
+    """Simplified credit profile — user-friendly fields, backend derives the rest."""
+
+    credit_score: int = Field(ge=300, le=850)
+    utilization_percent: float = Field(ge=0.0, le=100.0)
+    total_accounts: int = Field(ge=0)
+    open_accounts: int = Field(ge=0)
+    negative_items: list[str] = Field(default=[])
+    payment_history_percent: float = Field(ge=0.0, le=100.0)
+    oldest_account_months: int = Field(ge=0, le=1200)
+    total_balance: float = Field(default=0.0, ge=0.0)
+    total_credit_limit: float = Field(default=0.0, ge=0.0)
+    monthly_payments: float = Field(default=0.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def _check_open_le_total(self) -> SimpleCreditProfile:
+        if self.open_accounts > self.total_accounts:
+            raise ValueError("open_accounts cannot exceed total_accounts")
+        return self
+
+    def to_credit_profile(self) -> CreditProfile:
+        """Convert to the full CreditProfile used by the assessment engine."""
+        closed = self.total_accounts - self.open_accounts
+        collections = sum(
+            1 for item in self.negative_items if item.startswith("collection")
+        )
+        return CreditProfile(
+            current_score=self.credit_score,
+            score_band=_score_to_band(self.credit_score),
+            overall_utilization=self.utilization_percent,
+            account_summary=AccountSummary(
+                total_accounts=self.total_accounts,
+                open_accounts=self.open_accounts,
+                closed_accounts=closed,
+                negative_accounts=len(self.negative_items),
+                collection_accounts=collections,
+                total_balance=self.total_balance,
+                total_credit_limit=self.total_credit_limit,
+                monthly_payments=self.monthly_payments,
+            ),
+            payment_history_pct=self.payment_history_percent,
+            average_account_age_months=int(self.oldest_account_months * 0.6),
+            negative_items=self.negative_items,
+        )
+
+
+@router.post(
+    "/assess/simple",
+    response_model=CreditAssessmentResult,
+    dependencies=[Depends(verify_auth)],
+)
+@limiter.limit("30/minute")
+async def assess_simple(
+    request: Request,
+    simple: SimpleCreditProfile,
+    background_tasks: BackgroundTasks,
+    service: CreditAssessmentService = Depends(get_assessment_service),
+) -> CreditAssessmentResult:
+    """Run credit assessment from simplified input."""
+    profile = simple.to_credit_profile()
     return await _run_assessment(request, profile, background_tasks, service)
