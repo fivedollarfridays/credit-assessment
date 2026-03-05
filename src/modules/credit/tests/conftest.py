@@ -29,7 +29,7 @@ def patch_auth_settings(settings: Settings | None = None) -> ExitStack:
     """Patch settings across all auth-dependent modules. Returns ExitStack."""
     s = settings or _TEST_SETTINGS
     stack = ExitStack()
-    for mod in ["router", "auth_routes", "user_routes", "assess_routes", "auth"]:
+    for mod in ["router", "auth_routes", "assess_routes", "auth"]:
         stack.enter_context(patch(f"modules.credit.{mod}.settings", s))
     return stack
 

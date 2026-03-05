@@ -93,10 +93,7 @@ class TestVersionedAuth:
 
     def test_v1_auth_register(self):
         client = _get_client()
-        with (
-            patch("modules.credit.router.settings", _SETTINGS),
-            patch("modules.credit.user_routes.settings", _SETTINGS),
-        ):
+        with patch("modules.credit.router.settings", _SETTINGS):
             resp = client.post(
                 "/v1/auth/register",
                 json={"email": "v1user@test.com", "password": "Secret123!"},
@@ -105,10 +102,7 @@ class TestVersionedAuth:
 
     def test_v1_auth_login(self):
         client = _get_client()
-        with (
-            patch("modules.credit.router.settings", _SETTINGS),
-            patch("modules.credit.user_routes.settings", _SETTINGS),
-        ):
+        with patch("modules.credit.router.settings", _SETTINGS):
             client.post(
                 "/v1/auth/register",
                 json={"email": "v1login@test.com", "password": "Secret123!"},

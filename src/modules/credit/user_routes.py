@@ -10,7 +10,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 
 from .auth import TokenResponse, issue_token_for
-from .config import settings
 from .password import hash_password, verify_password
 from .roles import Role
 
