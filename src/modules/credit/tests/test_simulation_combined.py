@@ -336,3 +336,76 @@ class TestEdgeCases:
             [SimulationAction(action_type=ActionType.PAY_ON_TIME)],
         )
         assert result.projected_score == result.original_score
+
+    def test_reduce_utilization_target_above_current_is_noop(self):
+        """REDUCE_UTILIZATION with target >= current util is a no-op."""
+        profile = CreditProfile(
+            current_score=700,
+            score_band=ScoreBand.GOOD,
+            overall_utilization=20.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=2000.0,
+                total_credit_limit=10000.0,
+            ),
+            payment_history_pct=95.0,
+            average_account_age_months=60,
+        )
+        sim = ScoreSimulator()
+        result = sim.simulate(
+            profile,
+            [
+                SimulationAction(
+                    action_type=ActionType.REDUCE_UTILIZATION,
+                    target_amount=30.0,
+                )
+            ],
+        )
+        assert result.score_delta.expected_points == 0
+
+    def test_pay_down_debt_zero_credit_limit_is_noop(self):
+        """PAY_DOWN_DEBT with zero credit limit returns early."""
+        profile = CreditProfile(
+            current_score=650,
+            score_band=ScoreBand.FAIR,
+            overall_utilization=0.0,
+            account_summary=AccountSummary(
+                total_accounts=2,
+                open_accounts=1,
+                total_balance=500.0,
+                total_credit_limit=0.0,
+            ),
+            payment_history_pct=90.0,
+            average_account_age_months=24,
+        )
+        sim = ScoreSimulator()
+        result = sim.simulate(
+            profile,
+            [
+                SimulationAction(
+                    action_type=ActionType.PAY_DOWN_DEBT,
+                    target_amount=200.0,
+                )
+            ],
+        )
+        assert result.score_delta.expected_points == 0
+
+    def test_ten_actions_boundary_accepted(self):
+        """Exactly 10 actions (max_length) should be accepted."""
+        from modules.credit.simulate_routes import SimulationRequest
+
+        req = SimulationRequest(
+            profile=CreditProfile(
+                current_score=700,
+                score_band=ScoreBand.GOOD,
+                overall_utilization=30.0,
+                account_summary=AccountSummary(total_accounts=5, open_accounts=3),
+                payment_history_pct=95.0,
+                average_account_age_months=60,
+            ),
+            actions=[
+                SimulationAction(action_type=ActionType.PAY_ON_TIME) for _ in range(10)
+            ],
+        )
+        assert len(req.actions) == 10

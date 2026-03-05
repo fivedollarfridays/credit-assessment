@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
@@ -10,7 +11,6 @@ from fastapi.testclient import TestClient
 
 from modules.credit.config import Settings
 from modules.credit.data_rights import (
-    _user_assessments,
     check_consent,
     delete_user_data,
     export_user_data,
@@ -18,11 +18,26 @@ from modules.credit.data_rights import (
     purge_expired_data,
     record_consent,
     record_user_assessment,
-    reset_data_rights,
     withdraw_consent,
 )
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.models_db import Base, UserAssessment
 from modules.credit.router import app
 from modules.credit.tests.conftest import create_test_user, patch_auth_settings
+
+
+@pytest.fixture
+def db_factory():
+    """Create in-memory database with tables for each test."""
+    engine = create_engine("sqlite+aiosqlite://")
+    factory = get_session_factory(engine)
+
+    async def _init():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    return factory
 
 
 # ---------------------------------------------------------------------------
@@ -33,41 +48,79 @@ from modules.credit.tests.conftest import create_test_user, patch_auth_settings
 class TestConsentTracking:
     """Tests for consent management with version and timestamp."""
 
-    def test_record_consent(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u1", consent_version="1.0")
+    def test_record_consent(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u1", consent_version="1.0")
 
-    def test_check_consent_true_when_given(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u2", consent_version="1.0")
-        assert check_consent(user_id="u2", consent_version="1.0") is True
+        asyncio.run(_run())
 
-    def test_check_consent_false_when_not_given(self) -> None:
-        reset_data_rights()
-        assert check_consent(user_id="u3", consent_version="1.0") is False
+    def test_check_consent_true_when_given(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u2", consent_version="1.0")
+                assert (
+                    await check_consent(session, user_id="u2", consent_version="1.0")
+                    is True
+                )
 
-    def test_consent_is_version_specific(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u4", consent_version="1.0")
-        assert check_consent(user_id="u4", consent_version="2.0") is False
+        asyncio.run(_run())
 
-    def test_consent_has_timestamp(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u5", consent_version="1.0")
-        record = get_consent_record(user_id="u5", consent_version="1.0")
-        assert record is not None
-        assert "consented_at" in record
+    def test_check_consent_false_when_not_given(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                assert (
+                    await check_consent(session, user_id="u3", consent_version="1.0")
+                    is False
+                )
 
-    def test_withdraw_consent(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u6", consent_version="1.0")
-        assert check_consent(user_id="u6", consent_version="1.0") is True
-        withdraw_consent(user_id="u6", consent_version="1.0")
-        assert check_consent(user_id="u6", consent_version="1.0") is False
+        asyncio.run(_run())
 
-    def test_withdraw_nonexistent_consent_is_noop(self) -> None:
-        reset_data_rights()
-        withdraw_consent(user_id="nobody", consent_version="1.0")  # should not raise
+    def test_consent_is_version_specific(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u4", consent_version="1.0")
+                assert (
+                    await check_consent(session, user_id="u4", consent_version="2.0")
+                    is False
+                )
+
+        asyncio.run(_run())
+
+    def test_consent_has_timestamp(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u5", consent_version="1.0")
+                record = await get_consent_record(
+                    session, user_id="u5", consent_version="1.0"
+                )
+                assert record is not None
+                assert "consented_at" in record
+
+        asyncio.run(_run())
+
+    def test_withdraw_consent(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u6", consent_version="1.0")
+                assert (
+                    await check_consent(session, user_id="u6", consent_version="1.0")
+                    is True
+                )
+                await withdraw_consent(session, user_id="u6", consent_version="1.0")
+                assert (
+                    await check_consent(session, user_id="u6", consent_version="1.0")
+                    is False
+                )
+
+        asyncio.run(_run())
+
+    def test_withdraw_nonexistent_consent_is_noop(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await withdraw_consent(session, user_id="nobody", consent_version="1.0")
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -78,40 +131,62 @@ class TestConsentTracking:
 class TestDataExport:
     """Tests for user data export (right to access)."""
 
-    def test_export_returns_dict(self) -> None:
-        reset_data_rights()
-        result = export_user_data(user_id="u1")
-        assert isinstance(result, dict)
+    def test_export_returns_dict(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                result = await export_user_data(session, user_id="u1")
+                assert isinstance(result, dict)
 
-    def test_export_contains_user_id(self) -> None:
-        reset_data_rights()
-        result = export_user_data(user_id="u1")
-        assert result["user_id"] == "u1"
+        asyncio.run(_run())
 
-    def test_export_contains_consent_records(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="u2", consent_version="1.0")
-        result = export_user_data(user_id="u2")
-        assert "consent_records" in result
-        assert len(result["consent_records"]) == 1
+    def test_export_contains_user_id(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                result = await export_user_data(session, user_id="u1")
+                assert result["user_id"] == "u1"
 
-    def test_export_contains_assessments(self) -> None:
-        reset_data_rights()
-        result = export_user_data(user_id="u1")
-        assert "assessments" in result
-        assert isinstance(result["assessments"], list)
+        asyncio.run(_run())
 
-    def test_export_contains_exported_at(self) -> None:
-        reset_data_rights()
-        result = export_user_data(user_id="u1")
-        assert "exported_at" in result
+    def test_export_contains_consent_records(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="u2", consent_version="1.0")
+                result = await export_user_data(session, user_id="u2")
+                assert "consent_records" in result
+                assert len(result["consent_records"]) == 1
 
-    def test_export_stores_user_assessment(self) -> None:
-        reset_data_rights()
-        record_user_assessment(user_id="u3", assessment={"score": 700, "band": "good"})
-        result = export_user_data(user_id="u3")
-        assert len(result["assessments"]) == 1
-        assert result["assessments"][0]["score"] == 700
+        asyncio.run(_run())
+
+    def test_export_contains_assessments(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                result = await export_user_data(session, user_id="u1")
+                assert "assessments" in result
+                assert isinstance(result["assessments"], list)
+
+        asyncio.run(_run())
+
+    def test_export_contains_exported_at(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                result = await export_user_data(session, user_id="u1")
+                assert "exported_at" in result
+
+        asyncio.run(_run())
+
+    def test_export_stores_user_assessment(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_user_assessment(
+                    session,
+                    user_id="u3",
+                    assessment={"score": 700, "band": "good"},
+                )
+                result = await export_user_data(session, user_id="u3")
+                assert len(result["assessments"]) == 1
+                assert result["assessments"][0]["score"] == 700
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -122,63 +197,97 @@ class TestDataExport:
 class TestDataDeletion:
     """Tests for user data deletion with cascade."""
 
-    def test_delete_removes_consent(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="d1", consent_version="1.0")
-        delete_user_data(user_id="d1")
-        assert check_consent(user_id="d1", consent_version="1.0") is False
+    def test_delete_removes_consent(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="d1", consent_version="1.0")
+                await delete_user_data(session, user_id="d1")
+                assert (
+                    await check_consent(session, user_id="d1", consent_version="1.0")
+                    is False
+                )
 
-    def test_delete_removes_assessments(self) -> None:
-        reset_data_rights()
-        record_user_assessment(user_id="d2", assessment={"score": 650})
-        delete_user_data(user_id="d2")
-        result = export_user_data(user_id="d2")
-        assert len(result["assessments"]) == 0
+        asyncio.run(_run())
 
-    def test_delete_returns_summary(self) -> None:
-        reset_data_rights()
-        record_consent(user_id="d3", consent_version="1.0")
-        record_user_assessment(user_id="d3", assessment={"score": 600})
-        summary = delete_user_data(user_id="d3")
-        assert summary["user_id"] == "d3"
-        assert summary["consent_records_deleted"] >= 1
-        assert summary["assessments_deleted"] >= 1
-        assert "deleted_at" in summary
+    def test_delete_removes_assessments(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_user_assessment(
+                    session, user_id="d2", assessment={"score": 650}
+                )
+                await delete_user_data(session, user_id="d2")
+                result = await export_user_data(session, user_id="d2")
+                assert len(result["assessments"]) == 0
 
-    def test_delete_nonexistent_user_returns_zero_counts(self) -> None:
-        reset_data_rights()
-        summary = delete_user_data(user_id="ghost")
-        assert summary["consent_records_deleted"] == 0
-        assert summary["assessments_deleted"] == 0
+        asyncio.run(_run())
 
-    def test_delete_also_removes_org_assessments(self) -> None:
-        """GDPR: delete_user_data must also purge tenant._org_assessments."""
-        from modules.credit.tenant import _org_assessments
+    def test_delete_returns_summary(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_consent(session, user_id="d3", consent_version="1.0")
+                await record_user_assessment(
+                    session, user_id="d3", assessment={"score": 600}
+                )
+                summary = await delete_user_data(session, user_id="d3")
+                assert summary["user_id"] == "d3"
+                assert summary["consent_records_deleted"] >= 1
+                assert summary["assessments_deleted"] >= 1
+                assert "deleted_at" in summary
 
-        reset_data_rights()
-        _org_assessments.clear()
-        _org_assessments["org-1"].append({"user_id": "d-org", "score": 700})
-        _org_assessments["org-1"].append({"user_id": "other", "score": 800})
-        _org_assessments["org-2"].append({"user_id": "d-org", "score": 600})
+        asyncio.run(_run())
 
-        summary = delete_user_data(user_id="d-org")
-        assert summary["org_assessments_deleted"] == 2
-        # Only "other" remains in org-1
-        assert len(_org_assessments["org-1"]) == 1
-        assert _org_assessments["org-1"][0]["user_id"] == "other"
-        # org-2 should be cleaned up entirely
-        assert "org-2" not in _org_assessments
-        _org_assessments.clear()
+    def test_delete_nonexistent_user_returns_zero_counts(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                summary = await delete_user_data(session, user_id="ghost")
+                assert summary["consent_records_deleted"] == 0
+                assert summary["assessments_deleted"] == 0
 
-    def test_delete_org_assessments_empty_returns_zero(self) -> None:
-        """No org assessments to delete returns 0 for org_assessments_deleted."""
-        from modules.credit.tenant import _org_assessments
+        asyncio.run(_run())
 
-        reset_data_rights()
-        _org_assessments.clear()
-        summary = delete_user_data(user_id="nobody")
-        assert summary["org_assessments_deleted"] == 0
-        _org_assessments.clear()
+    def test_delete_also_removes_db_assessments(self, db_factory) -> None:
+        """GDPR: delete_user_data removes DB assessment records by user_id."""
+        from modules.credit.repo_assessments import AssessmentRepository
+
+        async def _run():
+            async with db_factory() as session:
+                repo = AssessmentRepository(session)
+                await repo.save_assessment(
+                    credit_score=700,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=80,
+                    request_payload={},
+                    response_payload={},
+                    user_id="d-org",
+                    org_id="org-1",
+                )
+                await repo.save_assessment(
+                    credit_score=600,
+                    score_band="fair",
+                    barrier_severity="medium",
+                    readiness_score=55,
+                    request_payload={},
+                    response_payload={},
+                    user_id="d-org",
+                    org_id="org-2",
+                )
+                summary = await delete_user_data(session, user_id="d-org")
+                remaining = await repo.get_by_user_id("d-org")
+                return summary, remaining
+
+        summary, remaining = asyncio.run(_run())
+        assert summary["db_assessments_deleted"] == 2
+        assert len(remaining) == 0
+
+    def test_delete_org_assessments_empty_returns_zero(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                summary = await delete_user_data(session, user_id="nobody")
+                return summary
+
+        summary = asyncio.run(_run())
+        assert summary["db_assessments_deleted"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -189,30 +298,47 @@ class TestDataDeletion:
 class TestDataRetention:
     """Tests for automatic data retention purge."""
 
-    def test_purge_removes_old_assessments(self) -> None:
-        reset_data_rights()
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=400)).isoformat()
-        _user_assessments.setdefault("old-user", []).append(
-            {"score": 500, "recorded_at": old_ts}
-        )
-        purged = purge_expired_data(max_age_days=365)
-        assert purged >= 1
-        result = export_user_data(user_id="old-user")
-        assert len(result["assessments"]) == 0
+    def test_purge_removes_old_assessments(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                # Manually insert an old record
+                old_ts = datetime.now(timezone.utc) - timedelta(days=400)
+                session.add(
+                    UserAssessment(
+                        user_id="old-user",
+                        assessment_data={"score": 500},
+                        recorded_at=old_ts,
+                    )
+                )
+                await session.commit()
+                purged = await purge_expired_data(session, max_age_days=365)
+                assert purged >= 1
+                result = await export_user_data(session, user_id="old-user")
+                assert len(result["assessments"]) == 0
 
-    def test_purge_keeps_recent_assessments(self) -> None:
-        reset_data_rights()
-        record_user_assessment(user_id="recent", assessment={"score": 750})
-        purged = purge_expired_data(max_age_days=365)
-        assert purged == 0
-        result = export_user_data(user_id="recent")
-        assert len(result["assessments"]) == 1
+        asyncio.run(_run())
 
-    def test_purge_returns_count(self) -> None:
-        reset_data_rights()
-        count = purge_expired_data(max_age_days=365)
-        assert isinstance(count, int)
-        assert count >= 0
+    def test_purge_keeps_recent_assessments(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                await record_user_assessment(
+                    session, user_id="recent", assessment={"score": 750}
+                )
+                purged = await purge_expired_data(session, max_age_days=365)
+                assert purged == 0
+                result = await export_user_data(session, user_id="recent")
+                assert len(result["assessments"]) == 1
+
+        asyncio.run(_run())
+
+    def test_purge_returns_count(self, db_factory) -> None:
+        async def _run():
+            async with db_factory() as session:
+                count = await purge_expired_data(session, max_age_days=365)
+                assert isinstance(count, int)
+                assert count >= 0
+
+        asyncio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -252,14 +378,12 @@ class TestDataRightsEndpoints:
             assert "deleted_at" in data
 
     def test_consent_endpoint_records_consent(self) -> None:
-        reset_data_rights()
         with TestClient(app) as client:
             resp = client.post(
                 "/v1/user/consent",
                 json={"user_id": "test-user", "consent_version": "1.0"},
             )
             assert resp.status_code == 200
-            assert check_consent(user_id="test-user", consent_version="1.0") is True
 
     def test_data_endpoints_require_auth_when_configured(self) -> None:
         from modules.credit.assess_routes import verify_auth

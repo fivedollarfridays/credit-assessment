@@ -81,7 +81,7 @@ async def audit_log(
 ) -> dict:
     """Query audit trail entries with optional filters."""
     entries = await get_audit_trail(db, action=action, limit=limit)
-    return {"entries": entries, "total": len(entries)}
+    return {"entries": entries, "count": len(entries)}
 
 
 @router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])

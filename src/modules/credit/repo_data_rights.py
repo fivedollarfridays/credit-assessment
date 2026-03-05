@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,11 +42,28 @@ class ConsentRepository:
         await self._session.commit()
         return result.rowcount > 0
 
+    async def get_one(self, user_id: str, consent_version: str) -> ConsentRecord | None:
+        result = await self._session.execute(
+            select(ConsentRecord).where(
+                ConsentRecord.user_id == user_id,
+                ConsentRecord.consent_version == consent_version,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_user(self, user_id: str) -> list[ConsentRecord]:
         result = await self._session.execute(
             select(ConsentRecord).where(ConsentRecord.user_id == user_id)
         )
         return list(result.scalars().all())
+
+    async def delete_by_user(self, user_id: str, *, commit: bool = True) -> int:
+        result = await self._session.execute(
+            delete(ConsentRecord).where(ConsentRecord.user_id == user_id)
+        )
+        if commit:
+            await self._session.commit()
+        return result.rowcount
 
 
 class UserAssessmentRepository:
@@ -68,9 +87,18 @@ class UserAssessmentRepository:
         )
         return list(result.scalars().all())
 
-    async def delete_by_user(self, user_id: str) -> int:
+    async def delete_by_user(self, user_id: str, *, commit: bool = True) -> int:
         result = await self._session.execute(
             delete(UserAssessment).where(UserAssessment.user_id == user_id)
+        )
+        if commit:
+            await self._session.commit()
+        return result.rowcount
+
+    async def purge_by_age(self, max_age_days: int) -> int:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        result = await self._session.execute(
+            delete(UserAssessment).where(UserAssessment.recorded_at < cutoff)
         )
         await self._session.commit()
         return result.rowcount

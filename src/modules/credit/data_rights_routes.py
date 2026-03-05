@@ -12,6 +12,7 @@ from .data_rights import (
     delete_user_data,
     export_user_data,
     record_consent,
+    withdraw_consent,
 )
 from .database import get_db
 from .repo_users import UserRepository
@@ -51,7 +52,7 @@ async def data_export(
 ) -> dict:
     """Export all data for a user (GDPR Article 15 / CCPA right to know)."""
     effective_id = await _resolve_user_id(auth, user_id, db)
-    return export_user_data(effective_id)
+    return await export_user_data(db, user_id=effective_id)
 
 
 @router.delete("/data")
@@ -62,7 +63,7 @@ async def data_delete(
 ) -> dict:
     """Delete all data for a user (GDPR Article 17 / CCPA right to delete)."""
     effective_id = await _resolve_user_id(auth, user_id, db)
-    return delete_user_data(effective_id)
+    return await delete_user_data(db, user_id=effective_id)
 
 
 @router.post("/consent")
@@ -73,9 +74,27 @@ async def consent(
 ) -> dict:
     """Record user consent with version tracking."""
     effective_id = await _resolve_user_id(auth, body.user_id, db)
-    record_consent(user_id=effective_id, consent_version=body.consent_version)
+    await record_consent(db, user_id=effective_id, consent_version=body.consent_version)
     return {
         "status": "recorded",
+        "user_id": effective_id,
+        "version": body.consent_version,
+    }
+
+
+@router.delete("/consent")
+async def consent_withdraw(
+    body: ConsentRequest,
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Withdraw consent for a specific version (GDPR Article 7)."""
+    effective_id = await _resolve_user_id(auth, body.user_id, db)
+    await withdraw_consent(
+        db, user_id=effective_id, consent_version=body.consent_version
+    )
+    return {
+        "status": "withdrawn",
         "user_id": effective_id,
         "version": body.consent_version,
     }

@@ -4,72 +4,91 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from .retention import purge_by_age
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# --- In-memory stores (consistent with project pattern) ---
-# Unbounded — acceptable for MVP. Cap or migrate to DB before production.
-# See also: tenant._org_assessments, webhooks._webhooks.
-
-_consent_records: dict[str, dict] = {}
-_user_assessments: dict[str, list[dict]] = {}
+from .repo_data_rights import ConsentRepository, UserAssessmentRepository
+from .repo_assessments import AssessmentRepository
 
 
-def reset_data_rights() -> None:
-    """Reset all data rights stores (for testing)."""
-    _consent_records.clear()
-    _user_assessments.clear()
+def _consent_to_dict(rec: object) -> dict:
+    """Convert a ConsentRecord ORM object to a plain dict."""
+    return {
+        "user_id": rec.user_id,
+        "consent_version": rec.consent_version,
+        "consented_at": rec.consented_at.isoformat() if rec.consented_at else None,
+    }
 
 
 # --- Consent tracking ---
 
 
-def record_consent(user_id: str, consent_version: str) -> None:
+async def record_consent(
+    session: AsyncSession, *, user_id: str, consent_version: str
+) -> None:
     """Record that a user gave consent for a specific version."""
-    key = f"{user_id}:{consent_version}"
-    _consent_records[key] = {
-        "user_id": user_id,
-        "consent_version": consent_version,
-        "consented_at": datetime.now(timezone.utc).isoformat(),
-    }
+    repo = ConsentRepository(session)
+    await repo.record(user_id, consent_version)
 
 
-def check_consent(user_id: str, consent_version: str) -> bool:
+async def check_consent(
+    session: AsyncSession, *, user_id: str, consent_version: str
+) -> bool:
     """Check if a user has given consent for a specific version."""
-    return f"{user_id}:{consent_version}" in _consent_records
+    repo = ConsentRepository(session)
+    return await repo.check(user_id, consent_version)
 
 
-def get_consent_record(user_id: str, consent_version: str) -> dict | None:
+async def get_consent_record(
+    session: AsyncSession, *, user_id: str, consent_version: str
+) -> dict | None:
     """Get the consent record for a user and version."""
-    return _consent_records.get(f"{user_id}:{consent_version}")
+    repo = ConsentRepository(session)
+    rec = await repo.get_one(user_id, consent_version)
+    return _consent_to_dict(rec) if rec else None
 
 
-def withdraw_consent(user_id: str, consent_version: str) -> None:
+async def withdraw_consent(
+    session: AsyncSession, *, user_id: str, consent_version: str
+) -> None:
     """Withdraw consent for a specific version."""
-    _consent_records.pop(f"{user_id}:{consent_version}", None)
+    repo = ConsentRepository(session)
+    await repo.withdraw(user_id, consent_version)
 
 
 # --- Assessment data per user ---
 
 
-def record_user_assessment(user_id: str, assessment: dict) -> None:
+async def record_user_assessment(
+    session: AsyncSession, *, user_id: str, assessment: dict
+) -> None:
     """Store an assessment record for a user."""
-    entry = {**assessment, "recorded_at": datetime.now(timezone.utc).isoformat()}
-    _user_assessments.setdefault(user_id, []).append(entry)
+    repo = UserAssessmentRepository(session)
+    await repo.record(user_id, assessment)
 
 
 # --- Data export (right to access) ---
 
 
-def export_user_data(user_id: str) -> dict:
+async def export_user_data(session: AsyncSession, *, user_id: str) -> dict:
     """Export all data for a user (GDPR Article 15 / CCPA right to know)."""
-    consent_list = [
-        rec for key, rec in _consent_records.items() if key.startswith(f"{user_id}:")
-    ]
-    assessments = _user_assessments.get(user_id, [])
+    consent_repo = ConsentRepository(session)
+    assessment_repo = UserAssessmentRepository(session)
+    db_assessment_repo = AssessmentRepository(session)
+
+    consent_records = await consent_repo.get_by_user(user_id)
+    consent_list = [_consent_to_dict(rec) for rec in consent_records]
+
+    user_assessments = await assessment_repo.get_by_user(user_id)
+    assessment_list = [rec.assessment_data for rec in user_assessments]
+
+    db_assessments = await db_assessment_repo.get_by_user_id(user_id)
+    for rec in db_assessments:
+        assessment_list.append(rec.response_payload)
+
     return {
         "user_id": user_id,
         "consent_records": consent_list,
-        "assessments": list(assessments),
+        "assessments": assessment_list,
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -77,24 +96,27 @@ def export_user_data(user_id: str) -> dict:
 # --- Data deletion (right to be forgotten) ---
 
 
-def delete_user_data(user_id: str) -> dict:
-    """Delete all data for a user (GDPR Article 17 / CCPA right to delete)."""
-    from .tenant import delete_user_org_assessments
+async def delete_user_data(session: AsyncSession, *, user_id: str) -> dict:
+    """Delete all data for a user (GDPR Article 17 / CCPA right to delete).
 
-    consent_keys = [k for k in _consent_records if k.startswith(f"{user_id}:")]
-    for key in consent_keys:
-        del _consent_records[key]
+    All deletes run in a single transaction for atomicity.
+    """
+    consent_repo = ConsentRepository(session)
+    assessment_repo = UserAssessmentRepository(session)
+    db_assessment_repo = AssessmentRepository(session)
 
-    assessments = _user_assessments.pop(user_id, [])
-
-    # Also remove from org-scoped store (GDPR completeness).
-    org_deleted = delete_user_org_assessments(user_id)
+    consent_deleted = await consent_repo.delete_by_user(user_id, commit=False)
+    assessments_deleted = await assessment_repo.delete_by_user(user_id, commit=False)
+    db_assessments_deleted = await db_assessment_repo.delete_by_user_id(
+        user_id, commit=False
+    )
+    await session.commit()
 
     return {
         "user_id": user_id,
-        "consent_records_deleted": len(consent_keys),
-        "assessments_deleted": len(assessments),
-        "org_assessments_deleted": org_deleted,
+        "consent_records_deleted": consent_deleted,
+        "assessments_deleted": assessments_deleted + db_assessments_deleted,
+        "db_assessments_deleted": db_assessments_deleted,
         "deleted_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -102,18 +124,7 @@ def delete_user_data(user_id: str) -> dict:
 # --- Data retention / purge ---
 
 
-def purge_expired_data(max_age_days: int = 365) -> int:
-    """Purge assessment records older than max_age_days. Returns count purged."""
-    total_purged = 0
-    for user_id in list(_user_assessments):
-        kept, purged = purge_by_age(
-            _user_assessments[user_id],
-            timestamp_key="recorded_at",
-            max_age_days=max_age_days,
-        )
-        total_purged += purged
-        if kept:
-            _user_assessments[user_id] = kept
-        else:
-            del _user_assessments[user_id]
-    return total_purged
+async def purge_expired_data(session: AsyncSession, *, max_age_days: int = 365) -> int:
+    """Purge user assessment records older than max_age_days. Returns count."""
+    repo = UserAssessmentRepository(session)
+    return await repo.purge_by_age(max_age_days)

@@ -23,7 +23,7 @@ class TestAssessmentPersistence:
         """After calling /assess, a record exists in the database."""
         from modules.credit.database import create_engine, get_session_factory
         from modules.credit.models_db import Base
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
         from modules.credit.router import app
 
         engine = create_engine("sqlite+aiosqlite://")

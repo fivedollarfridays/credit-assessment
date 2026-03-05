@@ -10,10 +10,12 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     HTTPException,
+    Query,
     Request,
     Security,
 )
 from pydantic import BaseModel, Field, model_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .assessment import CreditAssessmentService, get_score_band
 from .auth import (
@@ -25,9 +27,10 @@ from .auth import (
     extract_bearer_token,
 )
 from .config import settings
+from .database import get_db
 from .rate_limit import limiter
 from .repo_api_keys import ApiKeyRepository
-from .repository import AssessmentRepository
+from .repo_assessments import AssessmentRepository
 
 from .types import (
     AccountSummary,
@@ -109,7 +112,11 @@ def get_assessment_service() -> CreditAssessmentService:
 
 
 async def _persist_assessment(
-    factory, profile: CreditProfile, result: CreditAssessmentResult
+    factory: object,
+    profile: CreditProfile,
+    result: CreditAssessmentResult,
+    user_id: str | None = None,
+    org_id: str | None = None,
 ) -> None:
     """Persist assessment result to database (runs in background)."""
     try:
@@ -122,6 +129,8 @@ async def _persist_assessment(
                 readiness_score=result.readiness.score,
                 request_payload=profile.model_dump(mode="json"),
                 response_payload=result.model_dump(mode="json"),
+                user_id=user_id,
+                org_id=org_id,
             )
     except Exception:
         logging.getLogger(__name__).warning(
@@ -133,20 +142,27 @@ async def _run_assessment(
     request: Request,
     profile: CreditProfile,
     background_tasks: BackgroundTasks,
-    service: CreditAssessmentService = Depends(get_assessment_service),
+    service: CreditAssessmentService,
+    auth: AuthIdentity,
 ) -> CreditAssessmentResult:
     """Shared assessment logic for versioned and legacy endpoints."""
     result = service.assess(profile)
     factory = getattr(request.app.state, "db_session_factory", None)
     if factory is not None:
-        background_tasks.add_task(_persist_assessment, factory, profile, result)
+        background_tasks.add_task(
+            _persist_assessment,
+            factory,
+            profile,
+            result,
+            auth.identity,
+            auth.org_id,
+        )
     return result
 
 
 @router.post(
     "/assess",
     response_model=CreditAssessmentResult,
-    dependencies=[Depends(verify_auth)],
 )
 @limiter.limit("30/minute")
 async def assess(
@@ -154,9 +170,10 @@ async def assess(
     profile: CreditProfile,
     background_tasks: BackgroundTasks,
     service: CreditAssessmentService = Depends(get_assessment_service),
+    auth: AuthIdentity = Depends(verify_auth),
 ) -> CreditAssessmentResult:
     """Run full credit assessment."""
-    return await _run_assessment(request, profile, background_tasks, service)
+    return await _run_assessment(request, profile, background_tasks, service, auth)
 
 
 _OLDEST_TO_AVG_FACTOR = 0.6  # heuristic: average account age ≈ 60% of oldest
@@ -215,7 +232,6 @@ class SimpleCreditProfile(BaseModel):
 @router.post(
     "/assess/simple",
     response_model=CreditAssessmentResult,
-    dependencies=[Depends(verify_auth)],
 )
 @limiter.limit("30/minute")
 async def assess_simple(
@@ -223,7 +239,46 @@ async def assess_simple(
     simple: SimpleCreditProfile,
     background_tasks: BackgroundTasks,
     service: CreditAssessmentService = Depends(get_assessment_service),
+    auth: AuthIdentity = Depends(verify_auth),
 ) -> CreditAssessmentResult:
     """Run credit assessment from simplified input."""
     profile = simple.to_credit_profile()
-    return await _run_assessment(request, profile, background_tasks, service)
+    return await _run_assessment(request, profile, background_tasks, service, auth)
+
+
+@router.get("/assessments")
+@limiter.limit("30/minute")
+async def list_assessments(
+    request: Request,
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """Return paginated assessment history for the authenticated user's org."""
+    if auth.identity == API_KEY_IDENTITY:
+        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+    repo = AssessmentRepository(db)
+    org_id = auth.org_id
+    if org_id:
+        records = await repo.get_by_org_id(org_id, limit=limit, offset=offset)
+        total = await repo.count_by_org_id(org_id)
+    else:
+        records = await repo.get_by_user_id(auth.identity, limit=limit, offset=offset)
+        total = await repo.count_by_user_id(auth.identity)
+    items = [
+        {
+            "id": r.id,
+            "credit_score": r.credit_score,
+            "score_band": r.score_band,
+            "barrier_severity": r.barrier_severity,
+            "readiness_score": r.readiness_score,
+            "request_payload": r.request_payload,
+            "response_payload": r.response_payload,
+            "user_id": r.user_id,
+            "org_id": r.org_id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in records
+    ]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}

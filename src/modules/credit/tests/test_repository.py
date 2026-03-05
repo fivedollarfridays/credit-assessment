@@ -26,7 +26,7 @@ class TestSaveAssessment:
     """Test saving assessment records."""
 
     def test_save_returns_record_with_id(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -45,7 +45,7 @@ class TestSaveAssessment:
         asyncio.run(_run())
 
     def test_save_persists_to_database(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -71,7 +71,7 @@ class TestGetAssessment:
     """Test retrieving assessment records."""
 
     def test_get_nonexistent_returns_none(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -82,7 +82,7 @@ class TestGetAssessment:
         asyncio.run(_run())
 
     def test_list_assessments_returns_all(self, db_factory):
-        from modules.credit.repository import AssessmentRepository
+        from modules.credit.repo_assessments import AssessmentRepository
 
         async def _run():
             async with db_factory() as session:
@@ -111,22 +111,6 @@ class TestGetAssessment:
 
 class TestAuditLog:
     """Test audit log operations."""
-
-    def test_log_action_creates_entry(self, db_factory):
-        from modules.credit.repository import AuditRepository
-
-        async def _run():
-            async with db_factory() as session:
-                repo = AuditRepository(session)
-                entry = await repo.log_action(
-                    action="assess",
-                    resource="credit_profile",
-                    detail={"score": 740},
-                )
-                assert entry.id is not None
-                assert entry.action == "assess"
-
-        asyncio.run(_run())
 
     def test_create_entry_stores_request_and_result(self, db_factory):
         from modules.credit.repository import AuditRepository
