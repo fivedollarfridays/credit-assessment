@@ -49,6 +49,7 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["src/modules/credit"]
 omit = ["*/tests/*"]
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 fail_under = 100

@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .dashboard import (
     get_customer_detail,
@@ -15,6 +16,7 @@ from .dashboard import (
     get_usage_overview,
     update_customer,
 )
+from .database import get_db
 from .roles import Role, require_role
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -26,48 +28,50 @@ class CustomerUpdate(BaseModel):
 
 
 @router.get("/overview", dependencies=[Depends(require_role(Role.ADMIN))])
-def overview() -> dict:
+async def overview(db: AsyncSession = Depends(get_db)) -> dict:
     """Usage overview: total users, assessments, active subscriptions."""
-    return get_usage_overview()
+    return await get_usage_overview(db)
 
 
 @router.get("/customers", dependencies=[Depends(require_role(Role.ADMIN))])
-def customers() -> list[dict]:
+async def customers(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """List all customers with enriched data."""
-    return get_customer_list()
+    return await get_customer_list(db)
 
 
 @router.get("/customers/{email}", dependencies=[Depends(require_role(Role.ADMIN))])
-def customer_detail(email: str) -> dict:
+async def customer_detail(email: str, db: AsyncSession = Depends(get_db)) -> dict:
     """Get detailed info for a single customer."""
-    detail = get_customer_detail(email)
+    detail = await get_customer_detail(email, db)
     if detail is None:
         raise HTTPException(status_code=404, detail="Customer not found")
     return detail
 
 
 @router.put("/customers/{email}", dependencies=[Depends(require_role(Role.ADMIN))])
-def update_customer_endpoint(email: str, req: CustomerUpdate) -> dict:
+async def update_customer_endpoint(
+    email: str, req: CustomerUpdate, db: AsyncSession = Depends(get_db)
+) -> dict:
     """Update customer role or active status."""
-    result = update_customer(email, role=req.role, is_active=req.is_active)
+    result = await update_customer(email, db, role=req.role, is_active=req.is_active)
     if result is None:
         raise HTTPException(status_code=404, detail="Customer not found")
     return result
 
 
 @router.delete("/customers/{email}", dependencies=[Depends(require_role(Role.ADMIN))])
-def deactivate_customer(email: str) -> dict:
+async def deactivate_customer(email: str, db: AsyncSession = Depends(get_db)) -> dict:
     """Deactivate a customer (soft delete)."""
-    result = update_customer(email, is_active=False)
+    result = await update_customer(email, db, is_active=False)
     if result is None:
         raise HTTPException(status_code=404, detail="Customer not found")
     return {"message": f"Customer {email} deactivated", **result}
 
 
 @router.get("/health", dependencies=[Depends(require_role(Role.ADMIN))])
-def health() -> dict:
+async def health(db: AsyncSession = Depends(get_db)) -> dict:
     """System health metrics."""
-    return get_system_health()
+    return await get_system_health(db)
 
 
 # --- Static page router (mounted at root, not under /v1) ---

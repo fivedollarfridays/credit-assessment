@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
     pii_pepper: str = _DEFAULT_PII_PEPPER
+    max_login_attempts: int = 5
+    lockout_duration_minutes: int = 15
 
     @property
     def is_production(self) -> bool:

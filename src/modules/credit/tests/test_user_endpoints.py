@@ -1,42 +1,48 @@
-"""Tests for user registration, login, password reset, and security — T4.1/T9.2 TDD."""
+"""Tests for user registration, login, password reset, and security — T4.1/T9.2 TDD.
 
-from unittest.mock import AsyncMock, MagicMock
+Migrated from in-memory user_store to DB-backed repositories.
+Repository unit tests live in test_repositories_new.py.
+This file exercises behavior through the API (register, login, reset endpoints).
+"""
+
+import asyncio
 
 import pytest
-from fastapi.testclient import TestClient
 
-from modules.credit.config import Settings
-
-_SETTINGS = Settings()
+from modules.credit.user_store import validate_password
 
 
-def _get_client():
-    from modules.credit.router import app
+def _get_reset_token_from_db(app, email: str) -> str | None:
+    """Retrieve a reset token for the given email directly from DB."""
 
-    return TestClient(app)
+    factory = app.state.db_session_factory
 
+    async def _fetch():
+        from sqlalchemy import select
 
-def _mock_db_factory(mock_session):
-    """Create a mock session factory that yields mock_session."""
-    factory = MagicMock()
-    factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-    factory.return_value.__aexit__ = AsyncMock(return_value=None)
-    return factory
+        from modules.credit.models_db import ResetToken
+
+        async with factory() as session:
+            result = await session.execute(
+                select(ResetToken).where(ResetToken.email == email)
+            )
+            entry = result.scalar_one_or_none()
+            return entry.token if entry else None
+
+    return asyncio.run(_fetch())
 
 
 class TestRegisterEndpoint:
     """Test POST /auth/register."""
 
-    def test_register_returns_201(self):
-        client = _get_client()
+    def test_register_returns_201(self, client):
         resp = client.post(
             "/auth/register",
             json={"email": "new@example.com", "password": "Secret123!"},
         )
         assert resp.status_code == 201
 
-    def test_register_returns_user_email(self):
-        client = _get_client()
+    def test_register_returns_user_email(self, client):
         resp = client.post(
             "/auth/register",
             json={"email": "new2@example.com", "password": "Secret123!"},
@@ -44,8 +50,7 @@ class TestRegisterEndpoint:
         data = resp.json()
         assert data["email"] == "new2@example.com"
 
-    def test_register_does_not_return_password(self):
-        client = _get_client()
+    def test_register_does_not_return_password(self, client):
         resp = client.post(
             "/auth/register",
             json={"email": "new3@example.com", "password": "Secret123!"},
@@ -54,8 +59,7 @@ class TestRegisterEndpoint:
         assert "password" not in data
         assert "password_hash" not in data
 
-    def test_register_duplicate_email_returns_409(self):
-        client = _get_client()
+    def test_register_duplicate_email_returns_409(self, client):
         payload = {"email": "dupe@example.com", "password": "Secret123!"}
         client.post("/auth/register", json=payload)
         resp = client.post("/auth/register", json=payload)
@@ -65,8 +69,7 @@ class TestRegisterEndpoint:
 class TestLoginEndpoint:
     """Test POST /auth/login."""
 
-    def test_login_returns_tokens(self):
-        client = _get_client()
+    def test_login_returns_tokens(self, client):
         client.post(
             "/auth/register",
             json={"email": "login@example.com", "password": "Secret123!"},
@@ -80,8 +83,7 @@ class TestLoginEndpoint:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
-    def test_login_wrong_password_returns_401(self):
-        client = _get_client()
+    def test_login_wrong_password_returns_401(self, client):
         client.post(
             "/auth/register",
             json={"email": "login2@example.com", "password": "Secret123!"},
@@ -92,8 +94,7 @@ class TestLoginEndpoint:
         )
         assert resp.status_code == 401
 
-    def test_login_nonexistent_user_returns_401(self):
-        client = _get_client()
+    def test_login_nonexistent_user_returns_401(self, client):
         resp = client.post(
             "/auth/login",
             json={"email": "noone@example.com", "password": "Secret123!"},
@@ -104,8 +105,7 @@ class TestLoginEndpoint:
 class TestPasswordReset:
     """Test password reset flow."""
 
-    def test_request_reset_returns_200(self):
-        client = _get_client()
+    def test_request_reset_returns_200(self, client):
         client.post(
             "/auth/register",
             json={"email": "reset@example.com", "password": "Secret123!"},
@@ -116,40 +116,36 @@ class TestPasswordReset:
         )
         assert resp.status_code == 200
 
-    def test_request_reset_nonexistent_returns_200(self):
+    def test_request_reset_nonexistent_returns_200(self, client):
         """Returns 200 even for nonexistent email to prevent enumeration."""
-        client = _get_client()
         resp = client.post(
             "/auth/reset-password",
             json={"email": "ghost@example.com"},
         )
         assert resp.status_code == 200
 
-    def test_confirm_reset_invalid_token_returns_400(self):
-        client = _get_client()
+    def test_confirm_reset_invalid_token_returns_400(self, client):
         resp = client.post(
             "/auth/confirm-reset",
             json={"token": "bogus-token", "new_password": "NewPass1!"},
         )
         assert resp.status_code == 400
 
-    def test_confirm_reset_changes_password(self):
-        from modules.credit.user_store import _reset_tokens
+    def test_confirm_reset_changes_password(self, client):
+        from modules.credit.router import app
 
-        client = _get_client()
         client.post(
             "/auth/register",
             json={"email": "reset2@example.com", "password": "OldPass123!"},
         )
-        # Request reset — token no longer in HTTP response
+        # Request reset -- token stored in DB (simulating email delivery)
         client.post(
             "/auth/reset-password",
             json={"email": "reset2@example.com"},
         )
-        # Get token from internal store (simulating email delivery)
-        token = next(
-            t for t, email in _reset_tokens.items() if email == "reset2@example.com"
-        )
+        # Retrieve token from DB
+        token = _get_reset_token_from_db(app, "reset2@example.com")
+        assert token is not None, "Reset token should have been stored in DB"
 
         # Confirm reset with new password
         resp = client.post(
@@ -166,59 +162,46 @@ class TestPasswordReset:
         assert resp.status_code == 200
 
 
-class TestUserStorePublicAPIs:
-    """Test public accessor functions for user store."""
+class TestUserLookupViaAPI:
+    """Test user data access through the API (replaces in-memory store tests)."""
 
-    def test_get_all_users_empty(self):
-        from modules.credit.user_store import _users, get_all_users
+    def test_register_creates_user_accessible_via_login(self, client):
+        """Registering a user makes them accessible via login."""
+        client.post(
+            "/auth/register",
+            json={"email": "lookup@example.com", "password": "Secret123!"},
+        )
+        resp = client.post(
+            "/auth/login",
+            json={"email": "lookup@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 200
 
-        saved = dict(_users)
-        _users.clear()
-        assert get_all_users() == {}
-        _users.update(saved)
+    def test_nonexistent_user_cannot_login(self, client):
+        """A user that was never created cannot log in."""
+        resp = client.post(
+            "/auth/login",
+            json={"email": "nobody@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 401
 
-    def test_get_all_users_returns_copy(self):
-        from modules.credit.user_store import _users, get_all_users
-
-        _users["test@x.com"] = {"email": "test@x.com", "role": "viewer"}
-        result = get_all_users()
-        assert "test@x.com" in result
-        # Verify the outer dict is a copy (adding/removing keys doesn't affect original)
-        del result["test@x.com"]
-        assert "test@x.com" in _users
-        _users.pop("test@x.com", None)
-
-    def test_get_user_found(self):
-        from modules.credit.user_store import _users, get_user
-
-        _users["found@x.com"] = {"email": "found@x.com", "role": "viewer"}
-        assert get_user("found@x.com") is not None
-        assert get_user("found@x.com")["email"] == "found@x.com"
-        _users.pop("found@x.com", None)
-
-    def test_get_user_not_found(self):
-        from modules.credit.user_store import get_user
-
-        assert get_user("nobody@x.com") is None
-
-    def test_count_users(self):
-        from modules.credit.user_store import _users, count_users
-
-        saved = dict(_users)
-        _users.clear()
-        assert count_users() == 0
-        _users["a@x.com"] = {"email": "a@x.com"}
-        assert count_users() == 1
-        _users.clear()
-        _users.update(saved)
+    def test_admin_can_list_users(self, client, admin_headers):
+        """Admin endpoint returns registered users."""
+        client.post(
+            "/auth/register",
+            json={"email": "listed@example.com", "password": "Secret123!"},
+        )
+        resp = client.get("/admin/users", headers=admin_headers)
+        assert resp.status_code == 200
+        emails = [u["email"] for u in resp.json()]
+        assert "listed@example.com" in emails
 
 
 class TestResetTokenNotLeaked:
     """T9.2: Verify reset token is NOT returned in HTTP response."""
 
-    def test_reset_response_has_no_token_field(self):
+    def test_reset_response_has_no_token_field(self, client):
         """The reset endpoint must not include reset_token in response body."""
-        client = _get_client()
         client.post(
             "/auth/register",
             json={"email": "leak1@example.com", "password": "Secret123!"},
@@ -231,9 +214,8 @@ class TestResetTokenNotLeaked:
         data = resp.json()
         assert "reset_token" not in data
 
-    def test_reset_response_identical_for_existing_and_nonexistent(self):
+    def test_reset_response_identical_for_existing_and_nonexistent(self, client):
         """Response body must be identical for existing and nonexistent emails."""
-        client = _get_client()
         client.post(
             "/auth/register",
             json={"email": "leak2@example.com", "password": "Secret123!"},
@@ -249,55 +231,50 @@ class TestResetTokenNotLeaked:
         assert resp_existing.json() == resp_ghost.json()
 
 
-class TestUpdateUserFieldAllowlist:
-    """T9.2: Verify update_user only allows whitelisted fields."""
+class TestFieldIsolationViaAPI:
+    """T9.2: Verify the repository/API only allows safe field mutations.
 
-    def test_rejects_role_injection(self):
-        """Passing role= to update_user must NOT change the user's role."""
-        from modules.credit.user_store import _users, update_user
+    The old update_user allowlist is replaced by separate repository methods
+    (set_role, set_password_hash) that are only callable from admin/internal code.
+    The register endpoint must not accept role or password_hash fields.
+    """
 
-        _users["inject1@x.com"] = {
-            "email": "inject1@x.com",
-            "role": "viewer",
-            "password_hash": "hashed",
-            "is_active": True,
-            "org_id": "org-1",
-        }
-        update_user("inject1@x.com", role="admin")
-        assert _users["inject1@x.com"]["role"] == "viewer"
-        _users.pop("inject1@x.com", None)
+    def test_register_ignores_extra_role_field(self, client, admin_headers):
+        """Passing role in register payload must not change the default role."""
+        resp = client.post(
+            "/auth/register",
+            json={
+                "email": "inject1@example.com",
+                "password": "Secret123!",
+                "role": "admin",
+            },
+        )
+        assert resp.status_code == 201
+        # Verify via admin endpoint that the user is NOT admin
+        resp = client.get("/admin/users", headers=admin_headers)
+        user = next(
+            (u for u in resp.json() if u["email"] == "inject1@example.com"), None
+        )
+        assert user is not None
+        assert user["role"] == "viewer"
 
-    def test_rejects_password_hash_injection(self):
-        """Passing password_hash= to update_user must NOT change the hash."""
-        from modules.credit.user_store import _users, update_user
-
-        _users["inject2@x.com"] = {
-            "email": "inject2@x.com",
-            "role": "viewer",
-            "password_hash": "original_hash",
-            "is_active": True,
-            "org_id": "org-1",
-        }
-        update_user("inject2@x.com", password_hash="evil_hash")
-        assert _users["inject2@x.com"]["password_hash"] == "original_hash"
-        _users.pop("inject2@x.com", None)
-
-    def test_allows_is_active(self):
-        """is_active is an allowed field and should be updated."""
-        from modules.credit.user_store import _users, update_user
-
-        _users["allow1@x.com"] = {
-            "email": "allow1@x.com",
-            "role": "viewer",
-            "password_hash": "hashed",
-            "is_active": True,
-            "org_id": "org-1",
-        }
-        update_user("allow1@x.com", is_active=False)
-        assert _users["allow1@x.com"]["is_active"] is False
-        # Also cover not-found branch
-        assert update_user("nonexistent@x.com", is_active=False) is None
-        _users.pop("allow1@x.com", None)
+    def test_register_ignores_extra_password_hash_field(self, client):
+        """Passing password_hash in register payload must not bypass hashing."""
+        resp = client.post(
+            "/auth/register",
+            json={
+                "email": "inject2@example.com",
+                "password": "Secret123!",
+                "password_hash": "evil_hash",
+            },
+        )
+        assert resp.status_code == 201
+        # Can log in with the actual password (not the injected hash)
+        resp = client.post(
+            "/auth/login",
+            json={"email": "inject2@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 200
 
 
 class TestPasswordComplexity:
@@ -305,29 +282,21 @@ class TestPasswordComplexity:
 
     def test_rejects_short_password(self):
         """Passwords under 8 characters must be rejected."""
-        from modules.credit.user_store import validate_password
-
         with pytest.raises(ValueError, match="at least 8 characters"):
             validate_password("Ab1!xyz")
 
     def test_rejects_no_uppercase(self):
         """Passwords without uppercase letters must be rejected."""
-        from modules.credit.user_store import validate_password
-
         with pytest.raises(ValueError, match="uppercase"):
             validate_password("abcdefg1!")
 
     def test_rejects_no_digit(self):
         """Passwords without digits must be rejected."""
-        from modules.credit.user_store import validate_password
-
         with pytest.raises(ValueError, match="digit"):
             validate_password("Abcdefgh!")
 
     def test_rejects_no_special_char(self):
         """Passwords without special characters or lowercase must be rejected."""
-        from modules.credit.user_store import validate_password
-
         with pytest.raises(ValueError, match="special character"):
             validate_password("Abcdefg1")
         with pytest.raises(ValueError, match="lowercase"):
@@ -335,16 +304,13 @@ class TestPasswordComplexity:
 
     def test_accepts_valid_password(self):
         """A password meeting all criteria should be accepted."""
-        from modules.credit.user_store import validate_password
-
         result = validate_password("Secret123!")
         assert result == "Secret123!"
 
-    def test_confirm_reset_rejects_weak_password(self):
+    def test_confirm_reset_rejects_weak_password(self, client):
         """The confirm-reset endpoint must reject weak passwords."""
-        from modules.credit.user_store import _reset_tokens
+        from modules.credit.router import app
 
-        client = _get_client()
         client.post(
             "/auth/register",
             json={"email": "weakreset@example.com", "password": "Secret123!"},
@@ -353,9 +319,8 @@ class TestPasswordComplexity:
             "/auth/reset-password",
             json={"email": "weakreset@example.com"},
         )
-        token = next(
-            t for t, email in _reset_tokens.items() if email == "weakreset@example.com"
-        )
+        token = _get_reset_token_from_db(app, "weakreset@example.com")
+        assert token is not None
         resp = client.post(
             "/auth/confirm-reset",
             json={"token": token, "new_password": "weak"},
@@ -363,94 +328,219 @@ class TestPasswordComplexity:
         assert resp.status_code == 422
 
 
-class TestSetUserRole:
-    """Test set_user_role privileged function."""
+class TestSetRoleViaRepository:
+    """Test role changes through the repository (replaces in-memory set_user_role)."""
 
-    def test_set_user_role_updates_role(self):
-        from modules.credit.roles import Role
-        from modules.credit.user_store import _users, set_user_role
+    def test_set_role_updates_role(self, client, admin_headers):
+        """Creating a user via register gives viewer role; verify via admin API."""
+        from modules.credit.tests.conftest import create_test_user
+        from modules.credit.router import app
 
-        _users["role-test@x.com"] = {
-            "email": "role-test@x.com",
-            "role": "viewer",
-            "password_hash": "h",
-            "is_active": True,
-            "org_id": "org-1",
-        }
-        result = set_user_role("role-test@x.com", Role.ADMIN)
-        assert result is not None
-        assert result["role"] == "admin"
-        _users.pop("role-test@x.com", None)
-
-    def test_set_user_role_returns_none_for_missing(self):
-        from modules.credit.roles import Role
-        from modules.credit.user_store import set_user_role
-
-        assert set_user_role("nobody@x.com", Role.ADMIN) is None
-
-
-class TestUserStoreMutations:
-    """Test create_user, store/pop reset token, set_password_hash."""
-
-    def test_create_user_stores_and_returns(self):
-        from modules.credit.user_store import _users, create_user
-
-        _users.pop("cu@x.com", None)
-        user = create_user("cu@x.com", password_hash="h", role="viewer", org_id="org-1")
-        assert user["email"] == "cu@x.com"
-        assert user["is_active"] is True
-        assert _users["cu@x.com"] is user
-        _users.pop("cu@x.com", None)
-
-    def test_create_user_duplicate_raises(self):
-        from modules.credit.user_store import _users, create_user
-
-        _users["dup@x.com"] = {"email": "dup@x.com"}
-        with pytest.raises(ValueError, match="already registered"):
-            create_user("dup@x.com", password_hash="h", role="viewer", org_id="org-1")
-        _users.pop("dup@x.com", None)
-
-    def test_store_reset_token(self):
-        from modules.credit.user_store import _reset_tokens, store_reset_token
-
-        store_reset_token("tok-1", "a@x.com")
-        assert _reset_tokens["tok-1"] == "a@x.com"
-        _reset_tokens.pop("tok-1", None)
-
-    def test_store_reset_token_evicts_oldest(self):
-        from modules.credit.user_store import (
-            _MAX_RESET_TOKENS,
-            _reset_tokens,
-            store_reset_token,
+        create_test_user(app, "role-test@example.com", role="viewer")
+        # Verify initial role
+        resp = client.get("/admin/users", headers=admin_headers)
+        user = next(
+            (u for u in resp.json() if u["email"] == "role-test@example.com"),
+            None,
         )
+        assert user is not None
+        assert user["role"] == "viewer"
 
-        saved = dict(_reset_tokens)
-        _reset_tokens.clear()
-        for i in range(_MAX_RESET_TOKENS):
-            _reset_tokens[f"old-{i}"] = f"u{i}@x.com"
-        store_reset_token("new-tok", "new@x.com")
-        assert len(_reset_tokens) == _MAX_RESET_TOKENS
-        assert "old-0" not in _reset_tokens
-        assert "new-tok" in _reset_tokens
-        _reset_tokens.clear()
-        _reset_tokens.update(saved)
+        # Change role via repository
+        from modules.credit.repo_users import UserRepository
 
-    def test_pop_reset_token_found(self):
-        from modules.credit.user_store import _reset_tokens, pop_reset_token
+        factory = app.state.db_session_factory
 
-        _reset_tokens["pop-tok"] = "pop@x.com"
-        assert pop_reset_token("pop-tok") == "pop@x.com"
-        assert "pop-tok" not in _reset_tokens
+        async def _set():
+            async with factory() as session:
+                repo = UserRepository(session)
+                return await repo.set_role("role-test@example.com", "admin")
 
-    def test_pop_reset_token_missing(self):
-        from modules.credit.user_store import pop_reset_token
+        result = asyncio.run(_set())
+        assert result is True
 
-        assert pop_reset_token("nonexistent") is None
+        # Verify updated role via admin API
+        resp = client.get("/admin/users", headers=admin_headers)
+        user = next(
+            (u for u in resp.json() if u["email"] == "role-test@example.com"),
+            None,
+        )
+        assert user["role"] == "admin"
 
-    def test_set_password_hash(self):
-        from modules.credit.user_store import _users, set_password_hash
+    def test_set_role_returns_false_for_missing(self):
+        """Setting role on a nonexistent user returns False."""
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_users import UserRepository
 
-        _users["pw@x.com"] = {"email": "pw@x.com", "password_hash": "old"}
-        set_password_hash("pw@x.com", "new-hash")
-        assert _users["pw@x.com"]["password_hash"] == "new-hash"
-        _users.pop("pw@x.com", None)
+        engine = create_engine("sqlite+aiosqlite://")
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = UserRepository(session)
+                result = await repo.set_role("nobody@x.com", "admin")
+                assert result is False
+
+        asyncio.run(_run())
+
+
+class TestAccountLockout:
+    """T18.4: Account lockout after repeated failed logins."""
+
+    def test_five_failures_locks_account(self, client):
+        """After 5 bad passwords, account returns 429."""
+        client.post(
+            "/auth/register",
+            json={"email": "lockout@example.com", "password": "Secret123!"},
+        )
+        for _ in range(5):
+            resp = client.post(
+                "/auth/login",
+                json={"email": "lockout@example.com", "password": "WrongPass!"},
+            )
+            assert resp.status_code == 401
+
+        # 6th attempt should be locked
+        resp = client.post(
+            "/auth/login",
+            json={"email": "lockout@example.com", "password": "WrongPass!"},
+        )
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+        assert resp.json()["detail"] == "Account temporarily locked"
+
+    def test_correct_password_while_locked_returns_429(self, client):
+        """Even correct password returns 429 when locked."""
+        client.post(
+            "/auth/register",
+            json={"email": "lockright@example.com", "password": "Secret123!"},
+        )
+        for _ in range(5):
+            client.post(
+                "/auth/login",
+                json={"email": "lockright@example.com", "password": "Bad1!"},
+            )
+        resp = client.post(
+            "/auth/login",
+            json={"email": "lockright@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 429
+
+    def test_successful_login_resets_counter(self, client):
+        """A successful login resets the failure counter."""
+        client.post(
+            "/auth/register",
+            json={"email": "resetcnt@example.com", "password": "Secret123!"},
+        )
+        # 3 failures (below threshold)
+        for _ in range(3):
+            client.post(
+                "/auth/login",
+                json={"email": "resetcnt@example.com", "password": "WrongP1!"},
+            )
+        # Successful login
+        resp = client.post(
+            "/auth/login",
+            json={"email": "resetcnt@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 200
+        # 4 more failures should not lock (counter was reset)
+        for _ in range(4):
+            client.post(
+                "/auth/login",
+                json={"email": "resetcnt@example.com", "password": "Wrong1!"},
+            )
+        resp = client.post(
+            "/auth/login",
+            json={"email": "resetcnt@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 200
+
+    def test_lockout_expires_after_duration(self, client):
+        """Account unlocks after lockout duration expires."""
+        from datetime import datetime, timedelta, timezone
+        from unittest.mock import patch
+
+        client.post(
+            "/auth/register",
+            json={"email": "expire@example.com", "password": "Secret123!"},
+        )
+        for _ in range(5):
+            client.post(
+                "/auth/login",
+                json={"email": "expire@example.com", "password": "WrongPass!"},
+            )
+        # Verify locked
+        resp = client.post(
+            "/auth/login",
+            json={"email": "expire@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 429
+
+        # Time travel past lockout
+        future = datetime.now(timezone.utc) + timedelta(minutes=16)
+        with patch("modules.credit.user_routes.datetime") as mock_dt:
+            mock_dt.now.return_value = future
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            resp = client.post(
+                "/auth/login",
+                json={"email": "expire@example.com", "password": "Secret123!"},
+            )
+            assert resp.status_code == 200
+
+    def test_lockout_creates_audit_entry(self, client):
+        """Lockout event is logged to audit trail."""
+        from modules.credit.audit import get_audit_trail, reset_audit_trail
+
+        reset_audit_trail()
+        client.post(
+            "/auth/register",
+            json={"email": "auditlock@example.com", "password": "Secret123!"},
+        )
+        for _ in range(5):
+            client.post(
+                "/auth/login",
+                json={"email": "auditlock@example.com", "password": "WrongP1!"},
+            )
+        entries = get_audit_trail(action="account_locked")
+        assert len(entries) == 1
+        assert entries[0]["request_summary"]["email"] == "auditlock@example.com"
+
+    def test_deactivated_user_cannot_login(self, client):
+        """Deactivated user returns 401 even with correct password."""
+        from modules.credit.repo_users import UserRepository
+        from modules.credit.router import app
+
+        client.post(
+            "/auth/register",
+            json={"email": "deact@example.com", "password": "Secret123!"},
+        )
+        # Deactivate via DB
+        factory = app.state.db_session_factory
+
+        async def _deactivate():
+            async with factory() as session:
+                repo = UserRepository(session)
+                user = await repo.get_by_email("deact@example.com")
+                user.is_active = False
+                await session.commit()
+
+        asyncio.run(_deactivate())
+
+        resp = client.post(
+            "/auth/login",
+            json={"email": "deact@example.com", "password": "Secret123!"},
+        )
+        assert resp.status_code == 401
+
+    def test_nonexistent_user_returns_401_not_429(self, client):
+        """Login for nonexistent user returns 401, not lockout."""
+        for _ in range(10):
+            resp = client.post(
+                "/auth/login",
+                json={"email": "ghost@example.com", "password": "WrongP1!"},
+            )
+            assert resp.status_code == 401

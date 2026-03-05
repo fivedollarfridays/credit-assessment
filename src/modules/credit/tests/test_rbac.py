@@ -1,19 +1,24 @@
 """Tests for RBAC — roles, role enforcement, and API keys — T4.2 TDD."""
 
+from contextlib import contextmanager
+
+from fastapi.testclient import TestClient
+
 from modules.credit.config import Settings
+from modules.credit.router import app
 from modules.credit.tests.conftest import (
     _TEST_SETTINGS,
+    create_test_user,
     patch_auth_settings,
-    register_and_login,
 )
 
 
-def _get_client():
-    from fastapi.testclient import TestClient
-
-    from modules.credit.router import app
-
-    return TestClient(app)
+@contextmanager
+def _get_client(settings: Settings | None = None):
+    """Yield a TestClient with auth settings patched and lifespan active."""
+    with patch_auth_settings(settings):
+        with TestClient(app) as client:
+            yield client
 
 
 class TestRoleEnum:
@@ -44,12 +49,13 @@ class TestRoleEnforcement:
     """Test role-based access on endpoints."""
 
     def test_admin_can_list_users(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "admin@test.com")
-            from modules.credit.user_store import _users
-
-            _users["admin@test.com"]["role"] = "admin"
+        with _get_client() as client:
+            create_test_user(app, "admin@test.com", role="admin")
+            resp = client.post(
+                "/auth/login",
+                json={"email": "admin@test.com", "password": "Secret123!"},
+            )
+            token = resp.json()["access_token"]
 
             resp = client.get(
                 "/admin/users",
@@ -58,12 +64,13 @@ class TestRoleEnforcement:
             assert resp.status_code == 200
 
     def test_viewer_cannot_access_admin_endpoints(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "viewer@test.com")
-            from modules.credit.user_store import _users
-
-            _users["viewer@test.com"]["role"] = "viewer"
+        with _get_client() as client:
+            create_test_user(app, "viewer@test.com", role="viewer")
+            resp = client.post(
+                "/auth/login",
+                json={"email": "viewer@test.com", "password": "Secret123!"},
+            )
+            token = resp.json()["access_token"]
 
             resp = client.get(
                 "/admin/users",
@@ -72,15 +79,13 @@ class TestRoleEnforcement:
             assert resp.status_code == 403
 
     def test_missing_bearer_returns_403(self):
-        client = _get_client()
-        with patch_auth_settings():
+        with _get_client() as client:
             resp = client.get("/admin/users")
             assert resp.status_code == 403
             assert resp.json()["detail"] == "Invalid or missing credentials"
 
     def test_invalid_token_returns_401(self):
-        client = _get_client()
-        with patch_auth_settings():
+        with _get_client() as client:
             resp = client.get(
                 "/admin/users",
                 headers={"Authorization": "Bearer bad-token"},
@@ -91,8 +96,7 @@ class TestRoleEnforcement:
     def test_api_key_rejected_on_role_restricted_endpoint(self):
         """API key users cannot access role-restricted endpoints."""
         settings_with_key = Settings(jwt_secret="test-secret", api_key="test-api-key")
-        client = _get_client()
-        with patch_auth_settings(settings_with_key):
+        with _get_client(settings_with_key) as client:
             resp = client.get(
                 "/admin/users",
                 headers={"X-API-Key": "test-api-key"},
@@ -104,8 +108,7 @@ class TestRoleEnforcement:
             )
 
     def test_valid_token_unknown_user_returns_401(self):
-        client = _get_client()
-        with patch_auth_settings():
+        with _get_client() as client:
             from modules.credit.auth import create_access_token
 
             token = create_access_token(
@@ -125,14 +128,17 @@ class TestRoleEnforcement:
 class TestApiKeyModel:
     """Test API key creation and management."""
 
+    def _admin_token(self, client, email):
+        """Create admin user and return login JWT."""
+        create_test_user(app, email, role="admin")
+        resp = client.post(
+            "/auth/login", json={"email": email, "password": "Secret123!"}
+        )
+        return resp.json()["access_token"]
+
     def test_admin_can_create_api_key(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "keyadmin@test.com")
-            from modules.credit.user_store import _users
-
-            _users["keyadmin@test.com"]["role"] = "admin"
-
+        with _get_client() as client:
+            token = self._admin_token(client, "keyadmin@test.com")
             resp = client.post(
                 "/admin/api-keys",
                 json={"org_id": "org-1", "role": "analyst"},
@@ -143,20 +149,14 @@ class TestApiKeyModel:
             assert "api_key" in data
 
     def test_admin_can_revoke_api_key(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "revokeadmin@test.com")
-            from modules.credit.user_store import _users
-
-            _users["revokeadmin@test.com"]["role"] = "admin"
-
+        with _get_client() as client:
+            token = self._admin_token(client, "revokeadmin@test.com")
             create_resp = client.post(
                 "/admin/api-keys",
                 json={"org_id": "org-2", "role": "viewer"},
                 headers={"Authorization": f"Bearer {token}"},
             )
             api_key = create_resp.json()["api_key"]
-
             resp = client.delete(
                 f"/admin/api-keys/{api_key}",
                 headers={"Authorization": f"Bearer {token}"},
@@ -165,13 +165,8 @@ class TestApiKeyModel:
             assert resp.json()["message"] == "API key revoked"
 
     def test_revoke_nonexistent_key_returns_404(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "revoke404@test.com")
-            from modules.credit.user_store import _users
-
-            _users["revoke404@test.com"]["role"] = "admin"
-
+        with _get_client() as client:
+            token = self._admin_token(client, "revoke404@test.com")
             resp = client.delete(
                 "/admin/api-keys/nonexistent-key",
                 headers={"Authorization": f"Bearer {token}"},
@@ -179,13 +174,8 @@ class TestApiKeyModel:
             assert resp.status_code == 404
 
     def test_api_key_has_expiration(self):
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "expadmin@test.com")
-            from modules.credit.user_store import _users
-
-            _users["expadmin@test.com"]["role"] = "admin"
-
+        with _get_client() as client:
+            token = self._admin_token(client, "expadmin@test.com")
             resp = client.post(
                 "/admin/api-keys",
                 json={"org_id": "org-3", "role": "analyst", "expires_in_days": 30},
@@ -196,43 +186,80 @@ class TestApiKeyModel:
             assert "expires_at" in data
 
 
-class TestApiKeyEviction:
-    """Test that _api_keys store is bounded via FIFO eviction."""
+class TestApiKeyDbManagement:
+    """Test DB-backed API key management via ApiKeyRepository."""
 
-    def test_create_api_key_evicts_oldest_when_over_cap(self):
-        """Creating an API key when at cap evicts the oldest entry."""
-        from modules.credit.admin_routes import _MAX_API_KEYS, _api_keys
+    def test_create_persists_key_in_db(self):
+        """Creating a scoped API key persists it and lookup succeeds."""
+        import asyncio
 
-        saved = dict(_api_keys)
-        _api_keys.clear()
-        # Pre-fill to exactly the cap
-        for i in range(_MAX_API_KEYS):
-            _api_keys[f"prefill-{i}"] = {
-                "org_id": "org-x",
-                "role": "viewer",
-                "expires_at": None,
-            }
-        assert len(_api_keys) == _MAX_API_KEYS
-        first_key = next(iter(_api_keys))
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
 
-        client = _get_client()
-        with patch_auth_settings():
-            token = register_and_login(client, "evictadmin@test.com")
-            from modules.credit.user_store import _users
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                created = await repo.create(
+                    key="test-key-1", org_id="org-1", role="analyst"
+                )
+                assert created.key == "test-key-1"
+                found = await repo.lookup("test-key-1")
+                assert found is not None
+                assert found.org_id == "org-1"
+                assert found.role == "analyst"
+            await engine.dispose()
 
-            _users["evictadmin@test.com"]["role"] = "admin"
-            resp = client.post(
-                "/admin/api-keys",
-                json={"org_id": "org-evict", "role": "viewer"},
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 201
-            # The oldest key should have been evicted
-            assert first_key not in _api_keys
-            assert len(_api_keys) <= _MAX_API_KEYS
-            _api_keys.clear()
-            _api_keys.update(saved)
-            _users.pop("evictadmin@test.com", None)
+        asyncio.run(_run())
+
+    def test_revoke_makes_lookup_return_none(self):
+        """Revoking a key causes subsequent lookup to return None."""
+        import asyncio
+
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="revoke-key", org_id="org-2", role="viewer")
+                revoked = await repo.revoke("revoke-key")
+                assert revoked is True
+                found = await repo.lookup("revoke-key")
+                assert found is None
+            await engine.dispose()
+
+        asyncio.run(_run())
+
+    def test_lookup_nonexistent_key_returns_none(self):
+        """Looking up a key that was never created returns None."""
+        import asyncio
+
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                found = await repo.lookup("does-not-exist")
+                assert found is None
+            await engine.dispose()
+
+        asyncio.run(_run())
 
 
 class TestIsAdmin:
@@ -257,3 +284,39 @@ class TestIsAdmin:
         from modules.credit.roles import is_admin
 
         assert is_admin({}) is False
+
+
+class TestRequireRoleMissingDb:
+    """require_role returns 500 when DB factory is unavailable and JWT has no role."""
+
+    def test_missing_db_factory_returns_500(self):
+        from unittest.mock import patch
+
+        from fastapi.testclient import TestClient
+
+        from modules.credit.auth import create_access_token
+        from modules.credit.config import Settings
+        from modules.credit.router import app
+
+        test_settings = Settings(api_key=None, jwt_secret="test-secret")
+        # JWT without role claim — forces DB lookup in require_role
+        token = create_access_token(
+            subject="user@test.com",
+            secret="test-secret",
+            algorithm="HS256",
+            expire_minutes=5,
+        )
+        with (
+            patch("modules.credit.router.settings", test_settings),
+            patch("modules.credit.assess_routes.settings", test_settings),
+        ):
+            client = TestClient(app)
+            # Remove any stale factory
+            if hasattr(app.state, "db_session_factory"):
+                delattr(app.state, "db_session_factory")
+            resp = client.get(
+                "/admin/users",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert resp.status_code == 500
+            assert "database" in resp.json()["detail"].lower()

@@ -10,7 +10,7 @@
 
 ## Current Focus
 
-Sprint 17 complete (database foundation). Ready for Sprint 18 (auth & security hardening).
+Sprint 18 complete (auth & security hardening). All 4 tasks done. Next: Sprint 19 (compliance & data persistence).
 
 ## Task Status
 
@@ -163,10 +163,10 @@ Sprint 17 complete (database foundation). Ready for Sprint 18 (auth & security h
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T18.1 | Migrate user store + reset tokens to database | P0 | 65 | Pending |
-| T18.2 | Wire scoped API keys into verify_auth() | P0 | 45 | Pending |
-| T18.3 | Add org_id and role claims to JWT tokens | P1 | 30 | Pending |
-| T18.4 | Account lockout + reset token expiry | P1 | 35 | Pending |
+| T18.1 | Migrate user store + reset tokens to database | P0 | 65 | ✓ Done |
+| T18.2 | Wire scoped API keys into verify_auth() | P0 | 45 | ✓ Done |
+| T18.3 | Add org_id and role claims to JWT tokens | P1 | 30 | ✓ Done |
+| T18.4 | Account lockout + reset token expiry | P1 | 35 | ✓ Done |
 
 ### Sprint 19 — Compliance & Data Persistence (Feature)
 
@@ -185,6 +185,64 @@ Sprint 17 complete (database foundation). Ready for Sprint 18 (auth & security h
 | T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | Pending |
 
 ## What Was Just Done
+
+- **T18.4 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 18: T18.4 Account lockout + reset token expiry
+
+- **T18.4**: Account lockout after repeated failed logins. Changed files:
+  - `models_db.py`: Added `failed_login_attempts` and `locked_until` columns to User model
+  - `config.py`: Added `max_login_attempts=5` and `lockout_duration_minutes=15` settings
+  - `user_routes.py`: Login handler with lockout logic extracted to `_check_lockout()` helper, audit trail on lockout, `response_model=None` for JSONResponse
+  - `test_user_endpoints.py`: 6 new tests in `TestAccountLockout` (lock after 5 failures, locked even with correct password, counter reset on success, lockout expiry via time-travel mock, audit entry on lockout, nonexistent user never locked)
+- 840 tests passing, 100% coverage, 0 ruff issues.
+- Sprint 18 fully complete (T18.1-T18.4).
+
+- **T18.3 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 18: T18.3 Add org_id/role JWT claims
+
+- **T18.3**: JWT tokens now carry org_id and role claims. Changed files:
+  - `auth.py`: `create_access_token()` and `issue_token_for()` accept optional org_id/role params
+  - `assess_routes.py`: `verify_auth()` extracts org_id/role from JWT payload into `AuthIdentity`
+  - `roles.py`: `require_role._check()` uses JWT role claim directly (skips DB lookup)
+  - `user_routes.py`: `login()` includes user's org_id and role in JWT
+  - `auth_routes.py`: `refresh_token()` preserves org_id/role claims
+  - Updated test_rbac.py to create users with correct role BEFORE login (JWT now carries role)
+- 834 tests passing, 100% coverage, 0 ruff issues.
+
+- **T18.2 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 18: T18.2 Wire scoped API keys into verify_auth
+
+- **T18.2**: Wired scoped API keys into the auth system. Changed files:
+  - `auth.py`: Added `AuthIdentity` dataclass (identity, org_id, role, is_scoped_key)
+  - `assess_routes.py`: `verify_auth()` now returns `AuthIdentity` and checks scoped API keys via `ApiKeyRepository` (DB) before falling back to static `settings.api_key`
+  - `admin_routes.py`: Removed `_api_keys` OrderedDict, `_MAX_API_KEYS`, `lookup_api_key()`. Made `create_api_key`/`revoke_api_key` async, using `ApiKeyRepository` via `Depends(get_db)`
+  - `roles.py`: `require_role._check()` now handles scoped API keys (uses role from key), static API keys (rejected), and JWT users (DB lookup)
+  - `auth_routes.py`: Updated refresh endpoint to handle `AuthIdentity`
+  - `data_rights_routes.py`: Updated to use `auth.identity` from `AuthIdentity`
+  - `conftest.py`: `bypass_auth` returns `AuthIdentity(identity="test-user")`
+  - Updated 5 test files to remove `_api_keys` references and test DB-backed API key behavior
+- 834 tests passing, 100% coverage, 0 arch errors.
+
+- **T18.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 18: T18.1 Migrate user store to database
+
+- **T18.1**: Migrated all user management from in-memory `_users` dict and `_reset_tokens` OrderedDict to DB-backed `UserRepository` and `ResetTokenRepository`. Changed files:
+  - `user_store.py`: trimmed to `validate_password` only — all data-access functions removed
+  - `user_routes.py`: all 4 handlers (`register`, `login`, `request_reset`, `confirm_reset`) made async, injected `Depends(get_db)` for DB sessions
+  - `admin_routes.py`: `list_users` async via `UserRepository`
+  - `roles.py`: `require_role._check` looks up user in DB
+  - `dashboard.py`: all functions async, accept `AsyncSession`, use `UserRepository`
+  - `dashboard_routes.py`: all routes async with `Depends(get_db)`
+  - `data_rights_routes.py`: `_resolve_user_id` async via `UserRepository`
+  - `database.py`: added `get_db` FastAPI dependency
+  - `assess_routes.py`: `_persist_assessment` wrapped in try/except for best-effort
+  - `pyproject.toml`: added `concurrency = ["greenlet", "thread"]` to coverage config (fixes async handler tracking)
+  - Rewrote 8 test files to use `create_test_user()`, `with TestClient(app)` context manager, and DB-backed assertions
+- 830 tests passing, 100% coverage, 0 arch violations.
 
 - **T17.3 done** (auto-updated by hook)
 

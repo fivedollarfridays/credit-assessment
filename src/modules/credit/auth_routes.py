@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from .assess_routes import verify_auth
-from .auth import API_KEY_IDENTITY, TokenResponse, issue_token_for
+from .auth import API_KEY_IDENTITY, AuthIdentity, TokenResponse, issue_token_for
 from .config import settings
 
 # Demo credentials — only active when environment != "production".
@@ -38,8 +38,10 @@ def issue_token(creds: TokenRequest) -> TokenResponse:
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(identity: str = Depends(verify_auth)) -> TokenResponse:
+async def refresh_token(auth: AuthIdentity = Depends(verify_auth)) -> TokenResponse:
     """Refresh a JWT token. Requires a valid Bearer token or API key."""
-    if identity == API_KEY_IDENTITY:
+    if auth.identity == API_KEY_IDENTITY or auth.is_scoped_key:
         raise HTTPException(status_code=401, detail="Cannot refresh API key")
-    return TokenResponse(access_token=issue_token_for(identity))
+    return TokenResponse(
+        access_token=issue_token_for(auth.identity, org_id=auth.org_id, role=auth.role)
+    )

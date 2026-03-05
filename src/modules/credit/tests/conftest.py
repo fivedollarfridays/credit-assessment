@@ -1,5 +1,6 @@
 """Shared fixtures for credit module tests."""
 
+import asyncio
 from contextlib import ExitStack
 from unittest.mock import patch
 
@@ -13,7 +14,43 @@ from modules.credit.types import (
     ScoreBand,
 )
 
-_TEST_SETTINGS = Settings(jwt_secret="test-secret", api_key=None)
+_TEST_SETTINGS = Settings(
+    jwt_secret="test-secret",
+    api_key=None,
+    database_url="sqlite+aiosqlite://",
+)
+
+
+def create_test_user(
+    app,
+    email: str,
+    *,
+    role: str = "viewer",
+    org_id: str = "org-test",
+    password: str = "Secret123!",
+) -> None:
+    """Create a test user directly in the DB."""
+    from modules.credit.password import hash_password
+    from modules.credit.repo_users import UserRepository
+
+    factory = app.state.db_session_factory
+
+    async def _create():
+        async with factory() as session:
+            repo = UserRepository(session)
+            existing = await repo.get_by_email(email)
+            if existing is not None:
+                if existing.role != role:
+                    await repo.set_role(email, role)
+                return
+            await repo.create(
+                email=email,
+                password_hash=hash_password(password),
+                role=role,
+                org_id=org_id,
+            )
+
+    asyncio.run(_create())
 
 
 def register_and_login(
@@ -48,35 +85,32 @@ VALID_ASSESS_PAYLOAD: dict = {
 
 @pytest.fixture
 def client() -> TestClient:
-    """Shared TestClient for the FastAPI app."""
+    """Shared TestClient for the FastAPI app with in-memory DB."""
     from modules.credit.router import app
 
-    return TestClient(app)
+    with patch_auth_settings(_TEST_SETTINGS):
+        with TestClient(app) as c:
+            yield c
+    # Clear stale factory so tests using bare TestClient(app) don't
+    # hit a disposed engine from this fixture's in-memory DB.
+    if hasattr(app.state, "db_session_factory"):
+        del app.state.db_session_factory
 
 
 @pytest.fixture
-def admin_headers():
-    """Create admin user, patch JWT settings, and return auth headers."""
+def admin_headers(client):
+    """Create admin user in DB, patch JWT settings, and return auth headers."""
     from modules.credit.auth import create_access_token
-    from modules.credit.password import hash_password
-    from modules.credit.user_store import _users
+    from modules.credit.router import app
 
-    _users["admin@test.com"] = {
-        "email": "admin@test.com",
-        "password_hash": hash_password("pw"),
-        "is_active": True,
-        "role": "admin",
-        "org_id": "org-admin",
-    }
-    with patch_auth_settings(_TEST_SETTINGS):
-        token = create_access_token(
-            subject="admin@test.com",
-            secret=_TEST_SETTINGS.jwt_secret,
-            algorithm=_TEST_SETTINGS.jwt_algorithm,
-            expire_minutes=30,
-        )
-        yield {"Authorization": f"Bearer {token}"}
-    _users.pop("admin@test.com", None)
+    create_test_user(app, "admin@test.com", role="admin", org_id="org-admin")
+    token = create_access_token(
+        subject="admin@test.com",
+        secret=_TEST_SETTINGS.jwt_secret,
+        algorithm=_TEST_SETTINGS.jwt_algorithm,
+        expire_minutes=30,
+    )
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture
@@ -85,7 +119,9 @@ def bypass_auth():
     from modules.credit.assess_routes import verify_auth
     from modules.credit.router import app
 
-    app.dependency_overrides[verify_auth] = lambda: "test-user"
+    from modules.credit.auth import AuthIdentity
+
+    app.dependency_overrides[verify_auth] = lambda: AuthIdentity(identity="test-user")
     yield
     app.dependency_overrides.pop(verify_auth, None)
 

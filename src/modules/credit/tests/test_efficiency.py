@@ -17,10 +17,11 @@ from modules.credit.tenant import (
     count_org_assessments,
     store_org_assessment,
 )
-from collections import OrderedDict
 from unittest.mock import patch
 
-from modules.credit.admin_routes import _api_keys
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.models_db import Base
+from modules.credit.repo_api_keys import ApiKeyRepository
 from modules.credit.middleware import HstsMiddleware, HttpsRedirectMiddleware
 from modules.credit.webhooks import (
     EventType,
@@ -203,23 +204,50 @@ class TestMiddlewareCachedProdCheck:
         assert call_count["n"] == 1
 
 
-class TestApiKeysOrderedDict:
-    """_api_keys must be OrderedDict with popitem(last=False) eviction."""
+class TestApiKeyDbPersistence:
+    """API keys are DB-backed via ApiKeyRepository."""
 
-    def test_api_keys_is_ordered_dict(self) -> None:
-        assert isinstance(_api_keys, OrderedDict)
+    def test_create_key_persists_and_lookup_returns_it(self) -> None:
+        """Creating an API key persists it so lookup returns the record."""
+        import asyncio
 
-    def test_popitem_last_false_evicts_oldest(self) -> None:
-        """OrderedDict.popitem(last=False) removes the first inserted key."""
-        saved = OrderedDict(_api_keys)
-        _api_keys.clear()
-        _api_keys["first"] = {"org_id": "o1", "role": "viewer", "expires_at": None}
-        _api_keys["second"] = {"org_id": "o2", "role": "viewer", "expires_at": None}
-        evicted_key, _ = _api_keys.popitem(last=False)
-        assert evicted_key == "first"
-        assert "second" in _api_keys
-        _api_keys.clear()
-        _api_keys.update(saved)
+        engine = create_engine("sqlite+aiosqlite://")
+        factory = get_session_factory(engine)
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="test-key-1", org_id="org-1", role="viewer")
+                found = await repo.lookup("test-key-1")
+                return found
+
+        result = asyncio.run(_run())
+        assert result is not None
+        assert result.key == "test-key-1"
+        assert result.org_id == "org-1"
+        assert result.role == "viewer"
+
+    def test_revoked_key_lookup_returns_none(self) -> None:
+        """Revoking a key makes lookup return None."""
+        import asyncio
+
+        engine = create_engine("sqlite+aiosqlite://")
+        factory = get_session_factory(engine)
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="revoke-me", org_id="org-2", role="admin")
+                await repo.revoke("revoke-me")
+                found = await repo.lookup("revoke-me")
+                return found
+
+        result = asyncio.run(_run())
+        assert result is None
 
 
 class TestDashboardUsesCountFunctions:
@@ -227,39 +255,86 @@ class TestDashboardUsesCountFunctions:
 
     def test_overview_uses_count_all_assessments(self) -> None:
         """get_usage_overview should call count_all_assessments, not get_all_assessments."""
-        from modules.credit.dashboard import get_usage_overview
+        import asyncio
 
-        with patch("modules.credit.dashboard.count_all_assessments", return_value=42):
-            result = get_usage_overview()
+        from modules.credit.dashboard import get_usage_overview
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+
+        engine = create_engine("sqlite+aiosqlite://")
+        factory = get_session_factory(engine)
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with factory() as session:
+                with patch(
+                    "modules.credit.dashboard.count_all_assessments", return_value=42
+                ):
+                    result = await get_usage_overview(session)
+            return result
+
+        result = asyncio.run(_run())
         assert result["total_assessments"] == 42
 
     def test_customer_list_uses_count_org_assessments(self) -> None:
         """get_customer_list should call count_org_assessments per customer."""
+        import asyncio
+
         from modules.credit.dashboard import get_customer_list
-        from modules.credit.user_store import _users
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_users import UserRepository
         from modules.credit.password import hash_password
 
-        _users.clear()
-        _users["a@b.com"] = {
-            "email": "a@b.com",
-            "password_hash": hash_password("pw"),
-            "is_active": True,
-            "role": "viewer",
-            "org_id": "org-a",
-        }
-        with patch("modules.credit.dashboard.count_org_assessments", return_value=7):
-            customers = get_customer_list()
+        engine = create_engine("sqlite+aiosqlite://")
+        factory = get_session_factory(engine)
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with factory() as session:
+                repo = UserRepository(session)
+                await repo.create(
+                    email="a@b.com",
+                    password_hash=hash_password("pw"),
+                    role="viewer",
+                    org_id="org-a",
+                )
+                with patch(
+                    "modules.credit.dashboard.count_org_assessments", return_value=7
+                ):
+                    customers = await get_customer_list(session)
+            return customers
+
+        customers = asyncio.run(_run())
         assert customers[0]["assessment_count"] == 7
-        _users.clear()
 
     def test_system_health_uses_count_audit_entries(self) -> None:
         """get_system_health should call count_audit_entries, not len(get_audit_trail())."""
-        from modules.credit.dashboard import get_system_health
+        import asyncio
 
-        with (
-            patch("modules.credit.dashboard.count_audit_entries", return_value=99),
-            patch("modules.credit.dashboard.count_webhooks", return_value=5),
-        ):
-            health = get_system_health()
+        from modules.credit.dashboard import get_system_health
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+
+        engine = create_engine("sqlite+aiosqlite://")
+        factory = get_session_factory(engine)
+
+        async def _run():
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with factory() as session:
+                with (
+                    patch(
+                        "modules.credit.dashboard.count_audit_entries",
+                        return_value=99,
+                    ),
+                    patch("modules.credit.dashboard.count_webhooks", return_value=5),
+                ):
+                    health = await get_system_health(session)
+            return health
+
+        health = asyncio.run(_run())
         assert health["audit_entries"] == 99
         assert health["webhooks"] == 5

@@ -31,32 +31,56 @@ class TestUserOrgAssociation:
     """Test users are associated with organizations."""
 
     def test_register_user_with_org(self):
-        client = _get_client()
-        with patch_auth_settings():
-            client.post(
-                "/auth/register",
-                json={"email": "orguser@test.com", "password": "Secret123!"},
-            )
-            from modules.credit.user_store import _users
+        import asyncio
 
-            user = _users.get("orguser@test.com")
-            assert "org_id" in user
+        from modules.credit.repo_users import UserRepository
+
+        with patch_auth_settings():
+            from fastapi.testclient import TestClient
+
+            from modules.credit.router import app
+
+            with TestClient(app) as client:
+                client.post(
+                    "/auth/register",
+                    json={"email": "orguser@test.com", "password": "Secret123!"},
+                )
+
+                async def _check():
+                    async with app.state.db_session_factory() as session:
+                        repo = UserRepository(session)
+                        user = await repo.get_by_email("orguser@test.com")
+                        return user
+
+                user = asyncio.run(_check())
+                assert user is not None
+                assert user.org_id is not None
 
 
 class TestApiKeyOrgResolution:
     """Test API keys resolve to correct org."""
 
     def test_api_key_contains_org_id(self):
-        from modules.credit.admin_routes import _api_keys
+        import asyncio
 
-        # The _api_keys store already maps keys to org_id
-        _api_keys["test-key"] = {
-            "org_id": "org-1",
-            "role": "analyst",
-            "expires_at": None,
-        }
-        assert _api_keys["test-key"]["org_id"] == "org-1"
-        del _api_keys["test-key"]
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://", echo=False)
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="test-key", org_id="org-1", role="analyst")
+                entry = await repo.lookup("test-key")
+                assert entry is not None
+                assert entry.org_id == "org-1"
+            await engine.dispose()
+
+        asyncio.run(_run())
 
 
 class TestTenantResolver:

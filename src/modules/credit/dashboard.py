@@ -2,95 +2,111 @@
 
 from __future__ import annotations
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from .audit import count_audit_entries
 from .billing import count_active_subscriptions, get_subscription
+from .repo_users import UserRepository
 from .roles import Role
 from .tenant import count_all_assessments, count_org_assessments
-from .user_store import (
-    count_users,
-    get_all_users,
-    get_user,
-    set_user_role,
-    update_user,
-)
 from .webhooks import count_webhooks
 
 
 def _build_customer_info(
     email: str,
-    user: dict,
+    user_role: str,
+    is_active: bool,
+    org_id: str,
     sub: dict | None,
     assessment_count: int,
 ) -> dict:
     """Build a customer info dict from user, subscription, and assessment data."""
     return {
         "email": email,
-        "role": user.get("role", Role.VIEWER.value),
-        "is_active": user.get("is_active", True),
-        "org_id": user.get("org_id", ""),
+        "role": user_role,
+        "is_active": is_active,
+        "org_id": org_id,
         "plan": sub["plan"] if sub else None,
         "assessment_count": assessment_count,
     }
 
 
-def get_usage_overview() -> dict:
+async def get_usage_overview(session: AsyncSession) -> dict:
     """Aggregate usage statistics across all stores."""
+    repo = UserRepository(session)
     return {
-        "total_users": count_users(),
+        "total_users": await repo.count(),
         "total_assessments": count_all_assessments(),
         "active_subscriptions": count_active_subscriptions(),
     }
 
 
-def get_customer_list() -> list[dict]:
+async def get_customer_list(session: AsyncSession) -> list[dict]:
     """Return enriched customer list with subscription and assessment data."""
+    repo = UserRepository(session)
+    users = await repo.list_all()
     customers: list[dict] = []
-    for email, user in get_all_users().items():
-        sub = get_subscription(email)
-        org_id = user.get("org_id", "")
+    for user in users:
+        sub = get_subscription(user.email)
         customers.append(
-            _build_customer_info(email, user, sub, count_org_assessments(org_id))
+            _build_customer_info(
+                user.email,
+                user.role or Role.VIEWER.value,
+                user.is_active,
+                user.org_id or "",
+                sub,
+                count_org_assessments(user.org_id or ""),
+            )
         )
     return customers
 
 
-def get_customer_detail(email: str) -> dict | None:
+async def get_customer_detail(email: str, session: AsyncSession) -> dict | None:
     """Return detailed info for a single customer."""
-    user = get_user(email)
+    repo = UserRepository(session)
+    user = await repo.get_by_email(email)
     if user is None:
         return None
     sub = get_subscription(email)
-    org_id = user.get("org_id", "")
-    info = _build_customer_info(email, user, sub, count_org_assessments(org_id))
+    org_id = user.org_id or ""
+    info = _build_customer_info(
+        email,
+        user.role or Role.VIEWER.value,
+        user.is_active,
+        org_id,
+        sub,
+        count_org_assessments(org_id),
+    )
     info["subscription_status"] = sub["status"] if sub else None
     return info
 
 
-def update_customer(
+async def update_customer(
     email: str,
+    session: AsyncSession,
     *,
     role: Role | None = None,
     is_active: bool | None = None,
 ) -> dict | None:
     """Update customer fields (admin-only). Returns updated customer or None."""
-    user = get_user(email)
+    repo = UserRepository(session)
+    user = await repo.get_by_email(email)
     if user is None:
         return None
-    # Role is a privileged field — use set_user_role (admin context only).
     if role is not None:
-        set_user_role(email, role)
-    # is_active goes through the public update_user allowlist.
+        user.role = role.value
     if is_active is not None:
-        update_user(email, is_active=is_active)
-    updated = get_user(email)
-    return {"email": email, "role": updated["role"], "is_active": updated["is_active"]}
+        user.is_active = is_active
+    await session.commit()
+    return {"email": email, "role": user.role, "is_active": user.is_active}
 
 
-def get_system_health() -> dict:
-    """Return system health summary from in-memory stores."""
+async def get_system_health(session: AsyncSession) -> dict:
+    """Return system health summary."""
+    repo = UserRepository(session)
     return {
         "status": "ok",
-        "users": count_users(),
+        "users": await repo.count(),
         "audit_entries": count_audit_entries(),
         "webhooks": count_webhooks(),
     }

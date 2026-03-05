@@ -47,6 +47,12 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, insert_default=True, server_default="1", nullable=False
     )
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, insert_default=0, server_default="0", nullable=False
+    )
+    locked_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

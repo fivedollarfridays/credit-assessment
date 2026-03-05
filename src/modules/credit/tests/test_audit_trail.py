@@ -18,8 +18,7 @@ from modules.credit.audit import (
 )
 from modules.credit.retention import purge_by_age
 from modules.credit.router import app
-from modules.credit.tests.conftest import patch_auth_settings, register_and_login
-from modules.credit.user_store import _users
+from modules.credit.tests.conftest import create_test_user, patch_auth_settings
 
 
 # ---------------------------------------------------------------------------
@@ -252,39 +251,38 @@ class TestAuditRetention:
 class TestAuditEndpoint:
     """Tests for admin audit log query endpoint."""
 
-    def _get_admin_token(self, client):
-        """Register a user, set admin role, return Bearer token."""
-        token = register_and_login(client, "auditadmin@test.com")
-        _users["auditadmin@test.com"]["role"] = "admin"
-        return token
+    def _get_admin_headers(self):
+        """Create admin user and return Bearer headers."""
+        from modules.credit.auth import create_access_token
+        from modules.credit.tests.conftest import _TEST_SETTINGS
+
+        return {
+            "Authorization": f"Bearer {create_access_token(subject='auditadmin@test.com', secret=_TEST_SETTINGS.jwt_secret, algorithm=_TEST_SETTINGS.jwt_algorithm, expire_minutes=30)}"
+        }
 
     def test_audit_endpoint_requires_admin_auth(self) -> None:
-        client = TestClient(app)
         with patch_auth_settings():
-            resp = client.get("/v1/admin/audit-log")
-            assert resp.status_code in (401, 403)
+            with TestClient(app) as client:
+                resp = client.get("/v1/admin/audit-log")
+                assert resp.status_code in (401, 403)
 
     def test_audit_endpoint_returns_200(self) -> None:
-        client = TestClient(app)
         with patch_auth_settings():
-            token = self._get_admin_token(client)
-            resp = client.get(
-                "/v1/admin/audit-log",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert resp.status_code == 200
+            with TestClient(app) as client:
+                create_test_user(app, "auditadmin@test.com", role="admin")
+                headers = self._get_admin_headers()
+                resp = client.get("/v1/admin/audit-log", headers=headers)
+                assert resp.status_code == 200
 
     def test_audit_endpoint_returns_list(self) -> None:
-        client = TestClient(app)
         with patch_auth_settings():
-            token = self._get_admin_token(client)
-            data = client.get(
-                "/v1/admin/audit-log",
-                headers={"Authorization": f"Bearer {token}"},
-            ).json()
-            assert isinstance(data, dict)
-            assert "entries" in data
-            assert isinstance(data["entries"], list)
+            with TestClient(app) as client:
+                create_test_user(app, "auditadmin@test.com", role="admin")
+                headers = self._get_admin_headers()
+                data = client.get("/v1/admin/audit-log", headers=headers).json()
+                assert isinstance(data, dict)
+                assert "entries" in data
+                assert isinstance(data["entries"], list)
 
     def test_audit_endpoint_filter_by_action(self) -> None:
         reset_audit_trail()
@@ -294,16 +292,16 @@ class TestAuditEndpoint:
         create_audit_entry(
             action="export", user_id="u2", request_summary={}, result_summary={}
         )
-
-        client = TestClient(app)
         with patch_auth_settings():
-            token = self._get_admin_token(client)
-            data = client.get(
-                "/v1/admin/audit-log",
-                params={"action": "assess"},
-                headers={"Authorization": f"Bearer {token}"},
-            ).json()
-            assert len(data["entries"]) == 1
+            with TestClient(app) as client:
+                create_test_user(app, "auditadmin@test.com", role="admin")
+                headers = self._get_admin_headers()
+                data = client.get(
+                    "/v1/admin/audit-log",
+                    params={"action": "assess"},
+                    headers=headers,
+                ).json()
+                assert len(data["entries"]) == 1
 
     def test_audit_endpoint_with_limit(self) -> None:
         reset_audit_trail()
@@ -314,13 +312,13 @@ class TestAuditEndpoint:
                 request_summary={},
                 result_summary={},
             )
-
-        client = TestClient(app)
         with patch_auth_settings():
-            token = self._get_admin_token(client)
-            data = client.get(
-                "/v1/admin/audit-log",
-                params={"limit": 2},
-                headers={"Authorization": f"Bearer {token}"},
-            ).json()
-            assert len(data["entries"]) == 2
+            with TestClient(app) as client:
+                create_test_user(app, "auditadmin@test.com", role="admin")
+                headers = self._get_admin_headers()
+                data = client.get(
+                    "/v1/admin/audit-log",
+                    params={"limit": 2},
+                    headers=headers,
+                ).json()
+                assert len(data["entries"]) == 2

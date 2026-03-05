@@ -81,27 +81,33 @@ class TestVersionedAuth:
     """Test auth endpoints under /v1."""
 
     def test_v1_auth_register(self):
-        client = _get_client()
-        with patch("modules.credit.router.settings", _TEST_SETTINGS):
-            resp = client.post(
-                "/v1/auth/register",
-                json={"email": "v1user@test.com", "password": "Secret123!"},
-            )
-            assert resp.status_code == 201
+        from modules.credit.router import app
+        from modules.credit.tests.conftest import patch_auth_settings
+
+        with patch_auth_settings(_TEST_SETTINGS):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/v1/auth/register",
+                    json={"email": "v1user@test.com", "password": "Secret123!"},
+                )
+                assert resp.status_code == 201
 
     def test_v1_auth_login(self):
-        client = _get_client()
-        with patch("modules.credit.router.settings", _TEST_SETTINGS):
-            client.post(
-                "/v1/auth/register",
-                json={"email": "v1login@test.com", "password": "Secret123!"},
-            )
-            resp = client.post(
-                "/v1/auth/login",
-                json={"email": "v1login@test.com", "password": "Secret123!"},
-            )
-            assert resp.status_code == 200
-            assert "access_token" in resp.json()
+        from modules.credit.router import app
+        from modules.credit.tests.conftest import patch_auth_settings
+
+        with patch_auth_settings(_TEST_SETTINGS):
+            with TestClient(app) as client:
+                client.post(
+                    "/v1/auth/register",
+                    json={"email": "v1login@test.com", "password": "Secret123!"},
+                )
+                resp = client.post(
+                    "/v1/auth/login",
+                    json={"email": "v1login@test.com", "password": "Secret123!"},
+                )
+                assert resp.status_code == 200
+                assert "access_token" in resp.json()
 
 
 class TestOpenApiVersioned:

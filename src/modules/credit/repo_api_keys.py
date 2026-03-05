@@ -31,6 +31,7 @@ class ApiKeyRepository:
         return entry
 
     async def lookup(self, key: str) -> ApiKeyDB | None:
+        # NOTE: Key stored as plaintext PK — migrate to hashed storage in future sprint
         entry = await self._session.get(ApiKeyDB, key)
         if entry is None:
             return None

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hmac
+import logging
+
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -15,6 +18,7 @@ from pydantic import BaseModel, Field, model_validator
 from .assessment import CreditAssessmentService
 from .auth import (
     API_KEY_IDENTITY,
+    AuthIdentity,
     InvalidTokenError,
     api_key_header,
     decode_token,
@@ -22,6 +26,7 @@ from .auth import (
 )
 from .config import settings
 from .rate_limit import limiter
+from .repo_api_keys import ApiKeyRepository
 from .repository import AssessmentRepository
 
 from .types import (
@@ -35,13 +40,35 @@ from .types import (
 router = APIRouter()
 
 
+async def _lookup_scoped_key(request: Request, api_key: str) -> AuthIdentity | None:
+    """Try to authenticate via a scoped API key from DB. Returns None if not found."""
+    factory = getattr(request.app.state, "db_session_factory", None)
+    if factory is None:
+        logging.getLogger(__name__).warning(
+            "API key provided but db_session_factory unavailable; "
+            "scoped key lookup skipped"
+        )
+        return None
+    async with factory() as session:
+        repo = ApiKeyRepository(session)
+        entry = await repo.lookup(api_key)
+        if entry is not None:
+            return AuthIdentity(
+                identity=f"apikey:{entry.org_id}",
+                org_id=entry.org_id,
+                role=entry.role,
+                is_scoped_key=True,
+            )
+    return None
+
+
 async def verify_auth(
     request: Request,
     api_key: str | None = Security(api_key_header),
-) -> str:
+) -> AuthIdentity:
     """Validate JWT Bearer or API key. Always requires credentials.
 
-    Returns the authenticated identity (email from JWT sub, or 'api-key-user').
+    Returns AuthIdentity with identity string, plus org_id/role for scoped keys.
     """
     bearer = extract_bearer_token(request)
     if bearer is not None:
@@ -51,13 +78,24 @@ async def verify_auth(
                 secret=settings.jwt_secret,
                 algorithm=settings.jwt_algorithm,
             )
-            return payload["sub"]
+            return AuthIdentity(
+                identity=payload["sub"],
+                org_id=payload.get("org_id"),
+                role=payload.get("role"),
+            )
         except InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    if api_key is not None:
+        scoped = await _lookup_scoped_key(request, api_key)
+        if scoped is not None:
+            return scoped
+
+    # Fallback: static settings.api_key (constant-time comparison)
     expected = settings.api_key
-    if expected is not None and api_key == expected:
-        return API_KEY_IDENTITY
+    if expected is not None and api_key is not None:
+        if hmac.compare_digest(api_key, expected):
+            return AuthIdentity(identity=API_KEY_IDENTITY)
 
     raise HTTPException(status_code=403, detail="Invalid or missing credentials")
 
@@ -74,15 +112,20 @@ async def _persist_assessment(
     factory, profile: CreditProfile, result: CreditAssessmentResult
 ) -> None:
     """Persist assessment result to database (runs in background)."""
-    async with factory() as session:
-        repo = AssessmentRepository(session)
-        await repo.save_assessment(
-            credit_score=profile.current_score,
-            score_band=profile.score_band.value,
-            barrier_severity=result.barrier_severity.value,
-            readiness_score=result.readiness.score,
-            request_payload=profile.model_dump(mode="json"),
-            response_payload=result.model_dump(mode="json"),
+    try:
+        async with factory() as session:
+            repo = AssessmentRepository(session)
+            await repo.save_assessment(
+                credit_score=profile.current_score,
+                score_band=profile.score_band.value,
+                barrier_severity=result.barrier_severity.value,
+                readiness_score=result.readiness.score,
+                request_payload=profile.model_dump(mode="json"),
+                response_payload=result.model_dump(mode="json"),
+            )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Failed to persist assessment", exc_info=True
         )
 
 

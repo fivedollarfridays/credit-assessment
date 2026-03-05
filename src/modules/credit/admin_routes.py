@@ -3,22 +3,18 @@
 from __future__ import annotations
 
 import secrets
-from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .audit import get_audit_trail
+from .database import get_db
+from .repo_api_keys import ApiKeyRepository
 from .roles import Role, require_role
-from .user_store import get_all_users
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-_MAX_API_KEYS = 10_000
-
-# In-memory API key store — replaced by DB in production.
-_api_keys: OrderedDict[str, dict] = OrderedDict()
 
 
 class ApiKeyRequest(BaseModel):
@@ -34,33 +30,20 @@ class ApiKeyResponse(BaseModel):
     expires_at: str | None = None
 
 
-def lookup_api_key(key: str) -> dict | None:
-    """Look up an API key and verify it has not expired.
-
-    TODO: Wire into verify_auth() to enforce expiration on requests.
-    Currently only callable directly -- verify_auth uses settings.api_key
-    string comparison. Deferred to DB migration sprint.
-    """
-    entry = _api_keys.get(key)
-    if entry is None:
-        return None
-    expires_at = entry.get("expires_at")
-    if expires_at is not None and expires_at < datetime.now(timezone.utc):
-        del _api_keys[key]  # Lazy deletion
-        return None
-    return entry
-
-
 @router.get("/users", dependencies=[Depends(require_role(Role.ADMIN))])
-def list_users() -> list[dict]:
+async def list_users(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """List all registered users. Admin only."""
+    from .repo_users import UserRepository
+
+    repo = UserRepository(db)
+    users = await repo.list_all()
     return [
         {
-            "email": email,
-            "role": u.get("role", Role.VIEWER.value),
-            "is_active": u.get("is_active", True),
+            "email": u.email,
+            "role": u.role or Role.VIEWER.value,
+            "is_active": u.is_active,
         }
-        for email, u in get_all_users().items()
+        for u in users
     ]
 
 
@@ -70,16 +53,18 @@ def list_users() -> list[dict]:
     status_code=201,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
-def create_api_key(req: ApiKeyRequest) -> ApiKeyResponse:
+async def create_api_key(
+    req: ApiKeyRequest, db: AsyncSession = Depends(get_db)
+) -> ApiKeyResponse:
     """Create a scoped API key for an organization. Admin only."""
     key = secrets.token_urlsafe(32)
-    expires_at = None
+    expires_at: datetime | None = None
     if req.expires_in_days is not None:
         expires_at = datetime.now(timezone.utc) + timedelta(days=req.expires_in_days)
-    _api_keys[key] = {"org_id": req.org_id, "role": req.role, "expires_at": expires_at}
-    # Evict oldest entries if over cap
-    while len(_api_keys) > _MAX_API_KEYS:
-        _api_keys.popitem(last=False)
+    repo = ApiKeyRepository(db)
+    await repo.create(
+        key=key, org_id=req.org_id, role=req.role.value, expires_at=expires_at
+    )
     return ApiKeyResponse(
         api_key=key,
         org_id=req.org_id,
@@ -96,8 +81,10 @@ def audit_log(action: str | None = None, limit: int | None = None) -> dict:
 
 
 @router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])
-def revoke_api_key(api_key: str) -> dict:
+async def revoke_api_key(api_key: str, db: AsyncSession = Depends(get_db)) -> dict:
     """Revoke an API key. Admin only."""
-    if _api_keys.pop(api_key, None) is None:
+    repo = ApiKeyRepository(db)
+    revoked = await repo.revoke(api_key)
+    if not revoked:
         raise HTTPException(status_code=404, detail="API key not found")
     return {"message": "API key revoked"}

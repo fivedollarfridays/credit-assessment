@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
 from modules.credit.feature_flags import (
     FeatureFlag,
@@ -20,7 +19,6 @@ from modules.credit.feature_flags import (
     reset_flags,
     update_flag,
 )
-from modules.credit.router import app
 
 
 @pytest.fixture(autouse=True)
@@ -28,11 +26,6 @@ def _clean():
     reset_flags()
     yield
     reset_flags()
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
 
 
 # --- Flag CRUD ---

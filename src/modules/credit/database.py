@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -9,6 +11,10 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from starlette.requests import Request
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 
 def create_engine(url: str, **kwargs) -> AsyncEngine:
@@ -26,3 +32,10 @@ async def check_db_health(factory: async_sessionmaker[AsyncSession]) -> bool:
     async with factory() as session:
         await session.execute(text("SELECT 1"))
     return True
+
+
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency that yields a database session."""
+    factory = request.app.state.db_session_factory
+    async with factory() as session:
+        yield session
