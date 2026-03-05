@@ -10,6 +10,7 @@ from fastapi import (
     Request,
     Security,
 )
+from pydantic import BaseModel, Field, model_validator
 
 from .assessment import CreditAssessmentService
 from .auth import (
@@ -22,7 +23,6 @@ from .auth import (
 from .config import settings
 from .rate_limit import limiter
 from .repository import AssessmentRepository
-from pydantic import BaseModel, Field, model_validator
 
 from .types import (
     AccountSummary,
@@ -116,6 +116,9 @@ async def assess(
     return await _run_assessment(request, profile, background_tasks, service)
 
 
+_OLDEST_TO_AVG_FACTOR = 0.6  # heuristic: average account age ≈ 60% of oldest
+
+
 def _score_to_band(score: int) -> ScoreBand:
     """Derive ScoreBand from a numeric credit score."""
     for band_name, bounds in SCORE_BANDS.items():
@@ -165,7 +168,9 @@ class SimpleCreditProfile(BaseModel):
                 monthly_payments=self.monthly_payments,
             ),
             payment_history_pct=self.payment_history_percent,
-            average_account_age_months=int(self.oldest_account_months * 0.6),
+            average_account_age_months=int(
+                self.oldest_account_months * _OLDEST_TO_AVG_FACTOR
+            ),
             negative_items=self.negative_items,
         )
 

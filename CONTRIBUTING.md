@@ -40,7 +40,7 @@ src/modules/credit/
   roles.py               # RBAC (admin/analyst/viewer)
   tenant.py              # Multi-tenant org isolation
   webhooks.py / webhook_delivery.py  # Webhook system
-  tests/                 # 787+ tests
+  tests/                 # 797+ tests
 ```
 
 ## Commit Messages

@@ -147,7 +147,7 @@ make clean     # Remove build artifacts
 ## Testing
 
 ```bash
-# Run all tests (787+, 100% coverage)
+# Run all tests (797+, 100% coverage)
 make test
 
 # Run with coverage report
@@ -185,7 +185,7 @@ src/modules/credit/
   database.py            # SQLAlchemy async engine
   models_db.py           # ORM models
   repository.py          # Database repositories
-  tests/                 # 787+ tests, 100% coverage
+  tests/                 # 797+ tests, 100% coverage
 ```
 
 ## License

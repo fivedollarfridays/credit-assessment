@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-plan-2026-03-sprint-15
-**Status:** In Progress
-**Current Sprint:** 15
+**Plan:** plan-2026-03-sprint-17
+**Status:** Pending
+**Current Sprint:** 17
 
 ## Current Focus
 
-Sprint 15 complete. All 3 tasks done (T15.1, T15.2, T15.3). Ready for commit.
+Production readiness roadmap planned (Sprints 17-20). Sprint 16 complete. Ready to start Sprint 17.
 
 ## Task Status
 
@@ -145,7 +145,60 @@ Sprint 15 complete. All 3 tasks done (T15.1, T15.2, T15.3). Ready for commit.
 | T15.2 | Decompose user_routes.py into user_routes.py + user_store.py | P0 | 45 | ✓ Done |
 | T15.3 | Pin dependency upper bounds in pyproject.toml | P1 | 15 | ✓ Done |
 
+### Sprint 16 — Code Review Fixes (Simple Assess Review) (Refactor)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T16.1 | Code review fixes: stray pass, test counts, import order, magic number, payload dedup | P1 | 15 | ✓ Done |
+
+### Sprint 17 — Database Foundation: Schema, Alembic, Repositories (Refactor)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T17.1 | Expand ORM models with missing tables and columns | P0 | 55 | Pending |
+| T17.2 | Initialize Alembic migrations with initial schema | P0 | 35 | Pending |
+| T17.3 | Create repository classes for all new models | P0 | 60 | Pending |
+
+### Sprint 18 — Auth & Security Hardening (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T18.1 | Migrate user store + reset tokens to database | P0 | 65 | Pending |
+| T18.2 | Wire scoped API keys into verify_auth() | P0 | 45 | Pending |
+| T18.3 | Add org_id and role claims to JWT tokens | P1 | 30 | Pending |
+| T18.4 | Account lockout + reset token expiry | P1 | 35 | Pending |
+
+### Sprint 19 — Compliance & Data Persistence (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T19.1 | Migrate audit trail to database | P0 | 45 | Pending |
+| T19.2 | Migrate consent + user assessments to database (GDPR) | P0 | 50 | Pending |
+| T19.3 | Migrate tenant org_assessments to DB + history endpoint | P0 | 50 | Pending |
+
+### Sprint 20 — Commercial & Ops Hardening (Feature)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T20.1 | Migrate subscriptions to DB + connect rate limits to tiers | P0 | 55 | Pending |
+| T20.2 | Migrate webhooks + delivery log + feature flags to DB | P1 | 50 | Pending |
+| T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | Pending |
+
 ## What Was Just Done
+
+- **T16.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- Sprint 16: T16.1 Code review fixes
+
+- **T16.1**: Fixed 5 code review items: (1) removed stray `pass` in TestSimpleAssessEndpoint, (2) updated test counts 787+ → 797+ in README.md and CONTRIBUTING.md, (3) reordered pydantic import to group with third-party imports in assess_routes.py, (4) extracted magic number 0.6 to `_OLDEST_TO_AVG_FACTOR` constant, (5) extracted shared test payloads to `_POOR_PAYLOAD` and `_GOOD_PAYLOAD` dicts reducing test_simple_assess.py from 188 to 131 lines. 797 tests passing, 0 arch violations.
+
+### Session: 2026-03-04 -- POST /v1/assess/simple endpoint
+
+- **POST /v1/assess/simple**: Added simplified credit assessment endpoint. `SimpleCreditProfile` accepts 7 required user-friendly fields (credit_score, utilization_percent, total_accounts, open_accounts, negative_items, payment_history_percent, oldest_account_months) + 3 optional (total_balance, total_credit_limit, monthly_payments). Backend derives score_band, closed_accounts, collection_accounts, negative_accounts, average_account_age_months via `to_credit_profile()`. 10 new tests in `test_simple_assess.py`. 797 tests passing.
+
+### Session: 2026-03-04 -- Scaffold improvements
+
+- Added LICENSE (proprietary), Makefile, .pre-commit-config.yaml, .python-version, CONTRIBUTING.md, py.typed marker, updated README.md with full architecture and make targets.
 
 - **T15.3 done** (auto-updated by hook)
 
