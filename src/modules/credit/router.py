@@ -14,12 +14,20 @@ from .disclosures_routes import router as disclosures_router
 from .docs_routes import router as docs_router
 from .flag_routes import router as flag_router
 from .legal_routes import router as legal_router
-from .letter_routes import router as letter_router
-from .simulate_routes import router as simulate_router
 from .user_routes import router as user_router
 from .webhook_routes import router as webhook_router
+from . import (
+    api_docs,
+    database,
+    dispute_routes,
+    letter_routes,
+    logging_config,
+    middleware,
+    rate_limit,
+    score_routes,
+    simulate_routes,
+)
 from .config import settings
-from . import api_docs, database, logging_config, middleware, rate_limit
 from .observability import setup_observability
 from .models_db import Base
 
@@ -67,8 +75,10 @@ v1_router.include_router(webhook_router)
 v1_router.include_router(dashboard_router)
 v1_router.include_router(disclosures_router)
 v1_router.include_router(flag_router)
-v1_router.include_router(letter_router)  # v1-only: new features skip legacy paths
-v1_router.include_router(simulate_router)  # v1-only: new features skip legacy paths
+v1_router.include_router(letter_routes.router)  # v1-only
+v1_router.include_router(simulate_routes.router)  # v1-only
+v1_router.include_router(dispute_routes.router)  # v1-only
+v1_router.include_router(score_routes.router)  # v1-only
 
 # Legacy unversioned routers
 app.include_router(auth_router)

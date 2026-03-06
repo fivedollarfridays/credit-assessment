@@ -32,6 +32,8 @@ from .database import get_db
 from .rate_limit import SubscriptionTier, limiter, resolve_tier
 from .repo_api_keys import ApiKeyRepository
 from .repo_assessments import AssessmentRepository
+from .repo_scores import ScoreHistoryRepository
+from .score_models import ScoreSource
 
 from .types import (
     AccountSummary,
@@ -187,6 +189,29 @@ async def _record_usage_for_user(factory: object, identity: str) -> None:
         logging.getLogger(__name__).debug("Usage metering skipped", exc_info=True)
 
 
+async def _record_score_history(
+    factory: object,
+    profile: CreditProfile,
+    user_id: str,
+    org_id: str | None = None,
+) -> None:
+    """Auto-record score to history after assessment (background task)."""
+    try:
+        async with factory() as session:
+            repo = ScoreHistoryRepository(session)
+            await repo.record(
+                user_id=user_id,
+                score=profile.current_score,
+                score_band=profile.score_band.value,
+                source=ScoreSource.ASSESSMENT,
+                org_id=org_id,
+            )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Failed to record score history", exc_info=True
+        )
+
+
 async def _run_assessment(
     request: Request,
     profile: CreditProfile,
@@ -207,6 +232,14 @@ async def _run_assessment(
             auth.org_id,
         )
         background_tasks.add_task(_record_usage_for_user, factory, auth.identity)
+        if auth.identity != API_KEY_IDENTITY:
+            background_tasks.add_task(
+                _record_score_history,
+                factory,
+                profile,
+                auth.identity,
+                auth.org_id,
+            )
     return result
 
 
