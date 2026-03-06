@@ -10,7 +10,7 @@
 
 ## Current Focus
 
-Sprint 22 (Dispute Letter Generation) complete. Next: Sprint 23 — Dispute Lifecycle + Score History (T23.1 dispute tracking model, T23.2 lifecycle endpoints, T23.3 score history).
+Sprint 23 complete. All tasks done (T23.1, T23.2, T23.3).
 
 ## Task Status
 
@@ -204,11 +204,54 @@ Sprint 22 (Dispute Letter Generation) complete. Next: Sprint 23 — Dispute Life
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T23.1 | Dispute tracking model | P0 | 50 | Pending |
-| T23.2 | Dispute lifecycle endpoints | P0 | 45 | Pending |
-| T23.3 | Score history tracking | P1 | 40 | Pending |
+| T23.1 | Dispute tracking model | P0 | 50 | ✓ Done |
+| T23.2 | Dispute lifecycle endpoints | P0 | 45 | ✓ Done |
+| T23.3 | Score history tracking | P1 | 40 | ✓ Done |
 
 ## What Was Just Done
+
+- **T23.3 done** (auto-updated by hook)
+
+- **T23.3 done**
+
+### Session: 2026-03-06 -- T23.3: Score History Tracking
+
+- Created `score_models.py`: ScoreSource enum (assessment, manual, external)
+- Added `ScoreHistory` ORM model to `models_db.py` with user_id index
+- Created `repo_scores.py`: ScoreHistoryRepository with record, get_latest, list_by_user, get_trend
+- Created `score_routes.py`: GET /v1/scores/history (paginated timeline + trend), POST /v1/scores (manual entry)
+- Hooked auto-recording into `_run_assessment` — background task records score on each authenticated assessment
+- Response includes entries, latest_score, delta, trend direction (up/down/stable)
+- Registered score_routes in router.py via consolidated module import
+- 19 new tests: 9 repo tests + 10 endpoint tests (CRUD, auth, trend, auto-record)
+- 1152 total tests passing, 0 ruff issues, 0 arch errors
+
+- **T23.2 done** (auto-updated by hook)
+
+- **T23.2 done**
+
+### Session: 2026-03-06 -- T23.2: Dispute Lifecycle Endpoints
+
+- Created `dispute_routes.py`: 5 endpoints — POST /v1/disputes, GET /v1/disputes, GET /v1/disputes/{id}, PATCH /v1/disputes/{id}/status, GET /v1/disputes/deadlines
+- All endpoints auth-protected, rate-limited (30/min create+update, 60/min reads)
+- Status transition validation returns 400, not-found returns 404
+- Resolution field support on resolve transition
+- Registered dispute_router in router.py; consolidated v1-only router imports (dispute, letter, simulate) into single module import to stay under 20-import arch limit
+- 21 endpoint tests covering CRUD, auth, validation, transitions, deadlines, admin access
+- 1133 total tests passing, 0 ruff issues, 0 arch violations
+
+- **T23.1 done** (auto-updated by hook)
+
+- **T23.1 done**
+
+### Session: 2026-03-06 -- T23.1: Dispute Tracking Model
+
+- Created `dispute_models.py`: DisputeStatus enum (6 states), VALID_TRANSITIONS dict, FCRA deadline constants (30/45 days)
+- Added `DisputeRecord` ORM model to `models_db.py` with composite indexes (user+status, deadline)
+- Created `repo_disputes.py`: DisputeRepository with full CRUD, status transition validation, FCRA deadline calculation, approaching-deadline query
+- 23 tests across two files: `test_repo_disputes.py` (CRUD) and `test_dispute_transitions.py` (transitions + deadlines)
+- Split test file to comply with arch limits (imports, function count, line count)
+- 1112 total tests passing, 0 arch violations
 
 - **T22.3 done** (auto-updated by hook)
 

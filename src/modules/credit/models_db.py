@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, func
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -205,4 +205,59 @@ class FeatureFlagDB(Base):
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class DisputeRecord(Base):
+    """Dispute lifecycle tracking record."""
+
+    __tablename__ = "dispute_records"
+    __table_args__ = (
+        Index("ix_dispute_user_status", "user_id", "status"),
+        Index("ix_dispute_deadline", "deadline_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    org_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    bureau: Mapped[str] = mapped_column(String(20), nullable=False)
+    negative_item_data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    letter_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), insert_default="draft", nullable=False
+    )
+    round: Mapped[int] = mapped_column(Integer, insert_default=1, nullable=False)
+    sent_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deadline_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    responded_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    resolution: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ScoreHistory(Base):
+    """Longitudinal score tracking with source attribution."""
+
+    __tablename__ = "score_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    org_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    score_band: Mapped[str] = mapped_column(String(20), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    assessment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    recorded_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
     )
