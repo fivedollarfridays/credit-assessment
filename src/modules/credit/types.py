@@ -95,10 +95,8 @@ class NegativeItemType(str, Enum):
 _DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
-def _validate_date_str(v: str | None) -> str | None:
+def _validate_date_str(v: str) -> str:
     """Validate that a date string is a real calendar date."""
-    if v is None:
-        return v
     from datetime import datetime
 
     try:
