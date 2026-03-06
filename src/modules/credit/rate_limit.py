@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import enum
 import logging
-
 import time
 
+import redis
 from fastapi import FastAPI, Request
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -96,3 +96,17 @@ def register_rate_limit_handler(app: FastAPI) -> None:
             content={"detail": "Rate limit exceeded"},
             headers={"Retry-After": "60"},
         )
+
+
+async def check_redis_health(redis_url: str) -> bool:
+    """Check Redis connectivity by attempting a PING."""
+    r = None
+    try:
+        r = redis.asyncio.from_url(redis_url)
+        await r.ping()
+        return True
+    except Exception:
+        return False
+    finally:
+        if r is not None:
+            await r.aclose()

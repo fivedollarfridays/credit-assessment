@@ -26,9 +26,10 @@ from .auth import (
     decode_token,
     extract_bearer_token,
 )
+from .billing import get_subscription, record_usage
 from .config import settings
 from .database import get_db
-from .rate_limit import limiter
+from .rate_limit import SubscriptionTier, limiter, resolve_tier
 from .repo_api_keys import ApiKeyRepository
 from .repo_assessments import AssessmentRepository
 
@@ -103,6 +104,43 @@ async def verify_auth(
     raise HTTPException(status_code=403, detail="Invalid or missing credentials")
 
 
+def _parse_tier(plan: str | None) -> SubscriptionTier:
+    """Parse a plan string into a SubscriptionTier, defaulting to FREE."""
+    if plan is None:
+        return SubscriptionTier.FREE
+    try:
+        return SubscriptionTier(plan)
+    except ValueError:
+        return SubscriptionTier.FREE
+
+
+async def get_tier_limit(db: AsyncSession, identity: str) -> str | None:
+    """Resolve rate limit string for user's subscription tier."""
+    sub = await get_subscription(db, identity)
+    tier = _parse_tier(sub["plan"] if sub else None)
+    return resolve_tier(tier)
+
+
+async def resolve_user_tier(
+    request: Request,
+    auth: AuthIdentity = Depends(verify_auth),
+) -> SubscriptionTier:
+    """Resolve authenticated user's subscription tier from DB."""
+    if auth.identity == API_KEY_IDENTITY:
+        return SubscriptionTier.FREE
+    factory = getattr(request.app.state, "db_session_factory", None)
+    if factory is None:
+        return SubscriptionTier.FREE
+    try:
+        async with factory() as session:
+            sub = await get_subscription(session, auth.identity)
+    except Exception:
+        return SubscriptionTier.FREE
+    if sub is None or sub["status"] != "active":
+        return SubscriptionTier.FREE
+    return _parse_tier(sub["plan"])
+
+
 _assessment_service = CreditAssessmentService()
 
 
@@ -138,6 +176,17 @@ async def _persist_assessment(
         )
 
 
+async def _record_usage_for_user(factory: object, identity: str) -> None:
+    """Look up user's subscription and record usage (background task)."""
+    try:
+        async with factory() as session:
+            sub = await get_subscription(session, identity)
+            if sub and sub["status"] == "active":
+                record_usage(subscription_item_id=sub["subscription_id"])
+    except Exception:
+        logging.getLogger(__name__).debug("Usage metering skipped", exc_info=True)
+
+
 async def _run_assessment(
     request: Request,
     profile: CreditProfile,
@@ -157,6 +206,7 @@ async def _run_assessment(
             auth.identity,
             auth.org_id,
         )
+        background_tasks.add_task(_record_usage_for_user, factory, auth.identity)
     return result
 
 
@@ -164,7 +214,7 @@ async def _run_assessment(
     "/assess",
     response_model=CreditAssessmentResult,
 )
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 async def assess(
     request: Request,
     profile: CreditProfile,
@@ -172,7 +222,7 @@ async def assess(
     service: CreditAssessmentService = Depends(get_assessment_service),
     auth: AuthIdentity = Depends(verify_auth),
 ) -> CreditAssessmentResult:
-    """Run full credit assessment."""
+    """Run full credit assessment with tier-based rate limiting."""
     return await _run_assessment(request, profile, background_tasks, service, auth)
 
 
@@ -233,7 +283,7 @@ class SimpleCreditProfile(BaseModel):
     "/assess/simple",
     response_model=CreditAssessmentResult,
 )
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 async def assess_simple(
     request: Request,
     simple: SimpleCreditProfile,

@@ -18,9 +18,8 @@ from .simulate_routes import router as simulate_router
 from .user_routes import router as user_router
 from .webhook_routes import router as webhook_router
 from .config import settings
-from . import api_docs, database, logging_config
+from . import api_docs, database, logging_config, rate_limit
 from .observability import setup_observability
-from .rate_limit import RateLimitHeaderMiddleware, limiter, register_rate_limit_handler
 from .middleware import (
     DeprecationMiddleware,
     HstsMiddleware,
@@ -54,7 +53,7 @@ app = FastAPI(
     redoc_url=None if settings.is_production else "/redoc",
     openapi_url=None if settings.is_production else "/openapi.json",
 )
-app.state.limiter = limiter
+app.state.limiter = rate_limit.limiter
 setup_observability(
     app,
     dsn=settings.sentry_dsn,
@@ -84,7 +83,7 @@ app.include_router(data_rights_router)
 app.include_router(docs_router)
 app.include_router(disclosures_router)
 app.include_router(assess_router, deprecated=True)
-register_rate_limit_handler(app)
+rate_limit.register_rate_limit_handler(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -94,7 +93,7 @@ app.add_middleware(
 )
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(DeprecationMiddleware)
-app.add_middleware(RateLimitHeaderMiddleware)
+app.add_middleware(rate_limit.RateLimitHeaderMiddleware)
 app.add_middleware(HstsMiddleware, prod_check=lambda: settings.is_production)
 app.add_middleware(HttpsRedirectMiddleware, prod_check=lambda: settings.is_production)
 
@@ -119,6 +118,12 @@ async def ready(request: Request) -> dict:
             checks["database"] = "ok"
         except Exception:
             checks["database"] = "unavailable"
+            checks["status"] = "degraded"
+    if settings.redis_url is not None:
+        if await rate_limit.check_redis_health(settings.redis_url):
+            checks["redis"] = "ok"
+        else:
+            checks["redis"] = "unavailable"
             checks["status"] = "degraded"
     return checks
 

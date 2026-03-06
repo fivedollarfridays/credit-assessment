@@ -4,32 +4,38 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
-from modules.credit.billing import _subscriptions
-
 from .conftest import create_test_user
 
 
-@pytest.fixture(autouse=True)
-def _clean_in_memory_stores():
-    """Reset in-memory stores that haven't migrated to DB yet."""
-    _subscriptions.clear()
-    yield
-    _subscriptions.clear()
+def _seed_subscriptions_db(app):
+    """Seed subscriptions in the database."""
+    from modules.credit.billing import update_subscription
+
+    factory = app.state.db_session_factory
+
+    async def _insert():
+        async with factory() as session:
+            await update_subscription(
+                session, "alice@acme.com", "sub_1", "active", "pro"
+            )
+            await update_subscription(
+                session, "bob@corp.com", "sub_2", "active", "starter"
+            )
+
+    asyncio.run(_insert())
 
 
-def _seed_subscriptions():
-    _subscriptions["alice@acme.com"] = {
-        "subscription_id": "sub_1",
-        "status": "active",
-        "plan": "pro",
-    }
-    _subscriptions["bob@corp.com"] = {
-        "subscription_id": "sub_2",
-        "status": "active",
-        "plan": "starter",
-    }
+def _seed_canceled_subscription(app, email):
+    """Seed a canceled subscription in the database."""
+    from modules.credit.billing import update_subscription
+
+    factory = app.state.db_session_factory
+
+    async def _insert():
+        async with factory() as session:
+            await update_subscription(session, email, "sub_1", "canceled", "pro")
+
+    asyncio.run(_insert())
 
 
 def _seed_assessments(app):
@@ -94,7 +100,7 @@ class TestUsageOverview:
         from modules.credit.router import app
 
         _seed_users(app)
-        _seed_subscriptions()
+        _seed_subscriptions_db(app)
         _seed_assessments(app)
         resp = client.get("/v1/dashboard/overview", headers=admin_headers)
         assert resp.status_code == 200
@@ -108,11 +114,7 @@ class TestUsageOverview:
         from modules.credit.router import app
 
         _seed_users(app)
-        _subscriptions["alice@acme.com"] = {
-            "subscription_id": "sub_1",
-            "status": "canceled",
-            "plan": "pro",
-        }
+        _seed_canceled_subscription(app, "alice@acme.com")
         resp = client.get("/v1/dashboard/overview", headers=admin_headers)
         assert resp.status_code == 200
         assert resp.json()["active_subscriptions"] == 0
@@ -134,7 +136,7 @@ class TestCustomerList:
         from modules.credit.router import app
 
         _seed_users(app)
-        _seed_subscriptions()
+        _seed_subscriptions_db(app)
         _seed_assessments(app)
         resp = client.get("/v1/dashboard/customers", headers=admin_headers)
         assert resp.status_code == 200
@@ -165,7 +167,7 @@ class TestCustomerDetail:
         from modules.credit.router import app
 
         _seed_users(app)
-        _seed_subscriptions()
+        _seed_subscriptions_db(app)
         _seed_assessments(app)
         resp = client.get(
             "/v1/dashboard/customers/alice@acme.com", headers=admin_headers

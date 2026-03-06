@@ -7,17 +7,18 @@ import hashlib
 import hmac
 import json
 import logging
-from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 
 import httpx
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from .repo_webhooks import WebhookDeliveryRepository
 from .webhooks import EventType, WebhookRegistration, get_subscribed_webhooks
 
 MAX_RETRY_DELAY = 300  # seconds
-MAX_DELIVERY_LOG_PER_HOOK = 1000
 
 logger = logging.getLogger(__name__)
 
@@ -42,19 +43,6 @@ class DeliveryRecord:
     )
 
 
-# --- In-memory store ---
-# _delivery_log is unbounded per-hook (capped by deque maxlen).
-
-_delivery_log: dict[str, deque[dict]] = defaultdict(
-    lambda: deque(maxlen=MAX_DELIVERY_LOG_PER_HOOK)
-)
-
-
-def reset_delivery_log() -> None:
-    """Clear all delivery logs (testing)."""
-    _delivery_log.clear()
-
-
 def compute_signature(payload: bytes, secret: str) -> str:
     """Compute HMAC-SHA256 signature for a webhook payload."""
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
@@ -65,9 +53,19 @@ def next_retry_delay(attempt: int) -> int:
     return min(2**attempt, MAX_RETRY_DELAY)
 
 
-def get_delivery_log(*, webhook_id: str) -> list[dict]:
-    """Get delivery history for a webhook."""
-    return list(_delivery_log.get(webhook_id, []))
+async def get_delivery_log(session: AsyncSession, *, webhook_id: str) -> list[dict]:
+    """Get delivery history for a webhook from DB."""
+    repo = WebhookDeliveryRepository(session)
+    entries = await repo.get_by_webhook(webhook_id)
+    return [
+        {
+            "event_type": e.event_type,
+            "status": e.status,
+            "status_code": e.status_code,
+            "timestamp": e.created_at.isoformat() if e.created_at else None,
+        }
+        for e in entries
+    ]
 
 
 async def _send_one(
@@ -75,6 +73,7 @@ async def _send_one(
     wh: WebhookRegistration,
     event_type: EventType,
     body: bytes,
+    db_factory: async_sessionmaker[AsyncSession],
 ) -> DeliveryRecord:
     """Deliver a single webhook and record the result."""
     sig = compute_signature(body, wh.secret)
@@ -97,31 +96,34 @@ async def _send_one(
         record = DeliveryRecord(
             webhook_id=wh.id, event_type=event_type, status=WebhookDeliveryStatus.FAILED
         )
-    _delivery_log[wh.id].append(
-        {
-            "event_type": event_type,
-            "status": record.status,
-            "status_code": record.status_code,
-            "timestamp": record.timestamp,
-        }
-    )
+    async with db_factory() as session:
+        repo = WebhookDeliveryRepository(session)
+        await repo.log_delivery(
+            webhook_id=wh.id,
+            event_type=event_type,
+            status=record.status,
+            status_code=record.status_code,
+        )
     return record
 
 
 async def deliver_event(
     *,
+    db_factory: async_sessionmaker[AsyncSession],
     event_type: EventType,
     payload: dict,
 ) -> list[DeliveryRecord]:
     """Deliver an event to all subscribed webhooks. Returns delivery records."""
-    matching = get_subscribed_webhooks(event_type)
+    async with db_factory() as session:
+        matching = await get_subscribed_webhooks(session, event_type)
+
     if not matching:
         return []
 
     body = json.dumps({"event": event_type, "data": payload}).encode()
     async with httpx.AsyncClient(timeout=10.0) as http:
         results = await asyncio.gather(
-            *(_send_one(http, wh, event_type, body) for wh in matching),
+            *(_send_one(http, wh, event_type, body, db_factory) for wh in matching),
             return_exceptions=True,
         )
     return [r for r in results if isinstance(r, DeliveryRecord)]

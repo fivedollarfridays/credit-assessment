@@ -31,4 +31,9 @@ EXPOSE 8000
 ENV PYTHONPATH=/app/src \
     ENVIRONMENT=production
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+ENV WEB_CONCURRENCY=2
+
+CMD gunicorn main:app \
+    --bind 0.0.0.0:8000 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers ${WEB_CONCURRENCY}

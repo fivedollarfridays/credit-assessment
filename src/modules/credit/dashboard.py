@@ -37,7 +37,7 @@ async def get_usage_overview(session: AsyncSession) -> dict:
     return {
         "total_users": await repo.count(),
         "total_assessments": await count_all_assessments(session),
-        "active_subscriptions": count_active_subscriptions(),
+        "active_subscriptions": await count_active_subscriptions(session),
     }
 
 
@@ -47,7 +47,7 @@ async def get_customer_list(session: AsyncSession) -> list[dict]:
     users = await repo.list_all()
     customers: list[dict] = []
     for user in users:
-        sub = get_subscription(user.email)
+        sub = await get_subscription(session, user.email)
         customers.append(
             _build_customer_info(
                 user.email,
@@ -67,7 +67,7 @@ async def get_customer_detail(email: str, session: AsyncSession) -> dict | None:
     user = await repo.get_by_email(email)
     if user is None:
         return None
-    sub = get_subscription(email)
+    sub = await get_subscription(session, email)
     org_id = user.org_id or ""
     info = _build_customer_info(
         email,
@@ -108,5 +108,5 @@ async def get_system_health(session: AsyncSession) -> dict:
         "status": "ok",
         "users": await repo.count(),
         "audit_entries": await count_audit_entries(session),
-        "webhooks": count_webhooks(),
+        "webhooks": await count_webhooks(session),
     }
