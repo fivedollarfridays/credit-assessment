@@ -21,6 +21,7 @@ from . import (
     database,
     dispute_routes,
     letter_routes,
+    liberate_routes,
     logging_config,
     middleware,
     rate_limit,
@@ -79,6 +80,7 @@ v1_router.include_router(letter_routes.router)  # v1-only
 v1_router.include_router(simulate_routes.router)  # v1-only
 v1_router.include_router(dispute_routes.router)  # v1-only
 v1_router.include_router(score_routes.router)  # v1-only
+v1_router.include_router(liberate_routes.router)  # v1-only
 
 # Legacy unversioned routers
 app.include_router(auth_router)
