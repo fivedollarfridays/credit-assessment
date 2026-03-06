@@ -102,3 +102,19 @@ class TestAutoRecordOnAssessment:
         data = resp.json()
         assert data["trend"] == "up"
         assert data["delta"] > 0
+
+    def test_trend_direction_down(self, client, bypass_auth):
+        client.post("/v1/scores", json={"score": 720, "score_band": "good"})
+        client.post("/v1/scores", json={"score": 620, "score_band": "poor"})
+        resp = client.get("/v1/scores/history")
+        data = resp.json()
+        assert data["trend"] == "down"
+        assert data["delta"] < 0
+
+    def test_trend_direction_stable(self, client, bypass_auth):
+        client.post("/v1/scores", json={"score": 700, "score_band": "good"})
+        client.post("/v1/scores", json={"score": 700, "score_band": "good"})
+        resp = client.get("/v1/scores/history")
+        data = resp.json()
+        assert data["trend"] == "stable"
+        assert data["delta"] == 0
