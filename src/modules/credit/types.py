@@ -95,16 +95,44 @@ class NegativeItemType(str, Enum):
 _DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
+def _validate_date_str(v: str | None) -> str | None:
+    """Validate that a date string is a real calendar date."""
+    if v is None:
+        return v
+    from datetime import datetime
+
+    try:
+        datetime.strptime(v, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"Invalid date: {v}") from None
+    return v
+
+
+class NegativeItemStatus(str, Enum):
+    """Status of a negative credit item."""
+
+    OPEN = "open"
+    CLOSED = "closed"
+    DISPUTED = "disputed"
+    PAID = "paid"
+    SETTLED = "settled"
+
+
 class NegativeItem(BaseModel):
     """Structured negative credit item with metadata."""
 
     type: NegativeItemType
     description: str = Field(max_length=200)
-    creditor: str | None = None
+    creditor: str | None = Field(default=None, max_length=100)
     amount: float | None = Field(default=None, ge=0.0)
     date_reported: str | None = Field(default=None, pattern=_DATE_PATTERN)
     date_of_first_delinquency: str | None = Field(default=None, pattern=_DATE_PATTERN)
-    status: str | None = None
+    status: NegativeItemStatus | None = None
+
+    @field_validator("date_reported", "date_of_first_delinquency")
+    @classmethod
+    def _check_real_date(cls, v: str | None) -> str | None:
+        return _validate_date_str(v)
 
 
 def _infer_item_type(text: str) -> NegativeItemType:

@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from pydantic import BaseModel, Field
 
 from .assessment import get_utilization_impact
 from .types import ActionType, CreditProfile, NegativeItem, ScoreImpact
+
+logger = logging.getLogger(__name__)
 
 # Score impact ranges by action type (low, high) — based on FICO factor weight
 # approximations. PAY_DOWN_DEBT and REDUCE_UTILIZATION are computed dynamically.
@@ -37,7 +41,7 @@ class SimulationResult(BaseModel):
     original_score: int
     projected_score: int
     score_delta: ScoreImpact
-    actions_applied: list[SimulationAction] = []
+    actions_applied: list[SimulationAction] = Field(default=[])
 
 
 class _WorkingState:
@@ -106,6 +110,8 @@ class ScoreSimulator:
         handler = _ACTION_HANDLERS.get(action.action_type)
         if handler:
             handler(self, action, state, profile)
+        else:
+            logger.warning("No handler for action type: %s", action.action_type)
 
     def _handle_pay_down_debt(
         self, action: SimulationAction, state: _WorkingState, profile: CreditProfile

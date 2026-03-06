@@ -14,18 +14,13 @@ from .disclosures_routes import router as disclosures_router
 from .docs_routes import router as docs_router
 from .flag_routes import router as flag_router
 from .legal_routes import router as legal_router
+from .letter_routes import router as letter_router
 from .simulate_routes import router as simulate_router
 from .user_routes import router as user_router
 from .webhook_routes import router as webhook_router
 from .config import settings
-from . import api_docs, database, logging_config, rate_limit
+from . import api_docs, database, logging_config, middleware, rate_limit
 from .observability import setup_observability
-from .middleware import (
-    DeprecationMiddleware,
-    HstsMiddleware,
-    HttpsRedirectMiddleware,
-    RequestIdMiddleware,
-)
 from .models_db import Base
 
 
@@ -72,7 +67,8 @@ v1_router.include_router(webhook_router)
 v1_router.include_router(dashboard_router)
 v1_router.include_router(disclosures_router)
 v1_router.include_router(flag_router)
-v1_router.include_router(simulate_router)
+v1_router.include_router(letter_router)  # v1-only: new features skip legacy paths
+v1_router.include_router(simulate_router)  # v1-only: new features skip legacy paths
 
 # Legacy unversioned routers
 app.include_router(auth_router)
@@ -91,11 +87,13 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
-app.add_middleware(RequestIdMiddleware)
-app.add_middleware(DeprecationMiddleware)
+app.add_middleware(middleware.RequestIdMiddleware)
+app.add_middleware(middleware.DeprecationMiddleware)
 app.add_middleware(rate_limit.RateLimitHeaderMiddleware)
-app.add_middleware(HstsMiddleware, prod_check=lambda: settings.is_production)
-app.add_middleware(HttpsRedirectMiddleware, prod_check=lambda: settings.is_production)
+app.add_middleware(middleware.HstsMiddleware, prod_check=lambda: settings.is_production)
+app.add_middleware(
+    middleware.HttpsRedirectMiddleware, prod_check=lambda: settings.is_production
+)
 
 
 # --- Endpoints ---
