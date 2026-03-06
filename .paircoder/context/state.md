@@ -1,16 +1,16 @@
 # Current State
 
-> Last updated: 2026-03-05
+> Last updated: 2026-03-06
 
 ## Active Plan
 
-**Plan:** plan-2026-03-sprint-21
-**Status:** Planning
-**Current Sprint:** 20 (all done — T20.1, T20.2, T20.3)
+**Plan:** plan-2026-03-sprint-22
+**Status:** Complete
+**Current Sprint:** 22 (all done — T22.1, T22.2, T22.3)
 
 ## Current Focus
 
-Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-23: INERTIA feature parity (structured items, simulation, letter generation, dispute lifecycle, score history). Next to execute: Sprint 19.
+Sprint 22 (Dispute Letter Generation) complete. Next: Sprint 23 — Dispute Lifecycle + Score History (T23.1 dispute tracking model, T23.2 lifecycle endpoints, T23.3 score history).
 
 ## Task Status
 
@@ -196,9 +196,9 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T22.1 | Letter template system | P0 | 50 | Pending |
-| T22.2 | Letter generation engine | P0 | 45 | Pending |
-| T22.3 | Letter generation endpoint | P0 | 40 | Pending |
+| T22.1 | Letter template system | P0 | 50 | ✓ Done |
+| T22.2 | Letter generation engine | P0 | 45 | ✓ Done |
+| T22.3 | Letter generation endpoint | P0 | 40 | ✓ Done |
 
 ### Sprint 23 — Dispute Lifecycle + Score History (Feature)
 
@@ -209,6 +209,38 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 | T23.3 | Score history tracking | P1 | 40 | Pending |
 
 ## What Was Just Done
+
+- **T22.3 done** (auto-updated by hook)
+
+### Session: 2026-03-06 -- T22.3: Letter Generation Endpoint
+
+- Created `letter_routes.py`: two endpoints — `POST /v1/disputes/letters` (single, 30/min) and `POST /v1/disputes/letters/batch` (batch max 10, 10/min)
+- Both endpoints auth-protected via `Depends(verify_auth)`
+- BatchLetterRequest validates min 1, max 10 items
+- Registered letter_router in router.py; refactored middleware imports to stay under 20-import arch limit
+- 23 new endpoint tests covering response shape, auth, validation, all 5 letter types, batch, optional fields
+- 1079 total tests passing, 0 ruff issues, 0 arch errors
+
+- **T22.2 done** (auto-updated by hook)
+
+### Session: 2026-03-06 -- T22.2: Letter Generation Engine
+
+- Created `letter_generator.py`: LetterGenerator class, LetterRequest/GeneratedLetter models
+- `generate()` fills template placeholders from NegativeItem + request fields, attaches bureau address, legal citations, FCRA disclaimer
+- `generate_batch()` auto-rotates template variations per letter type to avoid detection
+- Graceful handling of missing optional fields (creditor, account_number, amount, dates)
+- 23 new tests covering all 5 letter types, batch generation, optional fields, output structure
+- 1056 total tests passing, 0 ruff issues, 0 arch errors
+
+- **T22.1 done** (auto-updated by hook)
+
+### Session: 2026-03-06 -- T22.1: Letter Template System
+
+- Created `letter_types.py`: LetterType enum (5 types), Bureau enum (3 bureaus), BureauAddress model, LetterTemplate model, BUREAU_ADDRESSES registry
+- Created `letter_templates.py`: 13 templates (3 validation, 3 inaccuracy, 2 completeness, 3 obsolete, 2 identity theft), get_template() with random/specific variation selection
+- Each template cites correct FCRA/FDCPA sections, uses consistent {placeholder} syntax, required_fields match body placeholders
+- 28 new tests covering enums, models, registry, citations, addresses, placeholder consistency
+- 1033 total tests passing, 0 ruff issues, 0 arch errors
 
 - **T20.3 done** (auto-updated by hook)
 

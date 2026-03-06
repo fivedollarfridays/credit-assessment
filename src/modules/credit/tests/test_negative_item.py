@@ -106,6 +106,48 @@ class TestNegativeItem:
                 description="x" * 201,
             )
 
+    def test_rejects_semantically_invalid_date(self):
+        with pytest.raises(ValueError, match="Invalid date"):
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Bad date",
+                date_reported="2024-13-45",
+            )
+
+    def test_rejects_invalid_dofd(self):
+        with pytest.raises(ValueError, match="Invalid date"):
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Bad dofd",
+                date_of_first_delinquency="2024-00-01",
+            )
+
+    def test_valid_status_enum(self):
+        from modules.credit.types import NegativeItemStatus
+
+        item = NegativeItem(
+            type=NegativeItemType.COLLECTION,
+            description="Test",
+            status="disputed",
+        )
+        assert item.status == NegativeItemStatus.DISPUTED
+
+    def test_rejects_invalid_status(self):
+        with pytest.raises(ValueError):
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Test",
+                status="bogus_status",
+            )
+
+    def test_creditor_max_length(self):
+        with pytest.raises(ValueError):
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Test",
+                creditor="x" * 101,
+            )
+
 
 # ---------------------------------------------------------------------------
 # Cycle 3: String coercion in CreditProfile

@@ -306,3 +306,20 @@ class TestPayOnTime:
             ],
         )
         assert result.score_delta.expected_points <= 15
+
+
+# ---------------------------------------------------------------------------
+# Cycle 7: Unknown action type warning
+# ---------------------------------------------------------------------------
+
+
+class TestUnknownActionHandler:
+    def test_warns_on_unknown_action_type(self, good_credit_profile):
+        from unittest.mock import patch
+
+        sim = ScoreSimulator()
+        action = SimulationAction(action_type=ActionType.PAY_ON_TIME)
+        with patch.dict("modules.credit.simulation._ACTION_HANDLERS", clear=True):
+            with patch("modules.credit.simulation.logger") as mock_log:
+                sim.simulate(good_credit_profile, [action])
+                mock_log.warning.assert_called_once()
