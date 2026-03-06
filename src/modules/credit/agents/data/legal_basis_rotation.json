@@ -1,0 +1,111 @@
+{
+  "issue_types": {
+    "collection": [
+      {
+        "round": 1,
+        "basis": "FDCPA 809 debt validation",
+        "statutes": ["15 USC 1692g"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 611 reinvestigation",
+        "statutes": ["15 USC 1681i"]
+      },
+      {
+        "round": 3,
+        "basis": "FCRA 623 furnisher accuracy",
+        "statutes": ["15 USC 1681s-2(b)"]
+      }
+    ],
+    "late_payment": [
+      {
+        "round": 1,
+        "basis": "FCRA 611 accuracy dispute",
+        "statutes": ["15 USC 1681i"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 607(b) accuracy requirements",
+        "statutes": ["15 USC 1681e(b)"]
+      }
+    ],
+    "charge_off": [
+      {
+        "round": 1,
+        "basis": "FCRA 611 reinvestigation",
+        "statutes": ["15 USC 1681i"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 623 furnisher duties",
+        "statutes": ["15 USC 1681s-2(b)"]
+      },
+      {
+        "round": 3,
+        "basis": "Metro-2 format accuracy",
+        "statutes": ["CDIA Metro-2 Format"]
+      }
+    ],
+    "identity_theft": [
+      {
+        "round": 1,
+        "basis": "FCRA 605B identity theft block",
+        "statutes": ["15 USC 1681c-2"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 611 complete investigation",
+        "statutes": ["15 USC 1681i"]
+      }
+    ],
+    "wrong_balance": [
+      {
+        "round": 1,
+        "basis": "FCRA 607(b) accuracy",
+        "statutes": ["15 USC 1681e(b)"]
+      },
+      {
+        "round": 2,
+        "basis": "Metro-2 balance field verification",
+        "statutes": ["CDIA Metro-2 Format"]
+      }
+    ],
+    "obsolete_item": [
+      {
+        "round": 1,
+        "basis": "FCRA 605(a) obsolescence",
+        "statutes": ["15 USC 1681c(a)"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 611 removal demand",
+        "statutes": ["15 USC 1681i"]
+      }
+    ],
+    "unauthorized_inquiry": [
+      {
+        "round": 1,
+        "basis": "FCRA 604 permissible purpose",
+        "statutes": ["15 USC 1681b"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 611 inquiry dispute",
+        "statutes": ["15 USC 1681i"]
+      }
+    ],
+    "dofd_error": [
+      {
+        "round": 1,
+        "basis": "Metro-2 DOFD field violation",
+        "statutes": ["CDIA Metro-2 Format"]
+      },
+      {
+        "round": 2,
+        "basis": "FCRA 607(b) accuracy",
+        "statutes": ["15 USC 1681e(b)"]
+      }
+    ]
+  },
+  "fifth_circuit_context": "All disputes target FACTUAL accuracy, never legal validity. Per Fifth Circuit 2026."
+}

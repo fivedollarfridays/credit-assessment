@@ -1,0 +1,32 @@
+{
+  "city": "Montgomery",
+  "state": "AL",
+  "population": 193703,
+  "population_source": {
+    "source": "World Population Review 2026",
+    "url": "https://worldpopulationreview.com/us-cities/montgomery-al-population"
+  },
+  "poverty_rate": 21.54,
+  "poverty_rate_source": {
+    "source": "U.S. Census Bureau SAIPE 2026"
+  },
+  "living_wage": 15.02,
+  "living_wage_source": {
+    "source": "MIT Living Wage Calculator"
+  },
+  "median_income": 56811,
+  "minimum_wage": 7.25,
+  "minimum_wage_note": "Federal rate — Alabama has no state minimum wage",
+  "racial_composition": {
+    "black": 63,
+    "white": 30,
+    "hispanic": 4,
+    "other": 3
+  },
+  "poverty_population": 41729,
+  "community_impact_projections": {
+    "adoption_rate": 10,
+    "annual_savings_per_person": 3500,
+    "annual_community_impact": 14605150
+  }
+}

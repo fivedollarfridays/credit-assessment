@@ -1,0 +1,73 @@
+{
+  "services": [
+    {
+      "name": "Experian Boost",
+      "type": "utility_reporting",
+      "cost": 0,
+      "impact_points": {
+        "min": 10,
+        "max": 30
+      },
+      "how": "Links bank account to add utility/phone payments",
+      "eligible_if": "Has bank account with 3+ months history",
+      "url": "https://www.experian.com/boost"
+    },
+    {
+      "name": "Boom Pay",
+      "type": "rent_reporting",
+      "cost": 0,
+      "impact_points": {
+        "min": 20,
+        "max": 50
+      },
+      "how": "Reports rent payments to all 3 bureaus",
+      "eligible_if": "Pays rent monthly",
+      "url": "https://www.boompay.app"
+    },
+    {
+      "name": "RentTrack",
+      "type": "rent_reporting",
+      "cost": 4.95,
+      "impact_points": {
+        "min": 15,
+        "max": 40
+      },
+      "how": "Reports rent to TransUnion and Equifax",
+      "eligible_if": "Pays rent monthly"
+    },
+    {
+      "name": "Self Credit Builder",
+      "type": "credit_builder_loan",
+      "cost": 25,
+      "impact_points": {
+        "min": 20,
+        "max": 50
+      },
+      "how": "Small secured loan that reports to all 3 bureaus",
+      "eligible_if": "Can save $25/month"
+    },
+    {
+      "name": "Chime Secured Card",
+      "type": "secured_card",
+      "cost": 0,
+      "impact_points": {
+        "min": 15,
+        "max": 40
+      },
+      "how": "No-fee secured card using direct deposit",
+      "eligible_if": "Has income source for direct deposit",
+      "url": "https://www.chime.com"
+    },
+    {
+      "name": "OpenSky Secured Card",
+      "type": "secured_card",
+      "cost": 200,
+      "impact_points": {
+        "min": 15,
+        "max": 35
+      },
+      "how": "$200 deposit secured card, no credit check",
+      "eligible_if": "Can deposit $200"
+    }
+  ]
+}

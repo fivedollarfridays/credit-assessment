@@ -1,0 +1,100 @@
+{
+  "states": {
+    "AL": {
+      "statute_of_limitations": {
+        "written": 6,
+        "oral": 6,
+        "open": 6,
+        "promissory": 6
+      },
+      "wage_garnishment": {
+        "allowed": true,
+        "max_percentage": 25,
+        "exceptions": [
+          "head of household"
+        ]
+      },
+      "adverse_action_requirements": {
+        "follows_federal": true,
+        "additional_disclosures": []
+      },
+      "consumer_protections": [
+        "Alabama Deceptive Trade Practices Act"
+      ]
+    },
+    "CA": {
+      "statute_of_limitations": {
+        "written": 4,
+        "oral": 2,
+        "open": 4,
+        "promissory": 4
+      },
+      "wage_garnishment": {
+        "allowed": true,
+        "max_percentage": 25,
+        "exceptions": [
+          "minimum wage earners"
+        ]
+      },
+      "adverse_action_requirements": {
+        "follows_federal": true,
+        "additional_disclosures": [
+          "credit score disclosure required"
+        ]
+      },
+      "consumer_protections": [
+        "CCPA",
+        "Rosenthal FDCPA",
+        "Credit score disclosure law"
+      ]
+    },
+    "NY": {
+      "statute_of_limitations": {
+        "written": 6,
+        "oral": 6,
+        "open": 6,
+        "promissory": 6
+      },
+      "wage_garnishment": {
+        "allowed": true,
+        "max_percentage": 10,
+        "exceptions": [
+          "below 30x minimum wage"
+        ]
+      },
+      "adverse_action_requirements": {
+        "follows_federal": true,
+        "additional_disclosures": []
+      },
+      "consumer_protections": [
+        "NY General Business Law \u00a7349",
+        "CPLR \u00a7213"
+      ]
+    },
+    "TX": {
+      "statute_of_limitations": {
+        "written": 4,
+        "oral": 4,
+        "open": 4,
+        "promissory": 4
+      },
+      "wage_garnishment": {
+        "allowed": false,
+        "max_percentage": 0,
+        "exceptions": [
+          "child support",
+          "student loans",
+          "taxes"
+        ]
+      },
+      "adverse_action_requirements": {
+        "follows_federal": true,
+        "additional_disclosures": []
+      },
+      "consumer_protections": [
+        "TX DTPA",
+        "TX Finance Code Ch. 392"
+      ]
+    }
+  }
+}

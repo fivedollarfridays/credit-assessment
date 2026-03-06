@@ -1,0 +1,68 @@
+{
+  "croa_fraud": [
+    {
+      "pattern": "guaranteed removal",
+      "reason": "CROA violation \u2014 no one can guarantee removal"
+    },
+    {
+      "pattern": "credit sweep",
+      "reason": "Illegal practice \u2014 filing false identity theft claims"
+    },
+    {
+      "pattern": "cpn",
+      "reason": "Credit Privacy Number is identity fraud"
+    },
+    {
+      "pattern": "new credit file",
+      "reason": "Creating a new credit identity is federal fraud"
+    },
+    {
+      "pattern": "tradeline rental",
+      "reason": "Buying authorized user status is misrepresentation"
+    },
+    {
+      "pattern": "100% success",
+      "reason": "No dispute process has 100% success rate"
+    },
+    {
+      "pattern": "pay us before",
+      "reason": "CROA prohibits advance payment for credit repair"
+    }
+  ],
+  "emotional_patterns": [
+    {
+      "pattern": "unfair",
+      "reason": "Disputes must be factual, not emotional"
+    },
+    {
+      "pattern": "please help",
+      "reason": "Pleading weakens dispute \u2014 state facts only"
+    },
+    {
+      "pattern": "i demand",
+      "reason": "Demanding language triggers adversarial processing"
+    },
+    {
+      "pattern": "you must",
+      "reason": "Accusatory language reduces cooperation"
+    }
+  ],
+  "eoscar_template_phrases": [
+    {
+      "pattern": "I am writing to dispute",
+      "reason": "Generic template opening used by credit repair orgs"
+    },
+    {
+      "pattern": "please investigate this matter",
+      "reason": "e-OSCAR template phrase \u2014 auto-flagged"
+    },
+    {
+      "pattern": "as per my rights under the FCRA",
+      "reason": "Template legal language \u2014 signals form letter"
+    },
+    {
+      "pattern": "I request that you delete",
+      "reason": "Deletion demands without factual basis are dismissed"
+    }
+  ]
+}

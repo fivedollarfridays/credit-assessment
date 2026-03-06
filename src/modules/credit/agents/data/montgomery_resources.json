@@ -1,0 +1,47 @@
+{
+  "resources": [
+    {
+      "name": "Alabama Career Center",
+      "phone": "334-286-1746",
+      "address": "3720 Atlanta Hwy, Montgomery, AL 36109",
+      "services": [
+        "job placement",
+        "resume help",
+        "skills training"
+      ],
+      "cost": "Free"
+    },
+    {
+      "name": "Consumer Credit Counseling Service of Central Alabama",
+      "phone": "334-265-8545",
+      "address": "600 S Court St, Montgomery, AL 36104",
+      "services": [
+        "credit counseling",
+        "debt management plans",
+        "financial education"
+      ],
+      "cost": "Free"
+    },
+    {
+      "name": "Legal Services Alabama",
+      "phone": "334-264-1471",
+      "address": "500 Bell Bldg, 207 Montgomery St, Montgomery, AL 36104",
+      "services": [
+        "debt defense",
+        "credit report disputes",
+        "consumer protection"
+      ],
+      "cost": "Free for qualifying individuals"
+    },
+    {
+      "name": "AnnualCreditReport.com",
+      "phone": "877-322-8228",
+      "address": null,
+      "services": [
+        "free credit reports from all 3 bureaus"
+      ],
+      "cost": "Free",
+      "url": "https://www.annualcreditreport.com"
+    }
+  ]
+}

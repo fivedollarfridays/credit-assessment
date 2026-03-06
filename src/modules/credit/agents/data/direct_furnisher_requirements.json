@@ -1,0 +1,42 @@
+{
+  "governing_law": "FCRA \u00a7623 / 16 CFR Part 660",
+  "documentation_required": [
+    "proof of identity",
+    "account number",
+    "specific inaccuracy description",
+    "supporting documentation"
+  ],
+  "permissible_bases": [
+    {
+      "type": "terms_of_account",
+      "description": "Dispute relates to terms, conditions, or authorized use",
+      "cfr": "16 CFR 660.4(a)(1)"
+    },
+    {
+      "type": "consumer_performance",
+      "description": "Dispute relates to consumer's performance or payment history",
+      "cfr": "16 CFR 660.4(a)(2)"
+    },
+    {
+      "type": "identity_verification",
+      "description": "Dispute relates to identity \u2014 account belongs to different consumer",
+      "cfr": "16 CFR 660.4(a)(3)"
+    }
+  ],
+  "dismissible_without_investigation": [
+    "Substantially same as prior dispute (16 CFR 660.4(f))",
+    "Dispute does not relate to accuracy of reported information",
+    "Consumer fails to provide sufficient information to investigate"
+  ],
+  "substantially_same_threshold": 0.70,
+  "investigation_timeline": {
+    "standard_days": 30,
+    "with_additional_info": 45,
+    "identity_theft": 45
+  },
+  "consumer_remedy": {
+    "if_not_investigated": "FCRA \u00a7616 \u2014 civil liability for willful noncompliance",
+    "if_not_corrected": "FCRA \u00a7617 \u2014 civil liability for negligent noncompliance",
+    "damages": "actual damages + attorneys fees + statutory $100-$1000 per violation"
+  }
+}

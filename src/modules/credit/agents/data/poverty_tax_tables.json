@@ -1,0 +1,128 @@
+{
+  "methodology": "Bristol PFRC Poverty Premium Framework (2016)",
+  "montgomery_adjusted": true,
+  "cpi_inflation_multiplier": 1.34,
+  "cpi_source": "UK ONS Series D7BT (2016-2026)",
+  "gbp_usd_rate": 1.27,
+  "gbp_usd_source": "Federal Reserve H.10",
+  "components": {
+    "credit_premium": {
+      "description": "APR differential per $10K debt by score band",
+      "bands": {
+        "750-850": {
+          "annual_cost": 0,
+          "description": "Baseline \u2014 best available rate"
+        },
+        "700-749": {
+          "annual_cost": 200,
+          "description": "+2% APR on $10K"
+        },
+        "650-699": {
+          "annual_cost": 500,
+          "description": "+5% APR on $10K"
+        },
+        "600-649": {
+          "annual_cost": 900,
+          "description": "+9% APR on $10K"
+        },
+        "550-599": {
+          "annual_cost": 1300,
+          "description": "+13% APR on $10K"
+        },
+        "500-549": {
+          "annual_cost": 1650,
+          "description": "+16.5% APR on $10K"
+        },
+        "300-499": {
+          "annual_cost": 2050,
+          "description": "+20.5% APR on $10K"
+        }
+      },
+      "source": "Federal Reserve Consumer Credit G.19"
+    },
+    "insurance_premium": {
+      "description": "Annual auto insurance cost differential vs 750+ baseline",
+      "bands": {
+        "750-850": {
+          "annual_cost": 0
+        },
+        "700-749": {
+          "annual_cost": 300
+        },
+        "650-699": {
+          "annual_cost": 750
+        },
+        "600-649": {
+          "annual_cost": 1300
+        },
+        "550-599": {
+          "annual_cost": 1650
+        },
+        "500-549": {
+          "annual_cost": 2000
+        },
+        "300-499": {
+          "annual_cost": 2350
+        }
+      },
+      "source": "AL Department of Insurance"
+    },
+    "employment_barrier": {
+      "description": "Annual wage differential for credit-blocked jobs",
+      "categories": {
+        "healthcare_cna": {
+          "blocked_wage": 10.25,
+          "unblocked_wage": 16.50,
+          "annual_loss": 13000
+        },
+        "finance_banking": {
+          "blocked_wage": 10.25,
+          "unblocked_wage": 22.00,
+          "annual_loss": 24440
+        },
+        "healthcare_admin": {
+          "blocked_wage": 10.25,
+          "unblocked_wage": 18.75,
+          "annual_loss": 17680
+        }
+      },
+      "source": "BLS Montgomery MSA + MIT Living Wage Calculator"
+    },
+    "housing_premium": {
+      "description": "Rent differential + deposit multiplier for low scores",
+      "bands": {
+        "750-850": {
+          "annual_cost": 0
+        },
+        "700-749": {
+          "annual_cost": 0
+        },
+        "650-699": {
+          "annual_cost": 600
+        },
+        "600-649": {
+          "annual_cost": 1200
+        },
+        "550-599": {
+          "annual_cost": 1800
+        },
+        "500-549": {
+          "annual_cost": 2400
+        },
+        "300-499": {
+          "annual_cost": 3000
+        }
+      },
+      "source": "AL Apartment Association + HUD Fair Market Rents"
+    }
+  },
+  "validation_range": {
+    "min": 1500,
+    "max": 15000
+  },
+  "typical_range": {
+    "min": 3000,
+    "max": 5000,
+    "note": "Bristol \u00a3490 adjusted: \u00a3490 * 1.34 CPI * 1.27 USD = $834 baseline, US cost multiplier 3-5x = $2,500-$4,170"
+  }
+}

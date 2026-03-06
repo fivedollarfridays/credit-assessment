@@ -1,0 +1,49 @@
+{
+  "denial_reasons": {
+    "serious delinquency": {
+      "plain_english": "You have accounts that are significantly past due or have been sent to collections",
+      "likely_items": [
+        "collections",
+        "charge-offs",
+        "90+ day late payments"
+      ],
+      "recommended_action": "dispute_negative"
+    },
+    "too many accounts with balances": {
+      "plain_english": "You are carrying balances on too many credit accounts",
+      "likely_items": [
+        "multiple credit cards with balances"
+      ],
+      "recommended_action": "pay_down_debt"
+    },
+    "length of time accounts established": {
+      "plain_english": "Your credit history is too short \u2014 lenders want to see years of history",
+      "likely_items": [
+        "thin file"
+      ],
+      "recommended_action": "keep_accounts_open"
+    },
+    "proportion of balances to credit limits": {
+      "plain_english": "Your credit card balances are too high compared to your limits (high utilization)",
+      "likely_items": [
+        "high utilization cards"
+      ],
+      "recommended_action": "reduce_utilization"
+    },
+    "too few accounts paid as agreed": {
+      "plain_english": "Not enough of your accounts show consistent on-time payments",
+      "likely_items": [
+        "late payments",
+        "missed payments"
+      ],
+      "recommended_action": "pay_on_time"
+    },
+    "no recent revolving balances": {
+      "plain_english": "You have no recent credit card activity \u2014 lenders cannot assess current behavior",
+      "likely_items": [
+        "inactive accounts"
+      ],
+      "recommended_action": "open_secured_card"
+    }
+  }
+}
