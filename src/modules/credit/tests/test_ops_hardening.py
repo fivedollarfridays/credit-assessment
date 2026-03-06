@@ -82,11 +82,14 @@ class TestOpenApiBehindAuth:
 
 class TestReadinessRedis:
     def test_ready_includes_redis_when_configured(self, client):
-        with patch("modules.credit.router.settings", Settings(
-            jwt_secret="test-secret",
-            redis_url="redis://localhost:6379",
-            database_url="sqlite+aiosqlite://",
-        )):
+        with patch(
+            "modules.credit.router.settings",
+            Settings(
+                jwt_secret="test-secret",
+                redis_url="redis://localhost:6379",
+                database_url="sqlite+aiosqlite://",
+            ),
+        ):
             with patch(
                 "modules.credit.rate_limit.check_redis_health",
                 new_callable=AsyncMock,
@@ -102,11 +105,14 @@ class TestReadinessRedis:
         assert "redis" not in data or data.get("redis") is None
 
     def test_ready_reports_redis_unavailable(self, client):
-        with patch("modules.credit.router.settings", Settings(
-            jwt_secret="test-secret",
-            redis_url="redis://localhost:6379",
-            database_url="sqlite+aiosqlite://",
-        )):
+        with patch(
+            "modules.credit.router.settings",
+            Settings(
+                jwt_secret="test-secret",
+                redis_url="redis://localhost:6379",
+                database_url="sqlite+aiosqlite://",
+            ),
+        ):
             with patch(
                 "modules.credit.rate_limit.check_redis_health",
                 new_callable=AsyncMock,
@@ -130,7 +136,9 @@ class TestCheckRedisHealth:
         mock_redis.ping = AsyncMock(return_value=True)
         mock_redis.aclose = AsyncMock()
 
-        with patch("modules.credit.rate_limit.redis.asyncio.from_url", return_value=mock_redis):
+        with patch(
+            "modules.credit.rate_limit.redis.asyncio.from_url", return_value=mock_redis
+        ):
             assert await check_redis_health("redis://localhost:6379") is True
 
     @pytest.mark.asyncio
@@ -151,7 +159,9 @@ class TestCheckRedisHealth:
         mock_redis.ping = AsyncMock(side_effect=Exception("timeout"))
         mock_redis.aclose = AsyncMock()
 
-        with patch("modules.credit.rate_limit.redis.asyncio.from_url", return_value=mock_redis):
+        with patch(
+            "modules.credit.rate_limit.redis.asyncio.from_url", return_value=mock_redis
+        ):
             assert await check_redis_health("redis://localhost:6379") is False
 
 

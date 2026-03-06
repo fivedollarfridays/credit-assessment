@@ -128,7 +128,6 @@ async def ready(request: Request) -> dict:
     return checks
 
 
-
 # Include v1 router after all v1 routes are defined
 app.include_router(v1_router)
 app.include_router(dashboard_page_router)

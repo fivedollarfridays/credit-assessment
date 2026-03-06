@@ -153,12 +153,8 @@ class TestFlagEvaluation_DB:
                     "f",
                     targeting=[TargetingRule(type=RuleType.ORG, values=["org-acme"])],
                 )
-                assert (
-                    await evaluate_flag(session, "f", org_id="org-acme") is True
-                )
-                assert (
-                    await evaluate_flag(session, "f", org_id="org-other") is False
-                )
+                assert await evaluate_flag(session, "f", org_id="org-acme") is True
+                assert await evaluate_flag(session, "f", org_id="org-other") is False
 
         asyncio.run(_run())
 

@@ -43,7 +43,11 @@ async def create_webhook(
     wh_id = uuid.uuid4().hex[:12]
     repo = WebhookRepository(session)
     db_wh = await repo.create(
-        id=wh_id, url=url, events=[e.value for e in events], secret=secret, owner_id=owner_id
+        id=wh_id,
+        url=url,
+        events=[e.value for e in events],
+        secret=secret,
+        owner_id=owner_id,
     )
     return _to_registration(db_wh)
 

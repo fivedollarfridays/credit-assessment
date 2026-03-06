@@ -44,7 +44,10 @@ class TestFlagCRUD:
         async def _run():
             async with db_factory() as session:
                 flag = await create_flag(
-                    session, key="new-scoring", description="New scoring algo", enabled=False
+                    session,
+                    key="new-scoring",
+                    description="New scoring algo",
+                    enabled=False,
                 )
                 assert isinstance(flag, FeatureFlag)
                 assert flag.key == "new-scoring"
@@ -227,9 +230,7 @@ class TestTargeting:
                 assert await evaluate_flag(session, "f", user_id="anyone") is False
                 fake_rule = TargetingRule(type=RuleType.ORG, values=[])
                 fake_rule.type = "unknown_type"  # type: ignore[assignment]
-                assert (
-                    _matches_rule(fake_rule, "f", org_id=None, user_id=None) is False
-                )
+                assert _matches_rule(fake_rule, "f", org_id=None, user_id=None) is False
 
         asyncio.run(_run())
 
@@ -265,9 +266,7 @@ class TestTargeting:
                     ],
                 )
                 assert await evaluate_flag(session, "f", org_id="org-acme") is True
-                assert (
-                    await evaluate_flag(session, "f", user_id="bob@corp.com") is True
-                )
+                assert await evaluate_flag(session, "f", user_id="bob@corp.com") is True
                 assert await evaluate_flag(session, "f", org_id="org-other") is False
 
         asyncio.run(_run())

@@ -83,7 +83,10 @@ class TestWebhookRegistration:
                 wh = await create_webhook(
                     session,
                     url="https://example.com/hook",
-                    events=[EventType.ASSESSMENT_COMPLETED, EventType.SUBSCRIPTION_UPDATED],
+                    events=[
+                        EventType.ASSESSMENT_COMPLETED,
+                        EventType.SUBSCRIPTION_UPDATED,
+                    ],
                     secret="s",
                 )
                 assert len(wh.events) == 2

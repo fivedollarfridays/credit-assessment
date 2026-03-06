@@ -76,9 +76,7 @@ class TestHandleWebhookDB:
                                 "id": "sub_123",
                                 "customer_email": "user@test.com",
                                 "status": "active",
-                                "items": {
-                                    "data": [{"plan": {"nickname": "pro"}}]
-                                },
+                                "items": {"data": [{"plan": {"nickname": "pro"}}]},
                             }
                         },
                     }
@@ -191,14 +189,17 @@ class TestDynamicRateLimit:
             identity="free@test.com"
         )
         try:
-            resp = client.post("/v1/assess", json={
-                "current_score": 700,
-                "score_band": "good",
-                "overall_utilization": 20.0,
-                "account_summary": {"total_accounts": 5, "open_accounts": 3},
-                "payment_history_pct": 95.0,
-                "average_account_age_months": 60,
-            })
+            resp = client.post(
+                "/v1/assess",
+                json={
+                    "current_score": 700,
+                    "score_band": "good",
+                    "overall_utilization": 20.0,
+                    "account_summary": {"total_accounts": 5, "open_accounts": 3},
+                    "payment_history_pct": 95.0,
+                    "average_account_age_months": 60,
+                },
+            )
             assert resp.status_code == 200
         finally:
             app.dependency_overrides.pop(verify_auth, None)
@@ -277,6 +278,7 @@ class TestDynamicRateLimit:
         async def _run():
             def _broken_factory():
                 raise RuntimeError("DB down")
+
             request = MagicMock()
             request.app.state.db_session_factory = _broken_factory
             auth = AuthIdentity(identity="user@test.com")

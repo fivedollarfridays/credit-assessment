@@ -33,9 +33,7 @@ def _seed_canceled_subscription(app, email):
 
     async def _insert():
         async with factory() as session:
-            await update_subscription(
-                session, email, "sub_1", "canceled", "pro"
-            )
+            await update_subscription(session, email, "sub_1", "canceled", "pro")
 
     asyncio.run(_insert())
 
