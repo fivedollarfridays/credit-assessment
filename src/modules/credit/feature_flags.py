@@ -6,6 +6,10 @@ import hashlib
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .repo_flags import FeatureFlagRepository
+
 
 class RuleType(StrEnum):
     """Targeting rule types."""
@@ -33,44 +37,59 @@ class FeatureFlag:
     targeting: list[TargetingRule] = field(default_factory=list)
 
 
-# --- In-memory store ---
+def _db_to_flag(db_flag) -> FeatureFlag:
+    """Convert DB model to FeatureFlag dataclass."""
+    targeting = []
+    if db_flag.targeting:
+        for rule_data in db_flag.targeting:
+            targeting.append(
+                TargetingRule(
+                    type=RuleType(rule_data["type"]),
+                    values=rule_data.get("values", []),
+                )
+            )
+    return FeatureFlag(
+        key=db_flag.key,
+        description=db_flag.description,
+        enabled=db_flag.enabled,
+        targeting=targeting,
+    )
 
-_flags: dict[str, FeatureFlag] = {}
 
-
-def reset_flags() -> None:
-    """Clear all flags (testing)."""
-    _flags.clear()
-
-
-# --- CRUD ---
-
-
-def create_flag(
+async def create_flag(
+    session: AsyncSession,
     key: str,
     *,
     description: str = "",
     enabled: bool = False,
 ) -> FeatureFlag:
     """Create a new feature flag. Raises ValueError if key already exists."""
-    if key in _flags:
+    repo = FeatureFlagRepository(session)
+    existing = await repo.get(key)
+    if existing is not None:
         raise ValueError(f"Flag '{key}' already exists")
-    flag = FeatureFlag(key=key, description=description, enabled=enabled)
-    _flags[key] = flag
-    return flag
+    db_flag = await repo.create(key=key, description=description, enabled=enabled)
+    return _db_to_flag(db_flag)
 
 
-def get_flag(key: str) -> FeatureFlag | None:
+async def get_flag(session: AsyncSession, key: str) -> FeatureFlag | None:
     """Get a flag by key."""
-    return _flags.get(key)
+    repo = FeatureFlagRepository(session)
+    db_flag = await repo.get(key)
+    if db_flag is None:
+        return None
+    return _db_to_flag(db_flag)
 
 
-def get_all_flags() -> list[FeatureFlag]:
+async def get_all_flags(session: AsyncSession) -> list[FeatureFlag]:
     """List all flags."""
-    return list(_flags.values())
+    repo = FeatureFlagRepository(session)
+    db_flags = await repo.list_all()
+    return [_db_to_flag(f) for f in db_flags]
 
 
-def update_flag(
+async def update_flag(
+    session: AsyncSession,
     key: str,
     *,
     enabled: bool | None = None,
@@ -78,21 +97,27 @@ def update_flag(
     targeting: list[TargetingRule] | None = None,
 ) -> FeatureFlag | None:
     """Update a flag. Returns None if not found."""
-    flag = _flags.get(key)
-    if flag is None:
+    repo = FeatureFlagRepository(session)
+    db_flag = await repo.get(key)
+    if db_flag is None:
         return None
     if enabled is not None:
-        flag.enabled = enabled
+        db_flag.enabled = enabled
     if description is not None:
-        flag.description = description
+        db_flag.description = description
     if targeting is not None:
-        flag.targeting = targeting
-    return flag
+        db_flag.targeting = [
+            {"type": r.type.value, "values": r.values} for r in targeting
+        ]
+    await session.commit()
+    await session.refresh(db_flag)
+    return _db_to_flag(db_flag)
 
 
-def delete_flag(key: str) -> bool:
+async def delete_flag(session: AsyncSession, key: str) -> bool:
     """Delete a flag. Returns True if found and removed."""
-    return _flags.pop(key, None) is not None
+    repo = FeatureFlagRepository(session)
+    return await repo.delete(key)
 
 
 # --- Evaluation ---
@@ -127,14 +152,15 @@ def _matches_rule(
     return False
 
 
-def evaluate_flag(
+async def evaluate_flag(
+    session: AsyncSession,
     key: str,
     *,
     org_id: str | None = None,
     user_id: str | None = None,
 ) -> bool:
     """Evaluate a feature flag for the given context."""
-    flag = _flags.get(key)
+    flag = await get_flag(session, key)
     if flag is None or not flag.enabled:
         return False
     if not flag.targeting:

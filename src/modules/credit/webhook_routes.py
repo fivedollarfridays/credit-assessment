@@ -7,16 +7,19 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .assess_routes import verify_auth
+from .auth import AuthIdentity
 from .config import settings
+from .database import get_db
 from .webhook_delivery import get_delivery_log
 from .webhooks import (
     EventType,
     create_webhook,
     delete_webhook,
+    get_webhook,
     get_webhooks,
-    webhook_exists,
 )
 
 _BLOCKED_HOSTNAMES = {"localhost", "0.0.0.0", "0", "127.0.0.1", "::1"}
@@ -79,36 +82,59 @@ def _to_response(wh) -> WebhookResponse:
     )
 
 
+def _check_ownership(wh, auth: AuthIdentity) -> None:
+    """Raise 404 if webhook doesn't belong to the authenticated user."""
+    if wh is None or wh.owner_id != auth.identity:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+
 @router.post(
     "",
     response_model=WebhookResponse,
     status_code=201,
-    dependencies=[Depends(verify_auth)],
 )
-def register_webhook(req: WebhookCreateRequest) -> WebhookResponse:
+async def register_webhook(
+    req: WebhookCreateRequest,
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> WebhookResponse:
     """Register a new webhook endpoint."""
-    wh = create_webhook(url=req.url, events=req.events, secret=req.secret)
+    wh = await create_webhook(
+        db, url=req.url, events=req.events, secret=req.secret, owner_id=auth.identity
+    )
     return _to_response(wh)
 
 
-@router.get("", dependencies=[Depends(verify_auth)])
-def list_webhooks() -> list[WebhookResponse]:
-    """List all registered webhooks."""
-    return [_to_response(wh) for wh in get_webhooks()]
+@router.get("")
+async def list_webhooks(
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> list[WebhookResponse]:
+    """List webhooks owned by the authenticated user."""
+    return [_to_response(wh) for wh in await get_webhooks(db, owner_id=auth.identity)]
 
 
-@router.get("/{webhook_id}/deliveries", dependencies=[Depends(verify_auth)])
-def webhook_deliveries(webhook_id: str) -> dict:
+@router.get("/{webhook_id}/deliveries")
+async def webhook_deliveries(
+    webhook_id: str,
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Get delivery log for a specific webhook."""
-    if not webhook_exists(webhook_id):
-        raise HTTPException(status_code=404, detail="Webhook not found")
-    log = get_delivery_log(webhook_id=webhook_id)
+    wh = await get_webhook(db, webhook_id)
+    _check_ownership(wh, auth)
+    log = await get_delivery_log(db, webhook_id=webhook_id)
     return {"deliveries": log, "total": len(log)}
 
 
-@router.delete("/{webhook_id}", dependencies=[Depends(verify_auth)])
-def remove_webhook(webhook_id: str) -> dict:
+@router.delete("/{webhook_id}")
+async def remove_webhook(
+    webhook_id: str,
+    auth: AuthIdentity = Depends(verify_auth),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Delete a webhook registration."""
-    if not delete_webhook(webhook_id):
-        raise HTTPException(status_code=404, detail="Webhook not found")
+    wh = await get_webhook(db, webhook_id)
+    _check_ownership(wh, auth)
+    await delete_webhook(db, webhook_id)
     return {"message": "Webhook deleted"}

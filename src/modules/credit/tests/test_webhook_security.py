@@ -5,23 +5,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
-from modules.credit.router import app
 from modules.credit.webhook_routes import _is_private_ip
-from modules.credit.webhooks import reset_webhooks
-
-
-@pytest.fixture(autouse=True)
-def _clean():
-    reset_webhooks()
-    yield
-    reset_webhooks()
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
 
 
 def _post_webhook(client, url: str):

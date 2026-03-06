@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .assess_routes import verify_auth
+from .database import get_db
 from .feature_flags import (
     FeatureFlag,
     RuleType,
@@ -62,10 +64,15 @@ def _to_response(flag: FeatureFlag) -> FlagResponse:
     status_code=201,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
-def create(req: FlagCreateRequest) -> FlagResponse:
+async def create(
+    req: FlagCreateRequest,
+    db: AsyncSession = Depends(get_db),
+) -> FlagResponse:
     """Create a new feature flag."""
     try:
-        flag = create_flag(req.key, description=req.description, enabled=req.enabled)
+        flag = await create_flag(
+            db, req.key, description=req.description, enabled=req.enabled
+        )
     except ValueError:
         raise HTTPException(status_code=409, detail="Flag already exists")
     return _to_response(flag)
@@ -76,9 +83,11 @@ def create(req: FlagCreateRequest) -> FlagResponse:
     response_model=list[FlagResponse],
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
-def list_flags() -> list[FlagResponse]:
+async def list_flags(
+    db: AsyncSession = Depends(get_db),
+) -> list[FlagResponse]:
     """List all feature flags."""
-    return [_to_response(f) for f in get_all_flags()]
+    return [_to_response(f) for f in await get_all_flags(db)]
 
 
 @router.put(
@@ -86,15 +95,19 @@ def list_flags() -> list[FlagResponse]:
     response_model=FlagResponse,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
-def update(key: str, req: FlagUpdateRequest) -> FlagResponse:
+async def update(
+    key: str,
+    req: FlagUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+) -> FlagResponse:
     """Update a feature flag."""
     targeting = (
         [TargetingRule(type=r.type, values=r.values) for r in req.targeting]
         if req.targeting
         else None
     )
-    flag = update_flag(
-        key, enabled=req.enabled, description=req.description, targeting=targeting
+    flag = await update_flag(
+        db, key, enabled=req.enabled, description=req.description, targeting=targeting
     )
     if flag is None:
         raise HTTPException(status_code=404, detail="Flag not found")
@@ -102,14 +115,25 @@ def update(key: str, req: FlagUpdateRequest) -> FlagResponse:
 
 
 @router.delete("/{key}", dependencies=[Depends(require_role(Role.ADMIN))])
-def remove(key: str) -> dict:
+async def remove(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Delete a feature flag."""
-    if not delete_flag(key):
+    if not await delete_flag(db, key):
         raise HTTPException(status_code=404, detail="Flag not found")
     return {"message": f"Flag '{key}' deleted"}
 
 
 @router.get("/{key}/evaluate", dependencies=[Depends(verify_auth)])
-def evaluate(key: str, org_id: str | None = None, user_id: str | None = None) -> dict:
+async def evaluate(
+    key: str,
+    org_id: str | None = None,
+    user_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     """Evaluate a flag for the given context."""
-    return {"key": key, "enabled": evaluate_flag(key, org_id=org_id, user_id=user_id)}
+    return {
+        "key": key,
+        "enabled": await evaluate_flag(db, key, org_id=org_id, user_id=user_id),
+    }

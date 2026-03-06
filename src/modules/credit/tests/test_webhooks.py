@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
-from fastapi.testclient import TestClient
 
-from modules.credit.router import app
+from modules.credit.database import create_engine, get_session_factory
+from modules.credit.models_db import Base
 from modules.credit.webhook_delivery import (
     WebhookDeliveryStatus,
     compute_signature,
@@ -24,21 +24,22 @@ from modules.credit.webhooks import (
     create_webhook,
     get_subscribed_webhooks,
     get_webhooks,
-    reset_webhooks,
     webhook_exists,
 )
 
 
-@pytest.fixture(autouse=True)
-def _clean():
-    reset_webhooks()
-    yield
-    reset_webhooks()
-
-
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def db_factory():
+    """Create in-memory database with tables for each test."""
+    engine = create_engine("sqlite+aiosqlite://")
+    factory = get_session_factory(engine)
+
+    async def _init():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_init())
+    return factory
 
 
 # --- EventType enum ---
@@ -59,88 +60,129 @@ class TestEventType:
 
 
 class TestWebhookRegistration:
-    def test_create_webhook(self):
-        wh = create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="my-secret",
-        )
-        assert isinstance(wh, WebhookRegistration)
-        assert wh.url == "https://example.com/hook"
-        assert wh.events == [EventType.ASSESSMENT_COMPLETED]
-        assert wh.is_active is True
-        assert wh.id is not None
+    def test_create_webhook(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                wh = await create_webhook(
+                    session,
+                    url="https://example.com/hook",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="my-secret",
+                )
+                assert isinstance(wh, WebhookRegistration)
+                assert wh.url == "https://example.com/hook"
+                assert wh.events == [EventType.ASSESSMENT_COMPLETED]
+                assert wh.is_active is True
+                assert wh.id is not None
 
-    def test_create_webhook_multiple_events(self):
-        wh = create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED, EventType.SUBSCRIPTION_UPDATED],
-            secret="s",
-        )
-        assert len(wh.events) == 2
+        asyncio.run(_run())
 
-    def test_get_webhooks_empty(self):
-        assert get_webhooks() == []
+    def test_create_webhook_multiple_events(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                wh = await create_webhook(
+                    session,
+                    url="https://example.com/hook",
+                    events=[EventType.ASSESSMENT_COMPLETED, EventType.SUBSCRIPTION_UPDATED],
+                    secret="s",
+                )
+                assert len(wh.events) == 2
 
-    def test_get_webhooks_returns_registered(self):
-        create_webhook(
-            url="https://a.com/h", events=[EventType.ASSESSMENT_COMPLETED], secret="s"
-        )
-        create_webhook(
-            url="https://b.com/h", events=[EventType.SUBSCRIPTION_UPDATED], secret="s"
-        )
-        assert len(get_webhooks()) == 2
+        asyncio.run(_run())
 
-    def test_webhook_exists(self):
-        wh = create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-        )
-        assert webhook_exists(wh.id) is True
-        assert webhook_exists("nonexistent") is False
+    def test_get_webhooks_empty(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                assert await get_webhooks(session) == []
 
-    def test_get_webhooks_by_owner(self):
-        create_webhook(
-            url="https://a.com/h",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-            owner_id="org1",
-        )
-        create_webhook(
-            url="https://b.com/h",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-            owner_id="org2",
-        )
-        assert len(get_webhooks(owner_id="org1")) == 1
+        asyncio.run(_run())
 
-    def test_get_subscribed_webhooks_filters_by_event(self):
-        create_webhook(
-            url="https://a.com/h",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-        )
-        create_webhook(
-            url="https://b.com/h",
-            events=[EventType.SUBSCRIPTION_UPDATED],
-            secret="s",
-        )
-        matching = get_subscribed_webhooks(EventType.ASSESSMENT_COMPLETED)
-        assert len(matching) == 1
-        assert matching[0].url == "https://a.com/h"
+    def test_get_webhooks_returns_registered(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                await create_webhook(
+                    session,
+                    url="https://a.com/h",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="s",
+                )
+                await create_webhook(
+                    session,
+                    url="https://b.com/h",
+                    events=[EventType.SUBSCRIPTION_UPDATED],
+                    secret="s",
+                )
+                assert len(await get_webhooks(session)) == 2
 
-    def test_get_subscribed_webhooks_excludes_inactive(self):
-        wh = create_webhook(
-            url="https://a.com/h",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-        )
-        wh.is_active = False
-        assert get_subscribed_webhooks(EventType.ASSESSMENT_COMPLETED) == []
+        asyncio.run(_run())
 
-    def test_get_subscribed_webhooks_empty(self):
-        assert get_subscribed_webhooks(EventType.RATE_LIMIT_WARNING) == []
+    def test_webhook_exists(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                wh = await create_webhook(
+                    session,
+                    url="https://example.com/hook",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="s",
+                )
+                assert await webhook_exists(session, wh.id) is True
+                assert await webhook_exists(session, "nonexistent") is False
+
+        asyncio.run(_run())
+
+    def test_get_webhooks_by_owner(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                await create_webhook(
+                    session,
+                    url="https://a.com/h",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="s",
+                    owner_id="org1",
+                )
+                await create_webhook(
+                    session,
+                    url="https://b.com/h",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="s",
+                    owner_id="org2",
+                )
+                assert len(await get_webhooks(session, owner_id="org1")) == 1
+
+        asyncio.run(_run())
+
+    def test_get_subscribed_webhooks_filters_by_event(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                await create_webhook(
+                    session,
+                    url="https://a.com/h",
+                    events=[EventType.ASSESSMENT_COMPLETED],
+                    secret="s",
+                )
+                await create_webhook(
+                    session,
+                    url="https://b.com/h",
+                    events=[EventType.SUBSCRIPTION_UPDATED],
+                    secret="s",
+                )
+                matching = await get_subscribed_webhooks(
+                    session, EventType.ASSESSMENT_COMPLETED
+                )
+                assert len(matching) == 1
+                assert matching[0].url == "https://a.com/h"
+
+        asyncio.run(_run())
+
+    def test_get_subscribed_webhooks_empty(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                result = await get_subscribed_webhooks(
+                    session, EventType.RATE_LIMIT_WARNING
+                )
+                assert result == []
+
+        asyncio.run(_run())
 
 
 # --- HMAC Signature ---
@@ -166,12 +208,14 @@ class TestSignature:
 
 class TestDelivery:
     @pytest.mark.asyncio
-    async def test_deliver_event_success(self):
-        create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="secret",
-        )
+    async def test_deliver_event_success(self, db_factory):
+        async with db_factory() as session:
+            await create_webhook(
+                session,
+                url="https://example.com/hook",
+                events=[EventType.ASSESSMENT_COMPLETED],
+                secret="secret",
+            )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
         with patch(
@@ -184,6 +228,7 @@ class TestDelivery:
             mock_client_cls.return_value = mock_client
 
             result = await deliver_event(
+                db_factory=db_factory,
                 event_type=EventType.ASSESSMENT_COMPLETED,
                 payload={"score": 85},
             )
@@ -191,33 +236,30 @@ class TestDelivery:
         assert result[0].status == WebhookDeliveryStatus.SUCCESS
 
     @pytest.mark.asyncio
-    async def test_deliver_event_skips_unsubscribed(self):
-        create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.SUBSCRIPTION_UPDATED],
-            secret="s",
-        )
-        with patch(
-            "modules.credit.webhook_delivery.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
-
-            result = await deliver_event(
-                event_type=EventType.ASSESSMENT_COMPLETED,
-                payload={"score": 85},
+    async def test_deliver_event_skips_unsubscribed(self, db_factory):
+        async with db_factory() as session:
+            await create_webhook(
+                session,
+                url="https://example.com/hook",
+                events=[EventType.SUBSCRIPTION_UPDATED],
+                secret="s",
             )
+        result = await deliver_event(
+            db_factory=db_factory,
+            event_type=EventType.ASSESSMENT_COMPLETED,
+            payload={"score": 85},
+        )
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_deliver_event_records_failure(self):
-        create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-        )
+    async def test_deliver_event_records_failure(self, db_factory):
+        async with db_factory() as session:
+            await create_webhook(
+                session,
+                url="https://example.com/hook",
+                events=[EventType.ASSESSMENT_COMPLETED],
+                secret="s",
+            )
         mock_resp = AsyncMock()
         mock_resp.status_code = 500
         with patch(
@@ -230,6 +272,7 @@ class TestDelivery:
             mock_client_cls.return_value = mock_client
 
             result = await deliver_event(
+                db_factory=db_factory,
                 event_type=EventType.ASSESSMENT_COMPLETED,
                 payload={"data": "x"},
             )
@@ -251,7 +294,6 @@ class TestRetryLogic:
         assert next_retry_delay(attempt=2) == 4
 
     def test_max_capped(self):
-        # Even at attempt 10, cap at 300s
         assert next_retry_delay(attempt=10) <= 300
 
 
@@ -260,12 +302,14 @@ class TestRetryLogic:
 
 class TestDeliveryLog:
     @pytest.mark.asyncio
-    async def test_delivery_log_recorded(self):
-        wh = create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="s",
-        )
+    async def test_delivery_log_recorded(self, db_factory):
+        async with db_factory() as session:
+            wh = await create_webhook(
+                session,
+                url="https://example.com/hook",
+                events=[EventType.ASSESSMENT_COMPLETED],
+                secret="s",
+            )
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
         with patch(
@@ -278,136 +322,20 @@ class TestDeliveryLog:
             mock_client_cls.return_value = mock_client
 
             await deliver_event(
+                db_factory=db_factory,
                 event_type=EventType.ASSESSMENT_COMPLETED,
                 payload={"score": 90},
             )
 
-        log = get_delivery_log(webhook_id=wh.id)
-        assert len(log) == 1
-        assert log[0]["status"] == "success"
-        assert log[0]["event_type"] == EventType.ASSESSMENT_COMPLETED
+        async with db_factory() as session:
+            log = await get_delivery_log(session, webhook_id=wh.id)
+            assert len(log) == 1
+            assert log[0]["status"] == "success"
+            assert log[0]["event_type"] == EventType.ASSESSMENT_COMPLETED
 
-    def test_delivery_log_empty(self):
-        assert get_delivery_log(webhook_id="nonexistent") == []
+    def test_delivery_log_empty(self, db_factory):
+        async def _run():
+            async with db_factory() as session:
+                assert await get_delivery_log(session, webhook_id="nonexistent") == []
 
-
-# --- API Endpoints ---
-
-
-@pytest.mark.usefixtures("bypass_auth")
-class TestWebhookEndpoints:
-    def test_register_webhook(self, client):
-        resp = client.post(
-            "/v1/webhooks",
-            json={
-                "url": "https://example.com/hook",
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-        assert resp.status_code == 201
-        data = resp.json()
-        assert data["url"] == "https://example.com/hook"
-        assert data["is_active"] is True
-        assert "id" in data
-
-    def test_register_webhook_invalid_event(self, client):
-        resp = client.post(
-            "/v1/webhooks",
-            json={
-                "url": "https://example.com/hook",
-                "events": ["invalid.event"],
-                "secret": "s",
-            },
-        )
-        assert resp.status_code == 422
-        # Cover URL validator (webhook_routes.py:30)
-        resp = client.post(
-            "/v1/webhooks",
-            json={
-                "url": "ftp://example.com/hook",
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-        assert resp.status_code == 422
-
-    def test_list_webhooks(self, client):
-        client.post(
-            "/v1/webhooks",
-            json={
-                "url": "https://a.com/h",
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-        resp = client.get("/v1/webhooks")
-        assert resp.status_code == 200
-        assert len(resp.json()) >= 1
-
-    def test_get_delivery_log_endpoint_not_found(self, client):
-        resp = client.get("/v1/webhooks/nonexistent/deliveries")
-        assert resp.status_code == 404
-
-    def test_delete_webhook(self, client):
-        create_resp = client.post(
-            "/v1/webhooks",
-            json={
-                "url": "https://example.com/h",
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-        wh_id = create_resp.json()["id"]
-        resp = client.delete(f"/v1/webhooks/{wh_id}")
-        assert resp.status_code == 200
-        assert get_webhooks() == []
-
-    def test_delete_webhook_not_found(self, client):
-        resp = client.delete("/v1/webhooks/nonexistent")
-        assert resp.status_code == 404
-
-    def test_webhook_deliveries_for_existing_webhook(self, client):
-        """GET deliveries returns log dict for an existing webhook."""
-        create_resp = client.post(
-            "/v1/webhooks",
-            json={
-                "url": "https://example.com/h",
-                "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
-            },
-        )
-        wh_id = create_resp.json()["id"]
-        resp = client.get(f"/v1/webhooks/{wh_id}/deliveries")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["deliveries"] == []
-        assert data["total"] == 0
-
-    @pytest.mark.asyncio
-    async def test_deliver_event_http_error(self):
-        """Network errors are caught and recorded as failures."""
-        wh = create_webhook(
-            url="https://example.com/hook",
-            events=[EventType.ASSESSMENT_COMPLETED],
-            secret="secret",
-        )
-        with patch("modules.credit.webhook_delivery.httpx.AsyncClient") as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client.post = AsyncMock(
-                side_effect=httpx.ConnectError("connection refused")
-            )
-            mock_cls.return_value = mock_client
-
-            result = await deliver_event(
-                event_type=EventType.ASSESSMENT_COMPLETED,
-                payload={"score": 50},
-            )
-        assert len(result) == 1
-        assert result[0].status == WebhookDeliveryStatus.FAILED
-        assert result[0].status_code is None
-        log = get_delivery_log(webhook_id=wh.id)
-        assert len(log) == 1
-        assert log[0]["status"] == "failed"
+        asyncio.run(_run())

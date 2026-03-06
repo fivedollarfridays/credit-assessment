@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 
 from .api_docs import get_code_examples, get_integration_guide
+from .roles import Role, require_role
 
 router = APIRouter(prefix="/docs", tags=["docs"])
 
@@ -25,3 +26,13 @@ def guide() -> dict:
 def examples() -> dict:
     """Return code examples in Python, JavaScript, and curl."""
     return get_code_examples()
+
+
+@router.get(
+    "/openapi.json",
+    dependencies=[Depends(require_role(Role.ADMIN))],
+    include_in_schema=False,
+)
+def openapi_spec(request: Request) -> dict:
+    """Return OpenAPI spec (accessible in production behind admin auth)."""
+    return request.app.openapi()

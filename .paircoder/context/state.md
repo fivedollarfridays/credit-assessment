@@ -6,7 +6,7 @@
 
 **Plan:** plan-2026-03-sprint-21
 **Status:** Planning
-**Current Sprint:** 19 (next to execute)
+**Current Sprint:** 20 (all done — T20.1, T20.2, T20.3)
 
 ## Current Focus
 
@@ -180,9 +180,9 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 
 | Task | Title | Priority | Complexity | Status |
 |------|-------|----------|------------|--------|
-| T20.1 | Migrate subscriptions to DB + connect rate limits to tiers | P0 | 55 | Pending |
-| T20.2 | Migrate webhooks + delivery log + feature flags to DB | P1 | 50 | Pending |
-| T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | Pending |
+| T20.1 | Migrate subscriptions to DB + connect rate limits to tiers | P0 | 55 | ✓ Done |
+| T20.2 | Migrate webhooks + delivery log + feature flags to DB | P1 | 50 | ✓ Done |
+| T20.3 | Operational hardening: multi-worker, Redis, OpenAPI | P1 | 30 | ✓ Done |
 
 ### Sprint 21 — Structured Credit Data + Score Simulation (Feature)
 
@@ -209,6 +209,51 @@ Sprints 19-23 planned. Sprints 19-20: persistence & ops (existing). Sprints 21-2
 | T23.3 | Score history tracking | P1 | 40 | Pending |
 
 ## What Was Just Done
+
+- **T20.3 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T20.3: Operational Hardening (Multi-worker, Redis, OpenAPI)
+
+- Dockerfile: switched CMD from `uvicorn` to `gunicorn` with `uvicorn.workers.UvicornWorker`, configurable via `WEB_CONCURRENCY` env var
+- docker-compose.yml: added Redis 7 service with healthcheck, `REDIS_URL` env var for API, API depends on Redis
+- OpenAPI spec: added auth-protected `GET /v1/docs/openapi.json` endpoint (requires admin role), works in production
+- Readiness probe (`/ready`): now checks Redis connectivity when `REDIS_URL` is configured, reports degraded if unavailable
+- Added `check_redis_health()` async function to `rate_limit.py` using `redis.asyncio`
+- Added `gunicorn>=22.0,<24` and `redis>=5.0,<6` to pyproject.toml dependencies
+- Refactored router.py imports to stay under arch limit (qualified `rate_limit.*` access)
+- 995 tests pass, 100% coverage, 0 ruff issues, 0 arch errors
+
+- **T20.2 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T20.2: Migrate Webhooks + Delivery Log + Feature Flags to DB
+
+- Removed in-memory `_webhooks` dict from `webhooks.py`; all functions now async with `AsyncSession`, delegate to `WebhookRepository`
+- Removed in-memory `_delivery_log` defaultdict from `webhook_delivery.py`; `get_delivery_log` now async with DB reads via `WebhookDeliveryRepository`
+- `deliver_event` now accepts `db_factory` kwarg, opens sessions for webhook lookup and delivery logging
+- Removed in-memory `_flags` dict from `feature_flags.py`; all CRUD + evaluation now async with `AsyncSession`, delegate to `FeatureFlagRepository`
+- Feature flag targeting rules serialized as JSON in DB, deserialized to `TargetingRule` dataclasses via `_db_to_flag()`
+- Updated `webhook_routes.py` and `flag_routes.py` to async handlers with `Depends(get_db)`
+- Updated `dashboard.py` to await async `count_webhooks(session)`
+- Split test files for arch compliance: `test_webhooks.py` → `test_webhooks_db.py`, `test_feature_flags.py` → `test_flags_db.py`, `test_efficiency.py` → `test_efficiency_db.py`
+- 978 tests pass, 100% coverage, 0 ruff issues, 0 arch errors
+
+- **T20.1 done** (auto-updated by hook)
+
+- **T20.1 done** (auto-updated by hook)
+
+### Session: 2026-03-05 -- T20.1: Migrate Subscriptions to DB + Connect Rate Limits to Tiers
+
+- Removed in-memory `_subscriptions` dict from `billing.py`; all billing functions now async with `AsyncSession` parameter
+- `update_subscription`, `get_subscription`, `list_subscriptions`, `count_active_subscriptions` delegate to `SubscriptionRepository`
+- `handle_webhook` now async, persists `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted` events to DB
+- Added `_extract_plan()` helper for parsing Stripe webhook nested plan data
+- Added `resolve_user_tier` FastAPI dependency: resolves subscription tier from DB for dynamic rate limiting
+- Added `get_tier_limit()` helper returning rate limit string per tier (FREE=10/min, STARTER=60/min, PRO=300/min, ENTERPRISE=unlimited)
+- Added `_record_usage_for_user` background task: looks up subscription and calls `record_usage()` after each assessment
+- Updated `dashboard.py` to await async billing functions with session parameter
+- Split `test_billing_db.py` into `test_billing_db.py` (CRUD) + `test_billing_tiers.py` (webhooks, rate limits, metering) to fix arch violation
+- Hoisted inline imports in `test_billing.py` and `test_billing_tiers.py` to fix import count violations
+- 964 tests pass, 100% coverage, 0 ruff issues, 0 arch errors
 
 - **T19.3 done** (auto-updated by hook)
 

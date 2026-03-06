@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 
 import stripe
+from sqlalchemy.ext.asyncio import AsyncSession
 from stripe import SignatureVerificationError as _StripeSignatureError
 
 from .rate_limit import SubscriptionTier
+from .repo_billing import SubscriptionRepository
 
 logger = logging.getLogger(__name__)
 
@@ -22,34 +24,47 @@ PLAN_PRICES: dict[SubscriptionTier, int | None] = {
     SubscriptionTier.ENTERPRISE: None,
 }
 
-# In-memory subscription store — replaced by DB in production.
-_subscriptions: dict[str, dict] = {}
 
-
-def update_subscription(
-    email: str, subscription_id: str, status: str, plan: str
+async def update_subscription(
+    session: AsyncSession, email: str, subscription_id: str, status: str, plan: str
 ) -> None:
-    """Update local subscription record."""
-    _subscriptions[email] = {
-        "subscription_id": subscription_id,
-        "status": status,
-        "plan": plan,
+    """Persist subscription record to database."""
+    repo = SubscriptionRepository(session)
+    await repo.upsert(email, subscription_id, status, plan)
+
+
+async def get_subscription(session: AsyncSession, email: str) -> dict | None:
+    """Get subscription for a user. Returns dict or None."""
+    repo = SubscriptionRepository(session)
+    sub = await repo.get_by_email(email)
+    if sub is None:
+        return None
+    return {
+        "subscription_id": sub.subscription_id,
+        "status": sub.status,
+        "plan": sub.plan,
     }
 
 
-def get_subscription(email: str) -> dict | None:
-    """Get subscription for a user. Returns None if not found."""
-    return _subscriptions.get(email)
+async def list_subscriptions(session: AsyncSession) -> list[dict]:
+    """Return all subscriptions as list of dicts."""
+    repo = SubscriptionRepository(session)
+    subs = await repo.list_all()
+    return [
+        {
+            "email": s.email,
+            "subscription_id": s.subscription_id,
+            "status": s.status,
+            "plan": s.plan,
+        }
+        for s in subs
+    ]
 
 
-def list_subscriptions() -> dict[str, dict]:
-    """Return all subscriptions keyed by email."""
-    return dict(_subscriptions)
-
-
-def count_active_subscriptions() -> int:
+async def count_active_subscriptions(session: AsyncSession) -> int:
     """Count subscriptions with status 'active'."""
-    return sum(1 for s in _subscriptions.values() if s.get("status") == "active")
+    repo = SubscriptionRepository(session)
+    return await repo.count_active()
 
 
 def create_checkout_session(
@@ -88,8 +103,14 @@ def create_portal_session(*, customer_id: str, return_url: str):
     )
 
 
-def handle_webhook(*, payload: bytes, sig_header: str, webhook_secret: str) -> dict:
-    """Process a Stripe webhook event."""
+async def handle_webhook(
+    *,
+    session: AsyncSession,
+    payload: bytes,
+    sig_header: str,
+    webhook_secret: str,
+) -> dict:
+    """Process a Stripe webhook event, persisting subscription changes to DB."""
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except (ValueError, _StripeSignatureError):
@@ -102,10 +123,34 @@ def handle_webhook(*, payload: bytes, sig_header: str, webhook_secret: str) -> d
         email = data.get("customer_email")
         sub_id = data.get("subscription")
         if email and sub_id:
-            update_subscription(email, sub_id, "active", SubscriptionTier.STARTER.value)
+            await update_subscription(
+                session, email, sub_id, "active", SubscriptionTier.STARTER.value
+            )
     elif event_type == "customer.subscription.updated":
-        logger.info("Subscription updated: %s", data.get("id"))
+        email = data.get("customer_email")
+        sub_id = data.get("id")
+        if email and sub_id:
+            status = data.get("status", "active")
+            plan = _extract_plan(data)
+            await update_subscription(session, email, sub_id, status, plan)
+        else:
+            logger.info("Subscription updated: %s", data.get("id"))
     elif event_type == "customer.subscription.deleted":
-        logger.info("Subscription deleted: %s", data.get("id"))
+        email = data.get("customer_email")
+        sub_id = data.get("id")
+        if email and sub_id:
+            await update_subscription(session, email, sub_id, "canceled", "free")
+        else:
+            logger.info("Subscription deleted: %s", data.get("id"))
 
     return {"status": "processed"}
+
+
+def _extract_plan(data: dict) -> str:
+    """Extract plan name from Stripe subscription data."""
+    items = data.get("items", {}).get("data", [])
+    if items:
+        nickname = items[0].get("plan", {}).get("nickname")
+        if nickname:
+            return nickname.lower()
+    return "starter"

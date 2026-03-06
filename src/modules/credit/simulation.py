@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .assessment import get_utilization_impact
 from .types import ActionType, CreditProfile, NegativeItem, ScoreImpact
@@ -27,7 +27,7 @@ class SimulationAction(BaseModel):
     """A proposed credit improvement action for simulation."""
 
     action_type: ActionType
-    target_amount: float | None = None
+    target_amount: float | None = Field(default=None, ge=0.0)
     target_item: str | NegativeItem | None = None  # reserved for item-level targeting
 
 

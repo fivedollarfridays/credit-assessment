@@ -104,6 +104,14 @@ class TestSimulateValidation:
         resp = client.post("/v1/simulate", json=payload)
         assert resp.status_code == 422
 
+    def test_rejects_negative_target_amount(self, client, bypass_auth):
+        payload = {
+            "profile": VALID_ASSESS_PAYLOAD,
+            "actions": [{"action_type": "pay_down_debt", "target_amount": -500.0}],
+        }
+        resp = client.post("/v1/simulate", json=payload)
+        assert resp.status_code == 422
+
 
 # ---------------------------------------------------------------------------
 # Cycle 4: Disclaimer

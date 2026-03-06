@@ -1,7 +1,7 @@
 id: plan-2026-03-sprint-20
 title: 'Sprint 20: Commercial & Ops — Billing, Rate Tiers, Webhooks, Deployment'
 type: feature
-status: pending
+status: complete
 created_at: '2026-03-05T00:00:00.000000'
 skills:
 - planning-with-trello
