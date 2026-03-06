@@ -202,7 +202,7 @@ class TestRobinsonRecommendation:
 
 
 class TestRobinsonBrightData:
-    """Verify Bright Data integration stub."""
+    """Verify Bright Data integration with graceful fallback."""
 
     def test_no_api_key_returns_static(
         self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
@@ -214,16 +214,48 @@ class TestRobinsonBrightData:
         jobs = res.data["jobs"]
         assert jobs["live_data"] is False
         assert jobs["source"] == "static"
+        assert len(jobs["jobs"]) > 0
 
-    def test_with_api_key_still_static(
+    def test_no_api_key_has_static_jobs(
         self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
     ) -> None:
-        """With BRIGHT_DATA_API_KEY set, still static for now (Block 6)."""
-        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
+        """Static fallback should include real Montgomery job listings."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("BRIGHT_DATA_API_KEY", None)
             res = agent.execute(poor_profile_structured)
+        jobs_list = res.data["jobs"]["jobs"]
+        assert any("CNA" in j["title"] for j in jobs_list)
+        assert all(j["credit_check"] is False for j in jobs_list)
+
+    def test_bright_data_success_returns_live(
+        self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
+    ) -> None:
+        """With API key and successful fetch, returns live data."""
+        import json
+        mock_response = json.dumps({"results": [
+            {"title": "Test Job", "company": "Test Corp"},
+        ]}).encode()
+        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                mock_urlopen.return_value.__enter__ = lambda s: s
+                mock_urlopen.return_value.__exit__ = lambda s, *a: None
+                mock_urlopen.return_value.read.return_value = mock_response
+                res = agent.execute(poor_profile_structured)
+        jobs = res.data["jobs"]
+        assert jobs["live_data"] is True
+        assert jobs["source"] == "bright_data"
+
+    def test_bright_data_failure_falls_back(
+        self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
+    ) -> None:
+        """Network failure with API key still returns static data."""
+        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
+            with patch("urllib.request.urlopen", side_effect=Exception("Network error")):
+                res = agent.execute(poor_profile_structured)
         jobs = res.data["jobs"]
         assert jobs["live_data"] is False
         assert jobs["source"] == "static"
+        assert len(jobs["jobs"]) > 0
 
 
 class TestRobinsonMeta:

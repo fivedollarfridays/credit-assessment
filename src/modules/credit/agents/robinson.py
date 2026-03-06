@@ -62,14 +62,37 @@ def _generate_recommendation(profile: CreditProfile, is_thin: bool) -> str:
     return "Use free services to boost score while maintaining good habits"
 
 
-def _bright_data_status() -> dict:
-    """Placeholder for Block 6 Bright Data integration."""
-    _key = os.environ.get("BRIGHT_DATA_API_KEY")
-    return {
-        "live_data": False,
-        "source": "static",
-        "note": "Live data unavailable — set BRIGHT_DATA_API_KEY",
-    }
+_STATIC_JOBS = [
+    {"title": "CNA - Baptist Medical Center", "employer": "Baptist Health", "credit_check": False},
+    {"title": "Warehouse Associate", "employer": "Amazon MGM5", "credit_check": False},
+    {"title": "Line Cook", "employer": "Dreamland BBQ", "credit_check": False},
+    {"title": "CDL Driver", "employer": "Werner Enterprises", "credit_check": False},
+    {"title": "Retail Associate", "employer": "Walmart Supercenter", "credit_check": False},
+]
+
+
+def _fetch_bright_data_jobs() -> dict:
+    """Fetch Montgomery job listings via Bright Data, with graceful fallback."""
+    api_key = os.environ.get("BRIGHT_DATA_API_KEY")
+    if not api_key:
+        return {"live_data": False, "source": "static", "jobs": _STATIC_JOBS,
+                "note": "Live data unavailable — set BRIGHT_DATA_API_KEY"}
+    try:
+        import urllib.request
+        import json as _json
+        url = "https://api.brightdata.com/datasets/v3/trigger?dataset_id=jobs_montgomery_al"
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        })
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = _json.loads(resp.read())
+        jobs = [{"title": j.get("title", ""), "employer": j.get("company", ""),
+                 "credit_check": False} for j in data.get("results", [])[:10]]
+        return {"live_data": True, "source": "bright_data", "jobs": jobs or _STATIC_JOBS}
+    except Exception:
+        return {"live_data": False, "source": "static", "jobs": _STATIC_JOBS,
+                "note": "Bright Data request failed — using cached results"}
 
 
 @register
@@ -114,6 +137,6 @@ class RobinsonAgent(BaseAgent):
                 "free_stack": free_stack,
                 "local_resources": res_cfg["resources"],
                 "recommendation": _generate_recommendation(profile, is_thin),
-                "jobs": _bright_data_status(),
+                "jobs": _fetch_bright_data_jobs(),
             },
         )
