@@ -5,17 +5,7 @@ from __future__ import annotations
 from ..types import CreditProfile
 from . import register
 from .base import AgentResult, BaseAgent, load_config
-
-# Band boundaries for score-to-band mapping (upper bound, label)
-_BAND_THRESHOLDS: list[tuple[int, str]] = [
-    (499, "300-499"),
-    (549, "500-549"),
-    (599, "550-599"),
-    (649, "600-649"),
-    (699, "650-699"),
-    (749, "700-749"),
-    (850, "750-850"),
-]
+from .scoring import score_to_band as _score_to_band
 
 # Action descriptions for each component in the kill plan
 _KILL_ACTIONS: dict[str, str] = {
@@ -24,14 +14,6 @@ _KILL_ACTIONS: dict[str, str] = {
     "employment_barrier": "Clear collections and raise score to unlock blocked jobs",
     "housing_premium": "Raise score to reduce rent premiums and deposit multipliers",
 }
-
-
-def _score_to_band(score: int) -> str:
-    """Map a numeric FICO score to a poverty-tax band key."""
-    for upper, label in _BAND_THRESHOLDS:
-        if score <= upper:
-            return label
-    return "750-850"
 
 
 def _calc_credit_premium(band: str, total_balance: float, config: dict) -> dict:
@@ -125,12 +107,14 @@ def _build_kill_plan(components: dict) -> list[dict]:
     for comp_name, comp_data in components.items():
         cost = comp_data["annual_cost"]
         if cost > 0:
-            items.append({
-                "component": comp_name,
-                "annual_savings": cost,
-                "action": _KILL_ACTIONS.get(comp_name, "Improve credit profile"),
-                "priority": 0,  # placeholder, assigned after sorting
-            })
+            items.append(
+                {
+                    "component": comp_name,
+                    "annual_savings": cost,
+                    "action": _KILL_ACTIONS.get(comp_name, "Improve credit profile"),
+                    "priority": 0,  # placeholder, assigned after sorting
+                }
+            )
     items.sort(key=lambda x: x["annual_savings"], reverse=True)
     for idx, item in enumerate(items):
         item["priority"] = idx + 1
@@ -214,11 +198,6 @@ class PhantomAgent(BaseAgent):
     name = "phantom"
     description = "Calculates annual poverty tax using Bristol PFRC framework"
 
-    # Expose helper for direct testing
-    @staticmethod
-    def _score_to_band(score: int) -> str:
-        return _score_to_band(score)
-
     def _execute(
         self, profile: CreditProfile, context: dict | None = None
     ) -> AgentResult:
@@ -235,7 +214,10 @@ class PhantomAgent(BaseAgent):
             "credit_premium": _calc_credit_premium(band, balance, config),
             "insurance_premium": _calc_insurance_premium(band, config),
             "employment_barrier": _calc_employment_barrier(
-                industry, profile.current_score, collections, config,
+                industry,
+                profile.current_score,
+                collections,
+                config,
             ),
             "housing_premium": _calc_housing_premium(band, config),
         }
@@ -244,5 +226,10 @@ class PhantomAgent(BaseAgent):
         total, validation = _apply_validation(raw_total, config)
 
         return _assemble_result(
-            self.name, components, total, validation, config, city["minimum_wage"],
+            self.name,
+            components,
+            total,
+            validation,
+            config,
+            city["minimum_wage"],
         )

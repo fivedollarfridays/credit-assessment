@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from modules.credit.agents.base import AgentResult
 from modules.credit.agents.tubman import Metro2FormatValidator, TubmanAgent
 from modules.credit.types import CreditProfile
 
@@ -98,7 +97,9 @@ class TestTubmanBalanceMismatch:
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         assert result.status == "success"
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"
+        ]
         assert len(discs) >= 1
 
     def test_balance_within_tolerance(
@@ -109,7 +110,9 @@ class TestTubmanBalanceMismatch:
             equifax_accounts=[_make_account(balance=2550)],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"
+        ]
         assert len(discs) == 0
 
     def test_percentage_tolerance(
@@ -121,7 +124,9 @@ class TestTubmanBalanceMismatch:
             equifax_accounts=[_make_account(balance=1060)],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"
+        ]
         assert len(discs) >= 1
 
     def test_mismatch_severity_and_recommended_bureau(
@@ -133,7 +138,9 @@ class TestTubmanBalanceMismatch:
             equifax_accounts=[_make_account(balance=2800)],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"
+        ]
         assert discs[0]["severity"] == "high"
         assert discs[0]["recommended_dispute_bureau"] == "equifax"
 
@@ -142,16 +149,26 @@ class TestTubmanBalanceMismatch:
     ) -> None:
         ctx = _two_bureau_context(
             experian_accounts=[
-                _make_account(creditor="ABC Bank", account_number="****1234", balance=2500),
-                _make_account(creditor="XYZ Lender", account_number="****5678", balance=10000),
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=2500
+                ),
+                _make_account(
+                    creditor="XYZ Lender", account_number="****5678", balance=10000
+                ),
             ],
             equifax_accounts=[
-                _make_account(creditor="ABC Bank", account_number="****1234", balance=2800),
-                _make_account(creditor="XYZ Lender", account_number="****5678", balance=12000),
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=2800
+                ),
+                _make_account(
+                    creditor="XYZ Lender", account_number="****5678", balance=12000
+                ),
             ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "balance_mismatch"
+        ]
         assert len(discs) >= 2
 
 
@@ -175,7 +192,11 @@ class TestTubmanDateDiscrepancy:
             ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["field"] == "date_of_first_delinquency"]
+        discs = [
+            d
+            for d in result.data["discrepancies"]
+            if d["field"] == "date_of_first_delinquency"
+        ]
         assert len(discs) >= 1
         assert discs[0]["severity"] == "critical"
 
@@ -213,7 +234,11 @@ class TestTubmanDateDiscrepancy:
             ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["field"] == "date_of_first_delinquency"]
+        discs = [
+            d
+            for d in result.data["discrepancies"]
+            if d["field"] == "date_of_first_delinquency"
+        ]
         assert len(discs) >= 1
 
     def test_both_null_no_discrepancy(
@@ -228,7 +253,11 @@ class TestTubmanDateDiscrepancy:
             ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["field"] == "date_of_first_delinquency"]
+        discs = [
+            d
+            for d in result.data["discrepancies"]
+            if d["field"] == "date_of_first_delinquency"
+        ]
         assert len(discs) == 0
 
 
@@ -251,7 +280,9 @@ class TestTubmanDuplicateAccount:
             equifax_accounts=[_make_account()],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"
+        ]
         assert len(discs) >= 1
 
     def test_different_creditors_no_duplicate(
@@ -265,7 +296,9 @@ class TestTubmanDuplicateAccount:
             equifax_accounts=[_make_account()],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"
+        ]
         assert len(discs) == 0
 
     def test_same_account_no_duplicate(
@@ -279,7 +312,9 @@ class TestTubmanDuplicateAccount:
             equifax_accounts=[_make_account()],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "duplicate_account"
+        ]
         assert len(discs) == 0
 
     def test_mixed_file_risk_detected(
@@ -293,12 +328,17 @@ class TestTubmanDuplicateAccount:
                 },
                 "equifax": {
                     "accounts": [_make_account()],
-                    "personal_info": {"name": "Maria R Garcia", "address": "456 Oak Ave"},
+                    "personal_info": {
+                        "name": "Maria R Garcia",
+                        "address": "456 Oak Ave",
+                    },
                 },
             },
         }
         result = agent.execute(poor_profile_structured, context=ctx)
-        discs = [d for d in result.data["discrepancies"] if d["type"] == "mixed_file_risk"]
+        discs = [
+            d for d in result.data["discrepancies"] if d["type"] == "mixed_file_risk"
+        ]
         assert len(discs) >= 1
 
 
@@ -314,8 +354,16 @@ class TestTubmanAccountMatching:
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile
     ) -> None:
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(creditor="ABC Bank", account_number="****1234", balance=3000)],
-            equifax_accounts=[_make_account(creditor="ABC Bank", account_number="****1234", balance=3500)],
+            experian_accounts=[
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=3000
+                )
+            ],
+            equifax_accounts=[
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=3500
+                )
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         assert result.data["accounts_matched"] >= 1
@@ -324,8 +372,16 @@ class TestTubmanAccountMatching:
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile
     ) -> None:
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(creditor="ABC Bank", account_number="****1234", balance=3000)],
-            equifax_accounts=[_make_account(creditor="abc bank", account_number="****1234", balance=3500)],
+            experian_accounts=[
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=3000
+                )
+            ],
+            equifax_accounts=[
+                _make_account(
+                    creditor="abc bank", account_number="****1234", balance=3500
+                )
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         assert result.data["accounts_matched"] >= 1
@@ -334,8 +390,12 @@ class TestTubmanAccountMatching:
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile
     ) -> None:
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(creditor="ABC Bank", account_number="****1234")],
-            equifax_accounts=[_make_account(creditor="XYZ Lender", account_number="****1234")],
+            experian_accounts=[
+                _make_account(creditor="ABC Bank", account_number="****1234")
+            ],
+            equifax_accounts=[
+                _make_account(creditor="XYZ Lender", account_number="****1234")
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         assert result.data["accounts_matched"] == 0
@@ -345,8 +405,16 @@ class TestTubmanAccountMatching:
     ) -> None:
         """Last 4 digits match should count as a match."""
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(creditor="ABC Bank", account_number="XXXX-1234", balance=3000)],
-            equifax_accounts=[_make_account(creditor="ABC Bank", account_number="****1234", balance=3500)],
+            experian_accounts=[
+                _make_account(
+                    creditor="ABC Bank", account_number="XXXX-1234", balance=3000
+                )
+            ],
+            equifax_accounts=[
+                _make_account(
+                    creditor="ABC Bank", account_number="****1234", balance=3500
+                )
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         assert result.data["accounts_matched"] >= 1
@@ -386,8 +454,12 @@ class TestTubmanOutput:
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile
     ) -> None:
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(balance=2500, date_of_first_delinquency="2022-01-15")],
-            equifax_accounts=[_make_account(balance=2800, date_of_first_delinquency="2022-06-01")],
+            experian_accounts=[
+                _make_account(balance=2500, date_of_first_delinquency="2022-01-15")
+            ],
+            equifax_accounts=[
+                _make_account(balance=2800, date_of_first_delinquency="2022-06-01")
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         summary = result.data["severity_summary"]
@@ -397,14 +469,21 @@ class TestTubmanOutput:
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile
     ) -> None:
         ctx = _two_bureau_context(
-            experian_accounts=[_make_account(balance=2500, date_of_first_delinquency="2022-01-15")],
-            equifax_accounts=[_make_account(balance=2800, date_of_first_delinquency="2022-06-01")],
+            experian_accounts=[
+                _make_account(balance=2500, date_of_first_delinquency="2022-01-15")
+            ],
+            equifax_accounts=[
+                _make_account(balance=2800, date_of_first_delinquency="2022-06-01")
+            ],
         )
         result = agent.execute(poor_profile_structured, context=ctx)
         severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
         discs = result.data["discrepancies"]
         for i in range(len(discs) - 1):
-            assert severity_order[discs[i]["severity"]] <= severity_order[discs[i + 1]["severity"]]
+            assert (
+                severity_order[discs[i]["severity"]]
+                <= severity_order[discs[i + 1]["severity"]]
+            )
 
     def test_total_discrepancies_count(
         self, agent: TubmanAgent, poor_profile_structured: CreditProfile

@@ -52,9 +52,7 @@ def _jaccard_similarity(text_a: str, text_b: str) -> float:
     return len(intersection) / len(union)
 
 
-def _is_substantially_same(
-    desc_a: str, desc_b: str, threshold: float
-) -> bool:
+def _is_substantially_same(desc_a: str, desc_b: str, threshold: float) -> bool:
     """Check if two dispute descriptions exceed the substantially-same threshold."""
     return _jaccard_similarity(desc_a, desc_b) >= threshold
 
@@ -75,15 +73,17 @@ def _build_phase1(profile: CreditProfile, rotation: dict) -> dict:
         item_type = item.type.value
         rounds = rotation["issue_types"].get(item_type, [])
         round1 = rounds[0] if rounds else {"basis": "FCRA 611", "statutes": []}
-        steps.append({
-            "item": item.description,
-            "item_type": item_type,
-            "creditor": item.creditor or "Unknown",
-            "legal_basis": round1["basis"],
-            "statutes": round1["statutes"],
-            "target": "bureau",
-            "estimated_days": 30,
-        })
+        steps.append(
+            {
+                "item": item.description,
+                "item_type": item_type,
+                "creditor": item.creditor or "Unknown",
+                "legal_basis": round1["basis"],
+                "statutes": round1["statutes"],
+                "target": "bureau",
+                "estimated_days": 30,
+            }
+        )
     return {
         "phase": 1,
         "name": "Bureau Disputes",
@@ -224,12 +224,14 @@ def _parks_based_actions(parks: dict, profile: CreditProfile) -> list[dict]:
         if threshold > profile.current_score and new_doors:
             points = threshold - profile.current_score
             door_list = ", ".join(new_doors)
-            actions.append({
-                "action": f"Reach score {threshold} to unlock new doors",
-                "impact": f"Opens {len(new_doors)} new opportunities: {door_list}",
-                "timeline": f"Target {points} point improvement over 3-6 months",
-                "why_now": f"Score {threshold} unlocks doors that are currently closed",
-            })
+            actions.append(
+                {
+                    "action": f"Reach score {threshold} to unlock new doors",
+                    "impact": f"Opens {len(new_doors)} new opportunities: {door_list}",
+                    "timeline": f"Target {points} point improvement over 3-6 months",
+                    "why_now": f"Score {threshold} unlocks doors that are currently closed",
+                }
+            )
             break
 
     actions.extend(_default_actions(profile))

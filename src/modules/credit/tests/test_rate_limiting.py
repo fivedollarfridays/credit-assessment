@@ -1,17 +1,6 @@
 """Tests for per-customer rate limiting — T4.3 TDD."""
 
-from unittest.mock import patch
-
-from fastapi.testclient import TestClient
-
 from modules.credit.config import Settings
-from modules.credit.tests.conftest import VALID_ASSESS_PAYLOAD, _TEST_SETTINGS
-
-
-def _get_client():
-    from modules.credit.router import app
-
-    return TestClient(app)
 
 
 class TestRateTierEnum:
@@ -65,28 +54,6 @@ class TestTierLimits:
         from modules.credit.rate_limit import TIER_LIMITS, RateTier
 
         assert TIER_LIMITS[RateTier.ENTERPRISE] is None
-
-
-class TestRateLimitHeaders:
-    """Test rate limit headers in responses."""
-
-    def test_response_includes_rate_limit_header(self):
-        client = _get_client()
-        with patch("modules.credit.router.settings", _TEST_SETTINGS):
-            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
-            assert "X-RateLimit-Limit" in resp.headers
-
-    def test_response_includes_remaining_header(self):
-        client = _get_client()
-        with patch("modules.credit.router.settings", _TEST_SETTINGS):
-            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
-            assert "X-RateLimit-Remaining" in resp.headers
-
-    def test_response_includes_reset_header(self):
-        client = _get_client()
-        with patch("modules.credit.router.settings", _TEST_SETTINGS):
-            resp = client.post("/assess", json=VALID_ASSESS_PAYLOAD)
-            assert "X-RateLimit-Reset" in resp.headers
 
 
 class TestRateLimitExceeded:

@@ -56,9 +56,7 @@ class EoscarAntiTemplateValidator:
     _EVIDENCE = re.compile(
         r"\b(attached|enclosed|statement|receipt|proof)\b", re.IGNORECASE
     )
-    _LEGAL_CITATIONS = re.compile(
-        r"\u00a7|USC|CFR|FCRA|FDCPA", re.IGNORECASE
-    )
+    _LEGAL_CITATIONS = re.compile(r"\u00a7|USC|CFR|FCRA|FDCPA", re.IGNORECASE)
 
     def __init__(self) -> None:
         self._config = load_config("eoscar_patterns")
@@ -71,9 +69,7 @@ class EoscarAntiTemplateValidator:
         content_flags = self._find_content_flags(text)
 
         hardened = (
-            specificity >= 0.6
-            and len(content_flags) == 0
-            and legal_ratio <= 0.05
+            specificity >= 0.6 and len(content_flags) == 0 and legal_ratio <= 0.05
         )
 
         return {
@@ -143,9 +139,7 @@ class EoscarAntiTemplateValidator:
 # ---------------------------------------------------------------------------
 
 
-def _build_recommendations(
-    banned: dict, eoscar: dict
-) -> list[str]:
+def _build_recommendations(banned: dict, eoscar: dict) -> list[str]:
     """Generate human-readable recommendations from validation results."""
     recs: list[str] = []
 

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 from modules.credit.agents.base import AgentResult
 from modules.credit.agents.moses import MosesAgent, _fallback_result
-from modules.credit.agents.resilience import CircuitBreaker
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +26,10 @@ def _ok_agent(name: str, data: dict | None = None) -> MagicMock:
     m = MagicMock()
     m.name = name
     m.execute.return_value = AgentResult(
-        agent_name=name, status="success", data=data or {}, execution_ms=1.0,
+        agent_name=name,
+        status="success",
+        data=data or {},
+        execution_ms=1.0,
     )
     return m
 
@@ -51,7 +53,15 @@ class TestChaosEngineering:
         """All agents raise -- Moses returns degraded, no crash."""
         agents = {
             name: _failing_agent(name)
-            for name in ("parks", "king", "colvin", "robinson", "lewis", "phantom", "truth")
+            for name in (
+                "parks",
+                "king",
+                "colvin",
+                "robinson",
+                "lewis",
+                "phantom",
+                "truth",
+            )
         }
         moses = _make_moses_with(agents)
         result = moses.execute(poor_profile_structured)
@@ -64,16 +74,25 @@ class TestChaosEngineering:
         """One agent fails, others still produce data."""
         agents = {
             "parks": _failing_agent("parks"),
-            "king": _ok_agent("king", {"phases": [{"phase": 1, "name": "P1", "steps": []}]}),
+            "king": _ok_agent(
+                "king", {"phases": [{"phase": 1, "name": "P1", "steps": []}]}
+            ),
             "colvin": _ok_agent("colvin"),
             "robinson": _ok_agent("robinson"),
             "lewis": _ok_agent("lewis"),
-            "phantom": _ok_agent("phantom", {
-                "total_annual_tax": 4000,
-                "methodology_source": "Bristol PFRC",
-                "components": {},
-                "validation": {"in_range": True, "capped": False, "original_total": 4000},
-            }),
+            "phantom": _ok_agent(
+                "phantom",
+                {
+                    "total_annual_tax": 4000,
+                    "methodology_source": "Bristol PFRC",
+                    "components": {},
+                    "validation": {
+                        "in_range": True,
+                        "capped": False,
+                        "original_total": 4000,
+                    },
+                },
+            ),
             "truth": _ok_agent("truth", {"passes": True}),
         }
         moses = _make_moses_with(agents)
@@ -87,8 +106,11 @@ class TestChaosEngineering:
     def test_malformed_input_recovery(self, poor_profile_structured):
         """Weird profile values do not crash the pipeline."""
         from modules.credit.agents.phantom import PhantomAgent
+
         phantom = PhantomAgent()
-        result = phantom.execute(poor_profile_structured, context={"target_industry": "nonexistent"})
+        result = phantom.execute(
+            poor_profile_structured, context={"target_industry": "nonexistent"}
+        )
         assert result.status == "success"
 
     def test_null_pointer_safety(self, poor_profile_structured):

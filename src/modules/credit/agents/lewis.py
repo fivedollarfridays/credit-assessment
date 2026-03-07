@@ -5,17 +5,28 @@ from __future__ import annotations
 from ..types import CreditProfile
 from . import register
 from .base import AgentResult, BaseAgent, load_config
+from .scoring import score_to_band as _score_to_band
 
 LIFE_THRESHOLDS: dict[int, list[str]] = {
     580: ["Private rental without extra deposit", "FHA mortgage eligible"],
     620: ["Conventional mortgage eligible", "Better auto loan rates"],
     650: ["Most credit cards available", "Lower insurance premiums"],
     700: ["Prime auto loan rates", "Best credit card rewards", "Most jobs accessible"],
-    750: ["Best mortgage rates", "Lowest insurance premiums", "Premium credit products"],
+    750: [
+        "Best mortgage rates",
+        "Lowest insurance premiums",
+        "Premium credit products",
+    ],
 }
 
 JOBS_BY_SCORE: dict[int, list[str]] = {
-    0: ["food_service", "retail", "manufacturing", "warehouse_logistics", "construction"],
+    0: [
+        "food_service",
+        "retail",
+        "manufacturing",
+        "warehouse_logistics",
+        "construction",
+    ],
     580: ["healthcare_cna", "trucking_cdl", "education_teacher"],
     620: ["healthcare_admin", "government_state"],
     650: ["finance_banking", "government_federal"],
@@ -31,23 +42,6 @@ _SCORE_MAX = 850
 def _clamp_score(score: int) -> int:
     """Clamp a score to the valid 300-850 range."""
     return max(_SCORE_MIN, min(_SCORE_MAX, score))
-
-
-def _score_to_band(score: int) -> str:
-    """Map a numeric score to the config band key."""
-    if score >= 750:
-        return "750-850"
-    if score >= 700:
-        return "700-749"
-    if score >= 650:
-        return "650-699"
-    if score >= 600:
-        return "600-649"
-    if score >= 550:
-        return "550-599"
-    if score >= 500:
-        return "500-549"
-    return "300-499"
 
 
 def _get_life_outcomes(score: int) -> list[str]:
@@ -68,9 +62,7 @@ def _get_accessible_jobs(score: int) -> list[str]:
     return jobs
 
 
-def _build_projections(
-    profile: CreditProfile, context: dict | None
-) -> dict[str, int]:
+def _build_projections(profile: CreditProfile, context: dict | None) -> dict[str, int]:
     """Calculate score projections for each timepoint."""
     current = profile.current_score
     sim = (context or {}).get("simulation_result", {})
@@ -83,9 +75,7 @@ def _build_projections(
     }
 
 
-def _build_timepoint(
-    score: int, ins_premiums: dict, auto_bands: dict
-) -> dict:
+def _build_timepoint(score: int, ins_premiums: dict, auto_bands: dict) -> dict:
     """Build the full projection dict for a single timepoint."""
     band = _score_to_band(score)
     auto_info = auto_bands[band]
@@ -108,7 +98,8 @@ def _calc_savings(
     ins_saving = max(0.0, ins_premiums[current_band] - ins_premiums[projected_band])
     auto_saving = max(
         0.0,
-        (auto_bands[current_band]["monthly"] - auto_bands[projected_band]["monthly"]) * 12,
+        (auto_bands[current_band]["monthly"] - auto_bands[projected_band]["monthly"])
+        * 12,
     )
     return {
         "insurance": round(ins_saving, 2),
@@ -124,9 +115,7 @@ def _find_new_doors(current_score: int, projected_score: int) -> list[str]:
     return sorted(projected_outcomes - current_outcomes)
 
 
-def _pick_motivational_message(
-    current: int, day30: int, day90: int
-) -> str:
+def _pick_motivational_message(current: int, day30: int, day90: int) -> str:
     """Select a motivational message based on score projections."""
     if day30 >= 580 and current < 580:
         return "In just 30 days, you could qualify for private rental housing"
@@ -136,10 +125,7 @@ def _pick_motivational_message(
             "and lower insurance rates"
         )
     if day90 >= 700 and current < 700:
-        return (
-            "By 90 days, prime auto loan rates and most jobs "
-            "become accessible"
-        )
+        return "By 90 days, prime auto loan rates and most jobs become accessible"
     return "Every point improvement opens new doors — your plan starts today"
 
 
@@ -170,8 +156,12 @@ class LewisAgent(BaseAgent):
         band_90 = _score_to_band(scores["90_days"])
 
         annual_savings = {
-            "30_day_plan": _calc_savings(current_band, band_30, ins_premiums, auto_bands),
-            "90_day_plan": _calc_savings(current_band, band_90, ins_premiums, auto_bands),
+            "30_day_plan": _calc_savings(
+                current_band, band_30, ins_premiums, auto_bands
+            ),
+            "90_day_plan": _calc_savings(
+                current_band, band_90, ins_premiums, auto_bands
+            ),
         }
 
         new_doors = {

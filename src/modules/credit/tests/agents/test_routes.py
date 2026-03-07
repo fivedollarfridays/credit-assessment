@@ -91,9 +91,7 @@ class TestCompareBureausEndpoint:
     """Test POST /v1/compare-bureaus — cross-bureau scan."""
 
     def test_compare_bureaus_200(self, client, bypass_auth):
-        resp = client.post(
-            "/v1/compare-bureaus", json=_COMPARE_BUREAUS_PAYLOAD
-        )
+        resp = client.post("/v1/compare-bureaus", json=_COMPARE_BUREAUS_PAYLOAD)
         assert resp.status_code == 200
 
     def test_compare_bureaus_requires_bureau_reports(self, client, bypass_auth):
@@ -104,9 +102,7 @@ class TestCompareBureausEndpoint:
         assert resp.status_code == 422
 
     def test_compare_bureaus_requires_auth(self, client):
-        resp = client.post(
-            "/v1/compare-bureaus", json=_COMPARE_BUREAUS_PAYLOAD
-        )
+        resp = client.post("/v1/compare-bureaus", json=_COMPARE_BUREAUS_PAYLOAD)
         assert resp.status_code in (401, 403)
 
 

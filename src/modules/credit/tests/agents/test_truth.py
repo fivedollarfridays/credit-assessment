@@ -4,11 +4,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
-
-from modules.credit.agents.base import AgentResult, load_config
-from modules.credit.types import CreditProfile
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -153,7 +148,9 @@ class TestEoscarAntiTemplateValidator:
         v = _get_eoscar_validator()
         result = v.check(TEMPLATE_TEXT)
         # Template text lacks specificity elements
-        assert result["specificity_score"] < 0.6 or len(result["content_flags_found"]) > 0
+        assert (
+            result["specificity_score"] < 0.6 or len(result["content_flags_found"]) > 0
+        )
         assert result["eoscar_hardened"] is False
 
     def test_structure_hash_format(self):

@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
+
+import httpx
 
 from . import register
 from .base import AgentResult, BaseAgent, load_config
 from ..types import CreditProfile
+
+_BRIGHT_DATA_ALLOWED_HOST = "api.brightdata.com"
+_BRIGHT_DATA_URL = (
+    "https://api.brightdata.com/datasets/v3/trigger?dataset_id=jobs_montgomery_al"
+)
+if httpx.URL(_BRIGHT_DATA_URL).host != _BRIGHT_DATA_ALLOWED_HOST:
+    raise RuntimeError("_BRIGHT_DATA_URL host does not match allowlist")
 
 
 def _check_eligibility(service: dict, profile: CreditProfile) -> bool:
@@ -63,36 +73,72 @@ def _generate_recommendation(profile: CreditProfile, is_thin: bool) -> str:
 
 
 _STATIC_JOBS = [
-    {"title": "CNA - Baptist Medical Center", "employer": "Baptist Health", "credit_check": False},
+    {
+        "title": "CNA - Baptist Medical Center",
+        "employer": "Baptist Health",
+        "credit_check": False,
+    },
     {"title": "Warehouse Associate", "employer": "Amazon MGM5", "credit_check": False},
     {"title": "Line Cook", "employer": "Dreamland BBQ", "credit_check": False},
     {"title": "CDL Driver", "employer": "Werner Enterprises", "credit_check": False},
-    {"title": "Retail Associate", "employer": "Walmart Supercenter", "credit_check": False},
+    {
+        "title": "Retail Associate",
+        "employer": "Walmart Supercenter",
+        "credit_check": False,
+    },
 ]
 
 
 def _fetch_bright_data_jobs() -> dict:
     """Fetch Montgomery job listings via Bright Data, with graceful fallback."""
-    api_key = os.environ.get("BRIGHT_DATA_API_KEY")
-    if not api_key:
-        return {"live_data": False, "source": "static", "jobs": _STATIC_JOBS,
-                "note": "Live data unavailable — set BRIGHT_DATA_API_KEY"}
+    api_key = os.environ.get("BRIGHT_DATA_API_KEY", "")
+    if not api_key or not api_key.strip():
+        return {
+            "live_data": False,
+            "source": "static",
+            "jobs": _STATIC_JOBS,
+            "note": "Live data unavailable — set BRIGHT_DATA_API_KEY",
+        }
+
+    if urlparse(_BRIGHT_DATA_URL).hostname != _BRIGHT_DATA_ALLOWED_HOST:
+        return {
+            "live_data": False,
+            "source": "static",
+            "jobs": _STATIC_JOBS,
+            "note": "Blocked — URL host not in allowlist",
+        }
+
     try:
-        import urllib.request
-        import json as _json
-        url = "https://api.brightdata.com/datasets/v3/trigger?dataset_id=jobs_montgomery_al"
-        req = urllib.request.Request(url, headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        })
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = _json.loads(resp.read())
-        jobs = [{"title": j.get("title", ""), "employer": j.get("company", ""),
-                 "credit_check": False} for j in data.get("results", [])[:10]]
-        return {"live_data": True, "source": "bright_data", "jobs": jobs or _STATIC_JOBS}
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(
+                _BRIGHT_DATA_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        jobs = [
+            {
+                "title": j.get("title", ""),
+                "employer": j.get("company", ""),
+                "credit_check": False,
+            }
+            for j in data.get("results", [])[:10]
+        ]
+        return {
+            "live_data": True,
+            "source": "bright_data",
+            "jobs": jobs or _STATIC_JOBS,
+        }
     except Exception:
-        return {"live_data": False, "source": "static", "jobs": _STATIC_JOBS,
-                "note": "Bright Data request failed — using cached results"}
+        return {
+            "live_data": False,
+            "source": "static",
+            "jobs": _STATIC_JOBS,
+            "note": "Bright Data request failed — using cached results",
+        }
 
 
 @register
@@ -100,7 +146,9 @@ class RobinsonAgent(BaseAgent):
     """Finds free credit-building opportunities and local resources."""
 
     name: str = "robinson"
-    description: str = "Door Finder — free credit-building opportunities for Montgomery, AL"
+    description: str = (
+        "Door Finder — free credit-building opportunities for Montgomery, AL"
+    )
 
     def _execute(
         self, profile: CreditProfile, context: dict | None = None

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from modules.credit.agents.base import AgentResult, load_config
+from modules.credit.agents.base import AgentResult
 from modules.credit.types import (
     AccountSummary,
     CreditProfile,
@@ -57,6 +57,7 @@ def no_collections_low_score() -> CreditProfile:
 def _get_parks():
     """Import and instantiate Parks agent."""
     from modules.credit.agents.parks import ParksAgent
+
     return ParksAgent()
 
 
@@ -94,7 +95,10 @@ class TestParksEmployment:
         by_name = {e["industry"]: e for e in emp}
         entry = by_name["finance_banking"]
         assert entry["status"] == "blocked"
-        assert "score" in entry["reason"].lower() or "collection" in entry["reason"].lower()
+        assert (
+            "score" in entry["reason"].lower()
+            or "collection" in entry["reason"].lower()
+        )
 
     def test_no_collections_still_score_blocked(self, no_collections_low_score):
         """Even with 0 collections, score 535 < 650 blocks finance_banking."""
@@ -114,7 +118,9 @@ class TestParksEmployment:
         result = _run_parks(excellent_profile)
         emp = result.data["life_barriers"]["employment"]
         for entry in emp:
-            assert entry["status"] == "accessible", f"{entry['industry']} should be accessible"
+            assert entry["status"] == "accessible", (
+                f"{entry['industry']} should be accessible"
+            )
 
     def test_wage_included(self, poor_profile_structured):
         result = _run_parks(poor_profile_structured)
@@ -156,7 +162,11 @@ class TestParksHousing:
             payment_history_pct=85.0,
             average_account_age_months=24,
             negative_items=[
-                NegativeItem(type=NegativeItemType.COLLECTION, description="Old debt", amount=300.0),
+                NegativeItem(
+                    type=NegativeItemType.COLLECTION,
+                    description="Old debt",
+                    amount=300.0,
+                ),
             ],
         )
         result = _run_parks(profile)
@@ -233,7 +243,10 @@ class TestParksDoors:
     def test_points_needed_calculation(self, poor_profile_structured):
         result = _run_parks(poor_profile_structured)
         cd = result.data["cheapest_door"]
-        assert cd["points_needed"] == cd["threshold"] - poor_profile_structured.current_score
+        assert (
+            cd["points_needed"]
+            == cd["threshold"] - poor_profile_structured.current_score
+        )
 
 
 # ---- Edge Cases ----

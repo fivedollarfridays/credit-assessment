@@ -5,12 +5,13 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .audit import get_audit_trail
 from .database import get_db
+from .rate_limit import limiter
 from .repo_api_keys import ApiKeyRepository
 from .roles import Role, require_role
 
@@ -31,7 +32,10 @@ class ApiKeyResponse(BaseModel):
 
 
 @router.get("/users", dependencies=[Depends(require_role(Role.ADMIN))])
-async def list_users(db: AsyncSession = Depends(get_db)) -> list[dict]:
+@limiter.limit("60/minute")
+async def list_users(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> list[dict]:
     """List all registered users. Admin only."""
     from .repo_users import UserRepository
 
@@ -53,8 +57,9 @@ async def list_users(db: AsyncSession = Depends(get_db)) -> list[dict]:
     status_code=201,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
+@limiter.limit("10/minute")
 async def create_api_key(
-    req: ApiKeyRequest, db: AsyncSession = Depends(get_db)
+    request: Request, req: ApiKeyRequest, db: AsyncSession = Depends(get_db)
 ) -> ApiKeyResponse:
     """Create a scoped API key for an organization. Admin only."""
     key = secrets.token_urlsafe(32)
@@ -74,9 +79,11 @@ async def create_api_key(
 
 
 @router.get("/audit-log", dependencies=[Depends(require_role(Role.ADMIN))])
+@limiter.limit("60/minute")
 async def audit_log(
-    action: str | None = None,
-    limit: int | None = None,
+    request: Request,
+    action: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Query audit trail entries with optional filters."""
@@ -85,7 +92,10 @@ async def audit_log(
 
 
 @router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])
-async def revoke_api_key(api_key: str, db: AsyncSession = Depends(get_db)) -> dict:
+@limiter.limit("10/minute")
+async def revoke_api_key(
+    request: Request, api_key: str, db: AsyncSession = Depends(get_db)
+) -> dict:
     """Revoke an API key. Admin only."""
     repo = ApiKeyRepository(db)
     revoked = await repo.revoke(api_key)

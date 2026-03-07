@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,34 +15,48 @@ from modules.credit.agents.resilience import CircuitBreaker
 # Helpers: mock agent factory + mock Kevin services
 # ---------------------------------------------------------------------------
 
+
 def _ok(name: str, data: dict | None = None) -> AgentResult:
     """Build a successful AgentResult."""
-    return AgentResult(agent_name=name, status="success", data=data or {}, execution_ms=1.0)
+    return AgentResult(
+        agent_name=name, status="success", data=data or {}, execution_ms=1.0
+    )
 
 
 def _make_parks_ok() -> AgentResult:
-    return _ok("parks", {
-        "life_barriers": {"employment": [], "housing": []},
-        "doors_analysis": [{"threshold": 580, "new_doors": ["housing:private"], "count": 1}],
-        "cheapest_door": {"threshold": 580, "points_needed": 45},
-        "roi_per_door": [],
-    })
+    return _ok(
+        "parks",
+        {
+            "life_barriers": {"employment": [], "housing": []},
+            "doors_analysis": [
+                {"threshold": 580, "new_doors": ["housing:private"], "count": 1}
+            ],
+            "cheapest_door": {"threshold": 580, "points_needed": 45},
+            "roi_per_door": [],
+        },
+    )
 
 
 def _make_king_ok() -> AgentResult:
-    return _ok("king", {
-        "phases": [{"phase": 1, "name": "Bureau Disputes", "steps": []}],
-        "total_estimated_days": 90,
-    })
+    return _ok(
+        "king",
+        {
+            "phases": [{"phase": 1, "name": "Bureau Disputes", "steps": []}],
+            "total_estimated_days": 90,
+        },
+    )
 
 
 def _make_phantom_ok() -> AgentResult:
-    return _ok("phantom", {
-        "total_annual_tax": 4200,
-        "methodology_source": "Bristol PFRC",
-        "components": {},
-        "validation": {"in_range": True, "capped": False, "original_total": 4200},
-    })
+    return _ok(
+        "phantom",
+        {
+            "total_annual_tax": 4200,
+            "methodology_source": "Bristol PFRC",
+            "components": {},
+            "validation": {"in_range": True, "capped": False, "original_total": 4200},
+        },
+    )
 
 
 def _make_truth_ok() -> AgentResult:
@@ -56,8 +70,17 @@ def _make_generic_ok(name: str) -> AgentResult:
 def _build_all_mocks() -> dict[str, MagicMock]:
     """Return a dict of mock agents keyed by name."""
     agents = {}
-    for name in ("parks", "king", "phantom", "truth", "robinson",
-                 "gray", "tubman", "lewis", "colvin"):
+    for name in (
+        "parks",
+        "king",
+        "phantom",
+        "truth",
+        "robinson",
+        "gray",
+        "tubman",
+        "lewis",
+        "colvin",
+    ):
         m = MagicMock()
         m.name = name
         agents[name] = m
@@ -87,7 +110,8 @@ def mock_kevin():
     )
     dispute = MagicMock()
     dispute.generate_pathway.return_value = MagicMock(
-        steps=[], total_estimated_days=30,
+        steps=[],
+        total_estimated_days=30,
     )
     return {"assessment": assess, "dispute": dispute}
 
@@ -95,6 +119,7 @@ def mock_kevin():
 def _make_moses(mock_agents, mock_kevin):
     """Create a MosesAgent with injected mocks."""
     from modules.credit.agents.moses import MosesAgent
+
     agent = MosesAgent()
     agent._agents = mock_agents
     agent._assessment_svc = mock_kevin["assessment"]
@@ -106,29 +131,49 @@ def _make_moses(mock_agents, mock_kevin):
 # TestMosesExecution
 # ===========================================================================
 
-class TestMosesExecution:
 
+class TestMosesExecution:
     def test_all_agents_called(self, poor_profile_structured, mock_agents, mock_kevin):
         moses = _make_moses(mock_agents, mock_kevin)
-        result = moses.execute(poor_profile_structured)
-        for name in ("parks", "king", "colvin", "robinson", "lewis", "phantom", "truth"):
+        moses.execute(poor_profile_structured)
+        for name in (
+            "parks",
+            "king",
+            "colvin",
+            "robinson",
+            "lewis",
+            "phantom",
+            "truth",
+        ):
             assert mock_agents[name].execute.called, f"{name} not called"
 
     def test_execution_order(self, poor_profile_structured, mock_agents, mock_kevin):
         call_order = []
         for name, m in mock_agents.items():
             orig_rv = m.execute.return_value
+
             def _side(prof, _n=name, _rv=orig_rv, **kw):
                 call_order.append(_n)
                 return _rv
+
             m.execute.side_effect = _side
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
-        expected_base = ["parks", "king", "colvin", "robinson", "lewis", "phantom", "truth"]
+        expected_base = [
+            "parks",
+            "king",
+            "colvin",
+            "robinson",
+            "lewis",
+            "phantom",
+            "truth",
+        ]
         actual_base = [n for n in call_order if n in expected_base]
         assert actual_base == expected_base
 
-    def test_result_has_liberation_plan(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_result_has_liberation_plan(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         assert "liberation_plan" in result.data
@@ -140,23 +185,31 @@ class TestMosesExecution:
         assert isinstance(chain, list)
         assert len(chain) >= 7
 
-    def test_conditional_gray_skipped(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_conditional_gray_skipped(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured, context={})
         assert not mock_agents["gray"].execute.called
 
-    def test_conditional_tubman_skipped(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_conditional_tubman_skipped(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured, context={})
         assert not mock_agents["tubman"].execute.called
 
-    def test_gray_fires_with_denial(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_gray_fires_with_denial(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         ctx = {"denial_context": {"reason": "too many collections"}}
         moses.execute(poor_profile_structured, context=ctx)
         assert mock_agents["gray"].execute.called
 
-    def test_tubman_fires_with_bureaus(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_tubman_fires_with_bureaus(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         ctx = {"bureau_reports": {"experian": {}, "equifax": {}}}
         moses.execute(poor_profile_structured, context=ctx)
@@ -167,46 +220,65 @@ class TestMosesExecution:
 # TestMosesValidation
 # ===========================================================================
 
-class TestMosesValidation:
 
-    def test_parks_validation_passes(self, poor_profile_structured, mock_agents, mock_kevin):
+class TestMosesValidation:
+    def test_parks_validation_passes(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         lp = result.data["liberation_plan"]
         assert "situation" in lp
 
-    def test_parks_validation_fails_fallback(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_parks_validation_fails_fallback(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["parks"].execute.return_value = _ok("parks", {"bad": True})
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         lp = result.data["liberation_plan"]
         assert "situation" in lp  # fallback used
 
-    def test_king_validation_passes(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_king_validation_passes(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         lp = result.data["liberation_plan"]
         assert "battle_plan" in lp
 
-    def test_phantom_validation_range(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_phantom_validation_range(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         tax = result.data["liberation_plan"]["poverty_tax"]
         assert 1500 <= tax.get("total_annual_tax", 0) <= 15000
 
-    def test_phantom_out_of_range_fallback(self, poor_profile_structured, mock_agents, mock_kevin):
-        mock_agents["phantom"].execute.return_value = _ok("phantom", {
-            "total_annual_tax": 0, "methodology_source": "Bristol PFRC",
-        })
+    def test_phantom_out_of_range_fallback(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
+        mock_agents["phantom"].execute.return_value = _ok(
+            "phantom",
+            {
+                "total_annual_tax": 0,
+                "methodology_source": "Bristol PFRC",
+            },
+        )
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         tax = result.data["liberation_plan"]["poverty_tax"]
         assert tax["total_annual_tax"] == 3500
 
-    def test_phantom_fallback_has_methodology(self, poor_profile_structured, mock_agents, mock_kevin):
-        mock_agents["phantom"].execute.return_value = _ok("phantom", {
-            "total_annual_tax": 0,
-        })
+    def test_phantom_fallback_has_methodology(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
+        mock_agents["phantom"].execute.return_value = _ok(
+            "phantom",
+            {
+                "total_annual_tax": 0,
+            },
+        )
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         tax = result.data["liberation_plan"]["poverty_tax"]
@@ -217,9 +289,11 @@ class TestMosesValidation:
 # TestMosesFallbacks
 # ===========================================================================
 
-class TestMosesFallbacks:
 
-    def test_phantom_fallback_is_3500(self, poor_profile_structured, mock_agents, mock_kevin):
+class TestMosesFallbacks:
+    def test_phantom_fallback_is_3500(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["phantom"].execute.return_value = AgentResult(
             agent_name="phantom", status="error", errors=["boom"]
         )
@@ -228,7 +302,9 @@ class TestMosesFallbacks:
         tax = result.data["liberation_plan"]["poverty_tax"]
         assert tax["total_annual_tax"] == 3500
 
-    def test_king_fallback_has_phases(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_king_fallback_has_phases(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["king"].execute.return_value = AgentResult(
             agent_name="king", status="error", errors=["boom"]
         )
@@ -237,7 +313,9 @@ class TestMosesFallbacks:
         bp = result.data["liberation_plan"]["battle_plan"]
         assert "phases" in bp
 
-    def test_parks_fallback_empty(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_parks_fallback_empty(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["parks"].execute.return_value = AgentResult(
             agent_name="parks", status="error", errors=["boom"]
         )
@@ -246,7 +324,9 @@ class TestMosesFallbacks:
         sit = result.data["liberation_plan"]["situation"]
         assert sit.get("doors_analysis") == []
 
-    def test_fallback_details_tracked(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_fallback_details_tracked(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["parks"].execute.return_value = AgentResult(
             agent_name="parks", status="error", errors=["boom"]
         )
@@ -255,7 +335,9 @@ class TestMosesFallbacks:
         fb = result.data["validation_summary"]["fallback_details"]
         assert "parks" in fb
 
-    def test_agents_fallback_count(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_agents_fallback_count(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["parks"].execute.return_value = AgentResult(
             agent_name="parks", status="error", errors=["boom"]
         )
@@ -266,7 +348,9 @@ class TestMosesFallbacks:
         result = moses.execute(poor_profile_structured)
         assert result.data["validation_summary"]["agents_fallback"] == 2
 
-    def test_fallback_never_null(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_fallback_never_null(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         for name in ("parks", "king", "phantom"):
             mock_agents[name].execute.return_value = AgentResult(
                 agent_name=name, status="error", errors=["fail"]
@@ -283,8 +367,8 @@ class TestMosesFallbacks:
 # TestMosesCircuitBreaker
 # ===========================================================================
 
-class TestMosesCircuitBreaker:
 
+class TestMosesCircuitBreaker:
     def test_circuit_opens_after_failures(self, poor_profile_structured, mock_kevin):
         agents = _build_all_mocks()
         agents["parks"].execute.return_value = AgentResult(
@@ -341,21 +425,27 @@ class TestMosesCircuitBreaker:
 # TestMosesDLQ
 # ===========================================================================
 
-class TestMosesDLQ:
 
-    def test_dlq_stores_failures(self, poor_profile_structured, mock_agents, mock_kevin):
+class TestMosesDLQ:
+    def test_dlq_stores_failures(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["colvin"].execute.side_effect = RuntimeError("crash")
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
         assert moses._dlq.count >= 1
 
-    def test_dlq_count_in_summary(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_dlq_count_in_summary(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["colvin"].execute.side_effect = RuntimeError("crash")
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         assert result.data["validation_summary"]["dlq_count"] >= 1
 
-    def test_dlq_entry_has_agent_name(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_dlq_entry_has_agent_name(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["lewis"].execute.side_effect = RuntimeError("crash")
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
@@ -363,7 +453,9 @@ class TestMosesDLQ:
         names = [e["agent_name"] for e in entries]
         assert "lewis" in names
 
-    def test_dlq_entry_has_error(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_dlq_entry_has_error(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         mock_agents["lewis"].execute.side_effect = RuntimeError("kaboom")
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
@@ -375,8 +467,8 @@ class TestMosesDLQ:
 # TestMosesPerformance
 # ===========================================================================
 
-class TestMosesPerformance:
 
+class TestMosesPerformance:
     def test_per_agent_ms(self, poor_profile_structured, mock_agents, mock_kevin):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
@@ -388,7 +480,9 @@ class TestMosesPerformance:
         result = moses.execute(poor_profile_structured)
         assert result.data["performance"]["total_time_ms"] >= 0
 
-    def test_performance_in_output(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_performance_in_output(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         assert "performance" in result.data
@@ -403,8 +497,8 @@ class TestMosesPerformance:
 # TestMosesOutput
 # ===========================================================================
 
-class TestMosesOutput:
 
+class TestMosesOutput:
     def test_community_impact(self, poor_profile_structured, mock_agents, mock_kevin):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
@@ -415,12 +509,19 @@ class TestMosesOutput:
         result = moses.execute(poor_profile_structured)
         assert "Dynatrace" in result.data["why_deterministic"]
 
-    def test_validation_summary_structure(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_validation_summary_structure(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         result = moses.execute(poor_profile_structured)
         vs = result.data["validation_summary"]
-        for key in ("agents_passed", "agents_fallback", "fallback_details",
-                     "circuits_opened", "dlq_count"):
+        for key in (
+            "agents_passed",
+            "agents_fallback",
+            "fallback_details",
+            "circuits_opened",
+            "dlq_count",
+        ):
             assert key in vs, f"missing key: {key}"
 
     def test_compliance_section(self, poor_profile_structured, mock_agents, mock_kevin):
@@ -431,6 +532,7 @@ class TestMosesOutput:
     def test_agent_registered(self):
         from modules.credit.agents.moses import MosesAgent  # noqa: F401
         from modules.credit.agents import list_agents
+
         assert "moses" in list_agents()
 
 
@@ -438,18 +540,70 @@ class TestMosesOutput:
 # TestMosesContextPassing
 # ===========================================================================
 
-class TestMosesContextPassing:
 
-    def test_parks_result_passed_to_king(self, poor_profile_structured, mock_agents, mock_kevin):
+class TestMosesContextPassing:
+    def test_parks_result_passed_to_king(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
         king_call = mock_agents["king"].execute.call_args
-        ctx = king_call[1].get("context") or king_call[0][1] if len(king_call[0]) > 1 else king_call[1].get("context", {})
+        ctx = (
+            king_call[1].get("context") or king_call[0][1]
+            if len(king_call[0]) > 1
+            else king_call[1].get("context", {})
+        )
         assert "parks_result" in ctx
 
-    def test_parks_result_passed_to_lewis(self, poor_profile_structured, mock_agents, mock_kevin):
+    def test_parks_result_passed_to_lewis(
+        self, poor_profile_structured, mock_agents, mock_kevin
+    ):
         moses = _make_moses(mock_agents, mock_kevin)
         moses.execute(poor_profile_structured)
         lewis_call = mock_agents["lewis"].execute.call_args
-        ctx = lewis_call[1].get("context") or lewis_call[0][1] if len(lewis_call[0]) > 1 else lewis_call[1].get("context", {})
+        ctx = (
+            lewis_call[1].get("context") or lewis_call[0][1]
+            if len(lewis_call[0]) > 1
+            else lewis_call[1].get("context", {})
+        )
         assert "parks_result" in ctx
+
+
+class TestSharedResilienceState:
+    """T25.3: create_wired_moses() should share breakers/DLQ/benchmark."""
+
+    def test_two_moses_share_breakers_identity(self) -> None:
+        """Two consecutive create_wired_moses() calls share the same breakers dict."""
+        from modules.credit.agents import create_wired_moses
+
+        m1 = create_wired_moses()
+        m2 = create_wired_moses()
+        assert m1._breakers is m2._breakers
+
+    def test_breaker_tripped_persists_across_instances(self) -> None:
+        """Breaker tripped in instance 1 stays open for instance 2."""
+        from modules.credit.agents import create_wired_moses
+
+        m1 = create_wired_moses()
+        # Trip parks breaker
+        for _ in range(3):
+            m1._breakers["parks"].record_failure()
+        assert m1._breakers["parks"].state == "open"
+
+        m2 = create_wired_moses()
+        assert m2._breakers["parks"].state == "open"
+        # Reset for cleanup
+        m1._breakers["parks"].reset()
+
+    def test_dlq_shared_across_instances(self) -> None:
+        """DLQ entries from instance 1 are visible in instance 2."""
+        from modules.credit.agents import create_wired_moses
+
+        m1 = create_wired_moses()
+        m1._dlq.add(agent_name="test", error=Exception("test error"))
+        assert m1._dlq.count == 1
+
+        m2 = create_wired_moses()
+        assert m2._dlq.count >= 1
+        # Cleanup
+        m1._dlq.drain()

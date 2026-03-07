@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from modules.credit.agents import get_agent
-from modules.credit.agents.base import AgentResult
 from modules.credit.types import (
     AccountSummary,
     CreditProfile,
@@ -126,7 +125,9 @@ class TestColvinCycles:
             by_item.setdefault(c["item"], []).append(c)
         for item_cycles in by_item.values():
             bases = [c["legal_basis"] for c in item_cycles]
-            assert len(bases) == len(set(bases)), "Legal bases should be unique per item"
+            assert len(bases) == len(set(bases)), (
+                "Legal bases should be unique per item"
+            )
 
     def test_statutes_included(
         self, agent, poor_profile_structured: CreditProfile
@@ -142,9 +143,16 @@ class TestColvinCycles:
         """All required fields are present in each cycle."""
         result = agent.execute(poor_profile_structured)
         required_keys = {
-            "cycle", "item", "creditor", "bureau",
-            "legal_basis", "statutes", "day_start", "day_end",
-            "factual_target", "format_recommendation",
+            "cycle",
+            "item",
+            "creditor",
+            "bureau",
+            "legal_basis",
+            "statutes",
+            "day_start",
+            "day_end",
+            "factual_target",
+            "format_recommendation",
         }
         for cycle in result.data["attack_cycles"]:
             assert required_keys.issubset(cycle.keys())
@@ -262,8 +270,10 @@ class TestColvinFactualTargets:
         result = agent.execute(poor_profile_structured)
         for cycle in result.data["attack_cycles"]:
             # All items in poor_profile_structured are collections
-            assert "balance" in cycle["factual_target"].lower() or \
-                   "amount" in cycle["factual_target"].lower()
+            assert (
+                "balance" in cycle["factual_target"].lower()
+                or "amount" in cycle["factual_target"].lower()
+            )
 
     def test_factual_target_includes_amount(
         self, agent, poor_profile_structured: CreditProfile

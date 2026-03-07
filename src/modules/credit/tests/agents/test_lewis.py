@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from modules.credit.agents.base import AgentResult
 from modules.credit.types import (
@@ -19,9 +18,7 @@ def _get_lewis():
     return LewisAgent()
 
 
-def _run_lewis(
-    profile: CreditProfile, context: dict | None = None
-) -> AgentResult:
+def _run_lewis(profile: CreditProfile, context: dict | None = None) -> AgentResult:
     """Execute Lewis agent and assert success."""
     agent = _get_lewis()
     result = agent.execute(profile, context)

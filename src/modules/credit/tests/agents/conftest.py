@@ -32,8 +32,18 @@ def poor_profile_structured() -> CreditProfile:
         payment_history_pct=68.0,
         average_account_age_months=18,
         negative_items=[
-            NegativeItem(type=NegativeItemType.COLLECTION, description="Medical collection - $1,200", amount=1200.0, creditor="ABC Collections"),
-            NegativeItem(type=NegativeItemType.COLLECTION, description="Phone bill collection - $450", amount=450.0, creditor="XYZ Recovery"),
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Medical collection - $1,200",
+                amount=1200.0,
+                creditor="ABC Collections",
+            ),
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Phone bill collection - $450",
+                amount=450.0,
+                creditor="XYZ Recovery",
+            ),
         ],
     )
 

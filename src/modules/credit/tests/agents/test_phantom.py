@@ -74,9 +74,19 @@ def lowest_band_profile() -> CreditProfile:
         payment_history_pct=50.0,
         average_account_age_months=24,
         negative_items=[
-            NegativeItem(type=NegativeItemType.COLLECTION, description="Medical $5000", amount=5000.0),
-            NegativeItem(type=NegativeItemType.COLLECTION, description="CC $8000", amount=8000.0),
-            NegativeItem(type=NegativeItemType.COLLECTION, description="Utility $500", amount=500.0),
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Medical $5000",
+                amount=5000.0,
+            ),
+            NegativeItem(
+                type=NegativeItemType.COLLECTION, description="CC $8000", amount=8000.0
+            ),
+            NegativeItem(
+                type=NegativeItemType.COLLECTION,
+                description="Utility $500",
+                amount=500.0,
+            ),
         ],
     )
 
@@ -104,6 +114,7 @@ def zero_balance_profile() -> CreditProfile:
 def _get_phantom():
     """Import and instantiate Phantom agent."""
     from modules.credit.agents.phantom import PhantomAgent
+
     return PhantomAgent()
 
 
@@ -120,24 +131,24 @@ def _run_phantom(profile: CreditProfile, context: dict | None = None) -> AgentRe
 
 class TestPhantomScoreBand:
     def test_score_535_maps_to_500_549(self):
-        from modules.credit.agents.phantom import PhantomAgent
-        agent = PhantomAgent()
-        assert agent._score_to_band(535) == "500-549"
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(535) == "500-549"
 
     def test_score_750_maps_to_750_850(self):
-        from modules.credit.agents.phantom import PhantomAgent
-        agent = PhantomAgent()
-        assert agent._score_to_band(750) == "750-850"
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(750) == "750-850"
 
     def test_score_300_maps_to_300_499(self):
-        from modules.credit.agents.phantom import PhantomAgent
-        agent = PhantomAgent()
-        assert agent._score_to_band(300) == "300-499"
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(300) == "300-499"
 
     def test_score_650_maps_to_650_699(self):
-        from modules.credit.agents.phantom import PhantomAgent
-        agent = PhantomAgent()
-        assert agent._score_to_band(650) == "650-699"
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(650) == "650-699"
 
 
 # ---- TestPhantomCreditPremium ----
@@ -149,7 +160,9 @@ class TestPhantomCreditPremium:
         result = _run_phantom(poor_profile_structured)
         credit = result.data["components"]["credit_premium"]
         config = load_config("poverty_tax_tables")
-        band_cost = config["components"]["credit_premium"]["bands"]["500-549"]["annual_cost"]
+        band_cost = config["components"]["credit_premium"]["bands"]["500-549"][
+            "annual_cost"
+        ]
         expected = band_cost * (4200.0 / 10000.0)
         assert credit["annual_cost"] == pytest.approx(expected)
 
@@ -163,7 +176,9 @@ class TestPhantomCreditPremium:
         result = _run_phantom(lowest_band_profile)
         credit = result.data["components"]["credit_premium"]
         config = load_config("poverty_tax_tables")
-        band_cost = config["components"]["credit_premium"]["bands"]["300-499"]["annual_cost"]
+        band_cost = config["components"]["credit_premium"]["bands"]["300-499"][
+            "annual_cost"
+        ]
         expected = band_cost * (25000.0 / 10000.0)
         assert credit["annual_cost"] == pytest.approx(expected)
 
@@ -193,7 +208,9 @@ class TestPhantomInsurance:
         result = _run_phantom(fair_profile)
         ins = result.data["components"]["insurance_premium"]
         config = load_config("poverty_tax_tables")
-        expected = config["components"]["insurance_premium"]["bands"]["650-699"]["annual_cost"]
+        expected = config["components"]["insurance_premium"]["bands"]["650-699"][
+            "annual_cost"
+        ]
         assert ins["annual_cost"] == expected
 
 
@@ -209,16 +226,22 @@ class TestPhantomEmployment:
 
     def test_custom_target_industry(self, poor_profile_structured):
         """Context overrides default industry."""
-        result = _run_phantom(poor_profile_structured, {"target_industry": "finance_banking"})
+        result = _run_phantom(
+            poor_profile_structured, {"target_industry": "finance_banking"}
+        )
         emp = result.data["components"]["employment_barrier"]
         assert emp["industry"] == "finance_banking"
 
     def test_employment_cost_with_blocking(self, poor_profile_structured):
         """Score 535 with collections -> blocked from healthcare_admin."""
-        result = _run_phantom(poor_profile_structured, {"target_industry": "healthcare_admin"})
+        result = _run_phantom(
+            poor_profile_structured, {"target_industry": "healthcare_admin"}
+        )
         emp = result.data["components"]["employment_barrier"]
         config = load_config("poverty_tax_tables")
-        expected = config["components"]["employment_barrier"]["categories"]["healthcare_admin"]["annual_loss"]
+        expected = config["components"]["employment_barrier"]["categories"][
+            "healthcare_admin"
+        ]["annual_loss"]
         assert emp["annual_cost"] == expected
 
     def test_employment_zero_when_not_blocked(self, excellent_profile):
@@ -248,7 +271,9 @@ class TestPhantomHousing:
         result = _run_phantom(fair_profile)
         housing = result.data["components"]["housing_premium"]
         config = load_config("poverty_tax_tables")
-        expected = config["components"]["housing_premium"]["bands"]["650-699"]["annual_cost"]
+        expected = config["components"]["housing_premium"]["bands"]["650-699"][
+            "annual_cost"
+        ]
         assert housing["annual_cost"] == expected
 
 
@@ -305,7 +330,6 @@ class TestPhantomKillPlan:
     def test_kill_plan_has_all_components(self, poor_profile_structured):
         result = _run_phantom(poor_profile_structured)
         kill_plan = result.data["kill_plan"]
-        component_names = {item["component"] for item in kill_plan}
         # Should have all 4 components (those with non-zero cost)
         assert len(kill_plan) >= 3  # at least 3 non-zero components
 
@@ -369,4 +393,5 @@ class TestPhantomRegistration:
         # Importing the module triggers registration
         import modules.credit.agents.phantom  # noqa: F401
         from modules.credit.agents import _REGISTRY
+
         assert "phantom" in _REGISTRY

@@ -32,8 +32,7 @@ def _factual_target(item: NegativeItem) -> str:
             "Payment status reported as late is factually incorrect"
         ),
         NegativeItemType.CHARGE_OFF: (
-            f"Charge-off balance of {amount_str} does not reflect "
-            "actual amount owed"
+            f"Charge-off balance of {amount_str} does not reflect actual amount owed"
         ),
         NegativeItemType.WRONG_BALANCE: (
             f"Reported balance of {amount_str} differs from actual balance"
@@ -53,9 +52,7 @@ def _factual_target(item: NegativeItem) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _build_cycles(
-    items: list[NegativeItem], issue_types: dict
-) -> list[dict]:
+def _build_cycles(items: list[NegativeItem], issue_types: dict) -> list[dict]:
     """Build attack cycles for all negative items using legal basis rotation."""
     cycles: list[dict] = []
     for item_idx, item in enumerate(items):
@@ -67,18 +64,20 @@ def _build_cycles(
         for round_idx, basis_info in enumerate(rounds):
             bureau = _BUREAUS[(item_idx + round_idx) % 3]
             day_start = round_idx * _CYCLE_DAYS
-            cycles.append({
-                "cycle": round_idx + 1,
-                "item": item.description,
-                "creditor": item.creditor or "",
-                "bureau": bureau,
-                "legal_basis": basis_info["basis"],
-                "statutes": basis_info["statutes"],
-                "day_start": day_start,
-                "day_end": day_start + _CYCLE_DAYS - 1,
-                "factual_target": target,
-                "format_recommendation": _FORMAT_TYPES[round_idx % 3],
-            })
+            cycles.append(
+                {
+                    "cycle": round_idx + 1,
+                    "item": item.description,
+                    "creditor": item.creditor or "",
+                    "bureau": bureau,
+                    "legal_basis": basis_info["basis"],
+                    "statutes": basis_info["statutes"],
+                    "day_start": day_start,
+                    "day_end": day_start + _CYCLE_DAYS - 1,
+                    "factual_target": target,
+                    "format_recommendation": _FORMAT_TYPES[round_idx % 3],
+                }
+            )
     return cycles
 
 

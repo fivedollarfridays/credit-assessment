@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import html
 from datetime import date
 from typing import Any
+
+_esc = html.escape
 
 # ---------------------------------------------------------------------------
 # CSS (inline, print-friendly)
@@ -44,7 +47,7 @@ def _safe_get(data: dict, *keys: str, default: Any = "") -> Any:
 
 def _section(title: str, content: str) -> str:
     """Wrap *content* in a div.section with an h2 title."""
-    return f'<div class="section"><h2>{title}</h2>{content}</div>'
+    return f'<div class="section"><h2>{_esc(title)}</h2>{content}</div>'
 
 
 def _html_wrap(body: str) -> str:
@@ -69,8 +72,8 @@ def _render_situation(plan: dict) -> str:
     sit = _safe_get(plan, "situation", default={})
     tax = sit.get("poverty_tax", "Unknown") if isinstance(sit, dict) else "Unknown"
     barriers = sit.get("barriers", []) if isinstance(sit, dict) else []
-    items = "".join(f"<li>{b}</li>" for b in barriers)
-    body = f'<p class="metric">{tax}</p>'
+    items = "".join(f"<li>{_esc(str(b))}</li>" for b in barriers)
+    body = f'<p class="metric">{_esc(str(tax))}</p>'
     if items:
         body += f"<ul>{items}</ul>"
     return _section("Your Situation", body)
@@ -80,7 +83,7 @@ def _render_monday_morning(plan: dict) -> str:
     mm = _safe_get(plan, "monday_morning", default={})
     actions = mm.get("actions", []) if isinstance(mm, dict) else []
     items = "".join(
-        f'<div class="action-item">{a.get("step", a) if isinstance(a, dict) else a}</div>'
+        f'<div class="action-item">{_esc(str(a.get("step", a) if isinstance(a, dict) else a))}</div>'
         for a in actions[:3]
     )
     return _section("Monday Morning Actions", items or "<p>No actions available.</p>")
@@ -91,9 +94,9 @@ def _render_battle_plan(plan: dict) -> str:
     phases = bp.get("phases", []) if isinstance(bp, dict) else []
     parts: list[str] = []
     for phase in phases:
-        name = phase.get("name", "Phase")
+        name = _esc(str(phase.get("name", "Phase")))
         acts = phase.get("actions", [])
-        act_html = "".join(f"<li>{a}</li>" for a in acts)
+        act_html = "".join(f"<li>{_esc(str(a))}</li>" for a in acts)
         parts.append(
             f'<div class="phase">'
             f'<div class="phase-header">{name}</div>'
@@ -107,9 +110,9 @@ def _render_impact(plan: dict) -> str:
     if not isinstance(imp, dict):
         imp = {}
     rows = (
-        f"<tr><td>Current</td><td>{imp.get('current_score', '—')}</td></tr>"
-        f"<tr><td>30-day</td><td>{imp.get('projected_30_day', '—')}</td></tr>"
-        f"<tr><td>90-day</td><td>{imp.get('projected_90_day', '—')}</td></tr>"
+        f"<tr><td>Current</td><td>{_esc(str(imp.get('current_score', '—')))}</td></tr>"
+        f"<tr><td>30-day</td><td>{_esc(str(imp.get('projected_30_day', '—')))}</td></tr>"
+        f"<tr><td>90-day</td><td>{_esc(str(imp.get('projected_90_day', '—')))}</td></tr>"
     )
     table = f"<table><tr><th>Timeline</th><th>Score</th></tr>{rows}</table>"
     return _section("Your Impact", table)
@@ -119,7 +122,7 @@ def _render_legal_rights(plan: dict) -> str:
     lr = _safe_get(plan, "legal_rights", default=None)
     if not lr or not isinstance(lr, dict) or not lr.get("rights"):
         return _section("Your Legal Rights", "<p>No denial context provided.</p>")
-    items = "".join(f"<li>{r}</li>" for r in lr["rights"])
+    items = "".join(f"<li>{_esc(str(r))}</li>" for r in lr["rights"])
     return _section("Your Legal Rights", f"<ul>{items}</ul>")
 
 
@@ -128,17 +131,19 @@ def _render_local_resources(plan: dict) -> str:
     cycles = ac.get("cycles", []) if isinstance(ac, dict) else []
     items = "".join(
         f'<div class="action-item">'
-        f"Month {c.get('month', '?')}: {c.get('focus', '')}</div>"
+        f"Month {_esc(str(c.get('month', '?')))}: {_esc(str(c.get('focus', '')))}</div>"
         for c in cycles
     )
-    return _section("Local Resources", items or "<p>See your local HUD-approved counselor.</p>")
+    return _section(
+        "Local Resources", items or "<p>See your local HUD-approved counselor.</p>"
+    )
 
 
 def _render_bureau_intel(plan: dict) -> str:
     bi = _safe_get(plan, "bureau_intelligence", default=None)
     if not bi or not isinstance(bi, dict) or not bi.get("discrepancies"):
         return _section("Bureau Intelligence", "<p>No cross-bureau data provided.</p>")
-    items = "".join(f"<li>{d}</li>" for d in bi["discrepancies"])
+    items = "".join(f"<li>{_esc(str(d))}</li>" for d in bi["discrepancies"])
     return _section("Bureau Intelligence", f"<ul>{items}</ul>")
 
 
@@ -168,8 +173,8 @@ def render_liberation_plan(plan: dict) -> str:
     ]
 
     # Footer
-    community = plan.get("community_impact", "")
-    why = plan.get("why_deterministic", "")
+    community = _esc(str(plan.get("community_impact", "")))
+    why = _esc(str(plan.get("why_deterministic", "")))
     footer = (
         '<div class="section">'
         f"<p><strong>Community impact:</strong> {community}</p>"

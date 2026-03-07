@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from typing import Callable
+
 from ..types import CreditProfile
-from . import register
+from . import get_agent, register
 from .base import AgentResult, BaseAgent, load_config
 from .resilience import CircuitBreaker, DeadLetterQueue, PerformanceBenchmark
 
 # Ordered agent names for the non-conditional pipeline
 _ORDERED_AGENTS = ["parks", "king", "colvin", "robinson", "lewis", "phantom", "truth"]
 _CONDITIONAL = {"gray", "tubman"}
-_ALL_NAMES = ["parks", "king", "colvin", "robinson", "gray", "tubman", "lewis", "phantom", "truth"]
+_ALL_NAMES = _ORDERED_AGENTS + sorted(_CONDITIONAL)
 
 # ---------------------------------------------------------------------------
 # Typed fallbacks
@@ -24,10 +26,14 @@ _PHANTOM_FALLBACK: dict = {
 }
 
 _KING_FALLBACK: dict = {
-    "phases": [{
-        "phase": 1, "name": "Bureau Disputes", "steps": [],
-        "why_this_order": "Simplified sequential phasing (fallback)",
-    }],
+    "phases": [
+        {
+            "phase": 1,
+            "name": "Bureau Disputes",
+            "steps": [],
+            "why_this_order": "Simplified sequential phasing (fallback)",
+        }
+    ],
     "total_estimated_days": 30,
 }
 
@@ -37,8 +43,6 @@ _PARKS_FALLBACK: dict = {
     "cheapest_door": None,
     "roi_per_door": [],
 }
-
-_GENERIC_FALLBACK_TMPL = {"placeholder": True}
 
 # ---------------------------------------------------------------------------
 # Validation contracts
@@ -58,7 +62,7 @@ def _validate_phantom(data: dict) -> bool:
     return 1500 <= tax <= 15000 and "methodology_source" in data
 
 
-_VALIDATORS: dict[str, callable] = {
+_VALIDATORS: dict[str, Callable[[dict], bool]] = {
     "parks": _validate_parks,
     "king": _validate_king,
     "phantom": _validate_phantom,
@@ -77,15 +81,21 @@ _FALLBACKS: dict[str, dict] = {
 
 def _fallback_result(name: str) -> AgentResult:
     """Return a typed fallback AgentResult for *name*."""
-    fb = _FALLBACKS.get(name, _GENERIC_FALLBACK_TMPL)
-    if name in _FALLBACKS:
+    fb = _FALLBACKS.get(name)
+    if fb is not None:
         return AgentResult(agent_name=name, status="success", data=dict(fb))
-    return AgentResult(agent_name=name, status="error", data={}, errors=["Agent unavailable"])
+    return AgentResult(
+        agent_name=name, status="error", data={}, errors=["Agent unavailable"]
+    )
 
 
 def _run_agent(
-    agent, profile: CreditProfile, context: dict,
-    breaker: CircuitBreaker, dlq: DeadLetterQueue, benchmark: PerformanceBenchmark,
+    agent,
+    profile: CreditProfile,
+    context: dict,
+    breaker: CircuitBreaker,
+    dlq: DeadLetterQueue,
+    benchmark: PerformanceBenchmark,
 ) -> tuple[AgentResult, bool]:
     """Execute a single agent with circuit-breaker + DLQ. Returns (result, used_fallback)."""
     if not breaker.allow_request():
@@ -150,19 +160,35 @@ class MosesAgent(BaseAgent):
     name = "moses"
     description = "Orchestrates all agents into a Liberation Plan"
 
-    def __init__(self) -> None:
-        self._agents: dict = {}
+    def __init__(
+        self,
+        agents: dict | None = None,
+        breakers: dict[str, CircuitBreaker] | None = None,
+        dlq: DeadLetterQueue | None = None,
+        benchmark: PerformanceBenchmark | None = None,
+    ) -> None:
+        if agents is not None:
+            self._agents: dict = agents
+        else:
+            self._agents = {
+                name: cls()
+                for name in _ALL_NAMES
+                if (cls := get_agent(name)) is not None
+            }
         self._assessment_svc = None
         self._dispute_svc = None
-        self._breakers: dict[str, CircuitBreaker] = {
-            n: CircuitBreaker(failure_threshold=3, timeout_seconds=60.0) for n in _ALL_NAMES
+        self._breakers = breakers or {
+            n: CircuitBreaker(failure_threshold=3, timeout_seconds=60.0)
+            for n in _ALL_NAMES
         }
-        self._dlq = DeadLetterQueue()
-        self._benchmark = PerformanceBenchmark()
+        self._dlq = dlq or DeadLetterQueue()
+        self._benchmark = benchmark or PerformanceBenchmark()
 
     # ----- public override -----
 
-    def _execute(self, profile: CreditProfile, context: dict | None = None) -> AgentResult:
+    def _execute(
+        self, profile: CreditProfile, context: dict | None = None
+    ) -> AgentResult:
         ctx = dict(context or {})
         results: dict[str, AgentResult] = {}
         fallback_names: list[str] = []
@@ -177,8 +203,13 @@ class MosesAgent(BaseAgent):
     # ----- pipeline stages -----
 
     def _dispatch(
-        self, name: str, profile: CreditProfile, ctx: dict,
-        results: dict, chain: list, fallback_names: list,
+        self,
+        name: str,
+        profile: CreditProfile,
+        ctx: dict,
+        results: dict,
+        chain: list,
+        fallback_names: list,
     ) -> None:
         """Run a single named agent through the resilience pipeline."""
         agent = self._agents.get(name)
@@ -186,8 +217,12 @@ class MosesAgent(BaseAgent):
             return
         agent_ctx = self._build_context(name, ctx, results)
         res, fell_back = _run_agent(
-            agent, profile, agent_ctx,
-            self._breakers[name], self._dlq, self._benchmark,
+            agent,
+            profile,
+            agent_ctx,
+            self._breakers[name],
+            self._dlq,
+            self._benchmark,
         )
         results[name] = res
         chain.append(name)
@@ -246,7 +281,9 @@ class MosesAgent(BaseAgent):
             except Exception:
                 ctx["dispute_pathway"] = None
 
-    def _build_context(self, name: str, ctx: dict, results: dict[str, AgentResult]) -> dict:
+    def _build_context(
+        self, name: str, ctx: dict, results: dict[str, AgentResult]
+    ) -> dict:
         """Build per-agent context, threading prior results where needed."""
         agent_ctx = dict(ctx)
         parks_data = results.get("parks")

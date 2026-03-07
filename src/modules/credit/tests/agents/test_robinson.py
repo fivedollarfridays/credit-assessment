@@ -230,16 +230,27 @@ class TestRobinsonBrightData:
     def test_bright_data_success_returns_live(
         self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
     ) -> None:
-        """With API key and successful fetch, returns live data."""
-        import json
-        mock_response = json.dumps({"results": [
-            {"title": "Test Job", "company": "Test Corp"},
-        ]}).encode()
+        """With API key and successful fetch via httpx, returns live data."""
+        from unittest.mock import MagicMock
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "results": [
+                {"title": "Test Job", "company": "Test Corp"},
+            ]
+        }
+        mock_resp.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = lambda s: s
+        mock_client.__exit__ = lambda s, *a: None
+        mock_client.get.return_value = mock_resp
+
         with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
-            with patch("urllib.request.urlopen") as mock_urlopen:
-                mock_urlopen.return_value.__enter__ = lambda s: s
-                mock_urlopen.return_value.__exit__ = lambda s, *a: None
-                mock_urlopen.return_value.read.return_value = mock_response
+            with patch(
+                "modules.credit.agents.robinson.httpx.Client",
+                return_value=mock_client,
+            ):
                 res = agent.execute(poor_profile_structured)
         jobs = res.data["jobs"]
         assert jobs["live_data"] is True
@@ -250,12 +261,65 @@ class TestRobinsonBrightData:
     ) -> None:
         """Network failure with API key still returns static data."""
         with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
-            with patch("urllib.request.urlopen", side_effect=Exception("Network error")):
+            with patch(
+                "modules.credit.agents.robinson.httpx.Client",
+                side_effect=Exception("Network error"),
+            ):
                 res = agent.execute(poor_profile_structured)
         jobs = res.data["jobs"]
         assert jobs["live_data"] is False
         assert jobs["source"] == "static"
         assert len(jobs["jobs"]) > 0
+
+    def test_empty_api_key_returns_static(
+        self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
+    ) -> None:
+        """Empty string API key should return static fallback."""
+        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": ""}):
+            res = agent.execute(poor_profile_structured)
+        jobs = res.data["jobs"]
+        assert jobs["live_data"] is False
+        assert jobs["source"] == "static"
+
+    def test_whitespace_api_key_returns_static(
+        self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
+    ) -> None:
+        """Whitespace-only API key should return static without making request."""
+        from unittest.mock import MagicMock
+
+        mock_client_cls = MagicMock()
+        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "   "}):
+            with patch(
+                "modules.credit.agents.robinson.httpx.Client",
+                mock_client_cls,
+            ):
+                res = agent.execute(poor_profile_structured)
+        mock_client_cls.assert_not_called()
+        jobs = res.data["jobs"]
+        assert jobs["live_data"] is False
+        assert jobs["source"] == "static"
+
+    def test_ssrf_blocked_non_brightdata_host(
+        self, agent: RobinsonAgent, poor_profile_structured: CreditProfile
+    ) -> None:
+        """URL with non-brightdata host should be rejected, returning static."""
+        with patch.dict(os.environ, {"BRIGHT_DATA_API_KEY": "test-key"}):
+            with patch(
+                "modules.credit.agents.robinson._BRIGHT_DATA_URL",
+                "https://evil.com/datasets/v3/trigger?dataset_id=jobs",
+            ):
+                res = agent.execute(poor_profile_structured)
+        jobs = res.data["jobs"]
+        assert jobs["live_data"] is False
+        assert jobs["source"] == "static"
+
+    def test_urllib_request_not_used(self) -> None:
+        """robinson.py must not import urllib.request."""
+        import modules.credit.agents.robinson as mod
+        import inspect
+
+        source = inspect.getsource(mod)
+        assert "urllib.request" not in source
 
 
 class TestRobinsonMeta:
@@ -265,7 +329,10 @@ class TestRobinsonMeta:
         assert agent.name == "robinson"
 
     def test_agent_description(self, agent: RobinsonAgent) -> None:
-        assert "door" in agent.description.lower() or "opportunit" in agent.description.lower()
+        assert (
+            "door" in agent.description.lower()
+            or "opportunit" in agent.description.lower()
+        )
 
     def test_result_status_success(self, result: AgentResult) -> None:
         assert result.status == "success"

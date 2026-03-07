@@ -5,11 +5,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
+import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
+from urllib.parse import urlparse
 
 import httpx
 
@@ -21,6 +24,11 @@ from .webhooks import EventType, WebhookRegistration, get_subscribed_webhooks
 MAX_RETRY_DELAY = 300  # seconds
 
 logger = logging.getLogger(__name__)
+
+
+def is_non_routable(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return True if an IP address is not globally routable."""
+    return not addr.is_global or addr.is_multicast
 
 
 class WebhookDeliveryStatus(StrEnum):
@@ -68,6 +76,19 @@ async def get_delivery_log(session: AsyncSession, *, webhook_id: str) -> list[di
     ]
 
 
+def _resolve_and_check(url: str) -> None:
+    """Resolve URL hostname and reject non-global IPs (DNS rebinding guard)."""
+    hostname = urlparse(url).hostname
+    try:
+        addrs = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"DNS resolution failed for {hostname}") from exc
+    for _family, *_, sockaddr in addrs:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if is_non_routable(ip):
+            raise ValueError(f"Resolved IP {ip} is non-global for {hostname}")
+
+
 async def _send_one(
     client: httpx.AsyncClient,
     wh: WebhookRegistration,
@@ -79,6 +100,7 @@ async def _send_one(
     sig = compute_signature(body, wh.secret)
     headers = {"Content-Type": "application/json", "X-Webhook-Signature": sig}
     try:
+        await asyncio.to_thread(_resolve_and_check, wh.url)
         resp = await client.post(wh.url, content=body, headers=headers)
         status = (
             WebhookDeliveryStatus.SUCCESS
@@ -91,7 +113,7 @@ async def _send_one(
             status=status,
             status_code=resp.status_code,
         )
-    except (httpx.HTTPError, OSError) as exc:
+    except (httpx.HTTPError, OSError, ValueError) as exc:
         logger.warning("Webhook delivery failed for %s: %s", wh.id, exc)
         record = DeliveryRecord(
             webhook_id=wh.id, event_type=event_type, status=WebhookDeliveryStatus.FAILED

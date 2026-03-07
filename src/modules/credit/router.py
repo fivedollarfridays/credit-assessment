@@ -101,7 +101,6 @@ app.add_middleware(
 )
 app.add_middleware(middleware.RequestIdMiddleware)
 app.add_middleware(middleware.DeprecationMiddleware)
-app.add_middleware(rate_limit.RateLimitHeaderMiddleware)
 app.add_middleware(middleware.HstsMiddleware, prod_check=lambda: settings.is_production)
 app.add_middleware(
     middleware.HttpsRedirectMiddleware, prod_check=lambda: settings.is_production

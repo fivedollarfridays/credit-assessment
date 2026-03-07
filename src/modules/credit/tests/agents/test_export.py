@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from modules.credit.agents.export import (
     _safe_get,
     _section,
@@ -124,3 +122,109 @@ class TestExportRender:
         # Optional sections degrade gracefully
         assert "No denial context provided" in result
         assert "No cross-bureau data provided" in result
+
+
+# ---------------------------------------------------------------------------
+# TestExportXSSPrevention
+# ---------------------------------------------------------------------------
+
+
+_XSS_PAYLOAD = "<script>alert(1)</script>"
+_XSS_ESCAPED = "&lt;script&gt;alert(1)&lt;/script&gt;"
+
+
+class TestExportXSSPrevention:
+    """XSS prevention — all user data must be HTML-escaped."""
+
+    def _make_plan(self, **overrides: dict) -> dict:
+        """Build a plan dict with overrides merged into liberation_plan."""
+        lp = {
+            "situation": {"poverty_tax": "safe", "barriers": []},
+            "monday_morning": {"actions": []},
+            "battle_plan": {"phases": []},
+            "impact": {},
+            "attack_cycles": {"cycles": []},
+        }
+        lp.update(overrides)
+        return {
+            "liberation_plan": lp,
+            "community_impact": "safe",
+            "why_deterministic": "safe",
+        }
+
+    def test_xss_in_barriers_escaped(self) -> None:
+        plan = self._make_plan(
+            situation={"poverty_tax": "safe", "barriers": [_XSS_PAYLOAD]}
+        )
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_poverty_tax_escaped(self) -> None:
+        plan = self._make_plan(situation={"poverty_tax": _XSS_PAYLOAD, "barriers": []})
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_monday_morning_actions_escaped(self) -> None:
+        plan = self._make_plan(monday_morning={"actions": [{"step": _XSS_PAYLOAD}]})
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_battle_plan_phase_name_escaped(self) -> None:
+        plan = self._make_plan(
+            battle_plan={"phases": [{"name": _XSS_PAYLOAD, "actions": []}]}
+        )
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_battle_plan_actions_escaped(self) -> None:
+        plan = self._make_plan(
+            battle_plan={"phases": [{"name": "safe", "actions": [_XSS_PAYLOAD]}]}
+        )
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_legal_rights_escaped(self) -> None:
+        plan = self._make_plan(legal_rights={"rights": [_XSS_PAYLOAD]})
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_bureau_intelligence_escaped(self) -> None:
+        plan = self._make_plan(bureau_intelligence={"discrepancies": [_XSS_PAYLOAD]})
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_community_impact_escaped(self) -> None:
+        plan = {
+            "liberation_plan": {
+                "situation": {"poverty_tax": "safe", "barriers": []},
+            },
+            "community_impact": _XSS_PAYLOAD,
+            "why_deterministic": "safe",
+        }
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_xss_in_attack_cycle_focus_escaped(self) -> None:
+        plan = self._make_plan(
+            attack_cycles={"cycles": [{"month": 1, "focus": _XSS_PAYLOAD}]}
+        )
+        result = render_liberation_plan(plan)
+        assert _XSS_PAYLOAD not in result
+        assert _XSS_ESCAPED in result
+
+    def test_normal_text_not_double_escaped(self) -> None:
+        """Ensure normal text with & or < in safe context isn't mangled."""
+        plan = self._make_plan(
+            situation={"poverty_tax": "$2,400/year", "barriers": ["high utilization"]}
+        )
+        result = render_liberation_plan(plan)
+        assert "$2,400/year" in result
+        assert "high utilization" in result

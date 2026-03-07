@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from modules.credit.agents.base import AgentResult
 from modules.credit.agents.king import KingAgent, _is_substantially_same
 from modules.credit.agents.moses import MosesAgent
-from modules.credit.agents.resilience import CircuitBreaker
 from modules.credit.agents.truth import EoscarAntiTemplateValidator
 
 

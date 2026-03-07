@@ -5,28 +5,12 @@ from __future__ import annotations
 from ..types import CreditProfile
 from . import register
 from .base import AgentResult, BaseAgent, load_config
+from .scoring import score_to_band as _score_to_band
 
 _THRESHOLDS = [580, 620, 650, 700, 750]
 
 _BEST_AUTO_BAND = "750-850"
 _BEST_INSURANCE_BAND = "750-850"
-
-
-def _score_to_band(score: int) -> str:
-    """Map a numeric score to the string band key used in JSON configs."""
-    if score >= 750:
-        return "750-850"
-    if score >= 700:
-        return "700-749"
-    if score >= 650:
-        return "650-699"
-    if score >= 600:
-        return "600-649"
-    if score >= 550:
-        return "550-599"
-    if score >= 500:
-        return "500-549"
-    return "300-499"
 
 
 def _build_employment(
@@ -50,12 +34,14 @@ def _build_employment(
             if coll_block and has_collections:
                 blocked = True
                 reason = f"Collections block entry ({profile.account_summary.collection_accounts} on file)"
-        results.append({
-            "industry": name,
-            "status": "blocked" if blocked else "accessible",
-            "reason": reason,
-            "avg_wage": rules["avg_wage"],
-        })
+        results.append(
+            {
+                "industry": name,
+                "status": "blocked" if blocked else "accessible",
+                "reason": reason,
+                "avg_wage": rules["avg_wage"],
+            }
+        )
     return results
 
 
@@ -73,11 +59,13 @@ def _build_housing(profile: CreditProfile, housing_types: dict) -> list[dict]:
                 blocked = True
             if not collection_ok and has_collections:
                 blocked = True
-        results.append({
-            "type": name,
-            "status": "blocked" if blocked else "accessible",
-            "min_score": min_score,
-        })
+        results.append(
+            {
+                "type": name,
+                "status": "blocked" if blocked else "accessible",
+                "min_score": min_score,
+            }
+        )
     return results
 
 
@@ -113,7 +101,9 @@ def _build_insurance(profile: CreditProfile, ins_cfg: dict) -> dict:
     }
 
 
-def _build_doors(profile: CreditProfile, emp_cfg: dict, housing_cfg: dict) -> list[dict]:
+def _build_doors(
+    profile: CreditProfile, emp_cfg: dict, housing_cfg: dict
+) -> list[dict]:
     """Identify which new doors open at each score threshold."""
     doors: list[dict] = []
     for threshold in _THRESHOLDS:
@@ -127,7 +117,9 @@ def _build_doors(profile: CreditProfile, emp_cfg: dict, housing_cfg: dict) -> li
         for ht, rules in housing_cfg["housing_types"].items():
             if rules.get("min_score") == threshold:
                 new_doors.append(f"housing:{ht}")
-        doors.append({"threshold": threshold, "new_doors": new_doors, "count": len(new_doors)})
+        doors.append(
+            {"threshold": threshold, "new_doors": new_doors, "count": len(new_doors)}
+        )
     return doors
 
 
@@ -163,12 +155,14 @@ def _build_roi(
         auto_annual = round((current_auto_monthly - future_monthly) * 12, 2)
         ins_annual = current_ins - future_ins
         total_annual = round(auto_annual + ins_annual, 2)
-        roi_list.append({
-            "threshold": t,
-            "annual_savings": total_annual,
-            "five_year_savings": round(total_annual * 5, 2),
-            "doors": entry["new_doors"],
-        })
+        roi_list.append(
+            {
+                "threshold": t,
+                "annual_savings": total_annual,
+                "five_year_savings": round(total_annual * 5, 2),
+                "doors": entry["new_doors"],
+            }
+        )
     roi_list.sort(key=lambda r: r["five_year_savings"], reverse=True)
     return roi_list
 

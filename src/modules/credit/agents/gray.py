@@ -22,19 +22,23 @@ def _decode_reasons(denial_reasons: list[str], decoder_cfg: dict) -> list[dict]:
         lower = reason.lower().strip()
         if lower in known:
             entry = known[lower]
-            decoded.append({
-                "original": reason,
-                "plain_english": entry["plain_english"],
-                "likely_items": entry["likely_items"],
-                "recommended_action": entry["recommended_action"],
-            })
+            decoded.append(
+                {
+                    "original": reason,
+                    "plain_english": entry["plain_english"],
+                    "likely_items": entry["likely_items"],
+                    "recommended_action": entry["recommended_action"],
+                }
+            )
         else:
-            decoded.append({
-                "original": reason,
-                "plain_english": "Contact creditor for details on this denial reason",
-                "likely_items": [],
-                "recommended_action": "contact_creditor",
-            })
+            decoded.append(
+                {
+                    "original": reason,
+                    "plain_english": "Contact creditor for details on this denial reason",
+                    "likely_items": [],
+                    "recommended_action": "contact_creditor",
+                }
+            )
     return decoded
 
 
@@ -54,12 +58,14 @@ def _check_violations(
 
     for notice in required:
         if not _notice_matches(notice.lower(), received_lower):
-            violations.append({
-                "type": "missing_notice",
-                "description": f"Required notice not received: {notice}",
-                "governing_law": governing_law,
-                "damages": damages,
-            })
+            violations.append(
+                {
+                    "type": "missing_notice",
+                    "description": f"Required notice not received: {notice}",
+                    "governing_law": governing_law,
+                    "damages": damages,
+                }
+            )
 
     return violations
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 import functools
 import json
+import logging
 import pathlib
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Literal
@@ -13,7 +16,11 @@ from pydantic import BaseModel
 
 from ..types import CreditProfile
 
+_logger = logging.getLogger(__name__)
+_PATH_PATTERN = re.compile(r"[/\\](?:app|src|home|usr|var|tmp|modules)[/\\]\S+")
+
 _DATA_DIR = pathlib.Path(__file__).parent / "data"
+_DATA_DIR_RESOLVED = _DATA_DIR.resolve()
 
 
 class AgentResult(BaseModel):
@@ -27,12 +34,20 @@ class AgentResult(BaseModel):
 
 
 @functools.lru_cache(maxsize=32)
-def load_config(config_name: str) -> dict:
-    """Load a JSON config from agents/data/. Cached per-process."""
+def _load_config_cached(config_name: str) -> dict:
+    """Internal: load and cache a JSON config from agents/data/."""
     path = _DATA_DIR / config_name
     if not path.suffix:
         path = path.with_suffix(".json")
-    return json.loads(path.read_text(encoding="utf-8"))
+    resolved = path.resolve()
+    if not resolved.is_relative_to(_DATA_DIR_RESOLVED):
+        raise ValueError(f"Path traversal blocked: {config_name}")
+    return json.loads(resolved.read_text(encoding="utf-8"))
+
+
+def load_config(config_name: str) -> dict:
+    """Load a JSON config from agents/data/. Returns a deep copy (safe to mutate)."""
+    return copy.deepcopy(_load_config_cached(config_name))
 
 
 class BaseAgent(ABC):
@@ -41,7 +56,9 @@ class BaseAgent(ABC):
     name: str = "unnamed"
     description: str = ""
 
-    def execute(self, profile: CreditProfile, context: dict | None = None) -> AgentResult:
+    def execute(
+        self, profile: CreditProfile, context: dict | None = None
+    ) -> AgentResult:
         """Run agent logic with timing wrapper."""
         start = time.perf_counter()
         try:
@@ -50,14 +67,19 @@ class BaseAgent(ABC):
             return result
         except Exception as exc:
             elapsed = (time.perf_counter() - start) * 1000
+            msg = str(exc)
+            _logger.error("Agent %s failed: %s", self.name, msg)
+            safe_msg = _PATH_PATTERN.sub("<redacted>", msg)
             return AgentResult(
                 agent_name=self.name,
                 status="error",
-                errors=[str(exc)],
+                errors=[safe_msg],
                 execution_ms=elapsed,
             )
 
     @abstractmethod
-    def _execute(self, profile: CreditProfile, context: dict | None = None) -> AgentResult:
+    def _execute(
+        self, profile: CreditProfile, context: dict | None = None
+    ) -> AgentResult:
         """Implement agent logic. Override in subclasses."""
         ...

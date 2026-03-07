@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from modules.credit.agents.base import AgentResult, load_config
 from modules.credit.types import CreditProfile
@@ -58,9 +57,7 @@ class TestGraySkip:
 
     def test_skipped_with_empty_context(self, poor_profile_structured):
         """Empty context dict -> status='skipped'."""
-        result = _run_gray(
-            poor_profile_structured, context={}, expect_status="skipped"
-        )
+        result = _run_gray(poor_profile_structured, context={}, expect_status="skipped")
         assert result.agent_name == "gray"
 
 
@@ -75,7 +72,10 @@ class TestGrayDenialDecoder:
         decoded = result.data["decoded_reasons"]
         assert len(decoded) == 1
         assert decoded[0]["original"] == "serious delinquency"
-        assert "past due" in decoded[0]["plain_english"].lower() or "collections" in decoded[0]["plain_english"].lower()
+        assert (
+            "past due" in decoded[0]["plain_english"].lower()
+            or "collections" in decoded[0]["plain_english"].lower()
+        )
 
     def test_decode_multiple_reasons(self, poor_profile_structured):
         """Multiple denial reasons should all be decoded."""
@@ -149,7 +149,9 @@ class TestGrayViolations:
         assert len(violations) > 0
         # At least one violation for missing notices
         descriptions = [v["description"] for v in violations]
-        assert any("missing" in d.lower() or "not received" in d.lower() for d in descriptions)
+        assert any(
+            "missing" in d.lower() or "not received" in d.lower() for d in descriptions
+        )
 
     def test_all_notices_received_no_violations(self, poor_profile_structured):
         """When all required notices are received, no violations."""

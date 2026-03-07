@@ -182,18 +182,20 @@ def _detect_duplicates(bureau_name: str, accounts: list[dict]) -> list[dict]:
             if pair_key in seen:
                 continue
             seen.add(pair_key)
-            results.append({
-                "type": "duplicate_account",
-                "creditor": a.get("creditor", ""),
-                "field": "account_number",
-                "values": {
-                    "bureau_a": {"bureau": bureau_name, "value": num_a},
-                    "bureau_b": {"bureau": bureau_name, "value": num_b},
-                },
-                "severity": "medium",
-                "recommended_dispute_bureau": bureau_name,
-                "description": f"Possible duplicate: same creditor '{a.get('creditor', '')}' with different account numbers on {bureau_name}",
-            })
+            results.append(
+                {
+                    "type": "duplicate_account",
+                    "creditor": a.get("creditor", ""),
+                    "field": "account_number",
+                    "values": {
+                        "bureau_a": {"bureau": bureau_name, "value": num_a},
+                        "bureau_b": {"bureau": bureau_name, "value": num_b},
+                    },
+                    "severity": "medium",
+                    "recommended_dispute_bureau": bureau_name,
+                    "description": f"Possible duplicate: same creditor '{a.get('creditor', '')}' with different account numbers on {bureau_name}",
+                }
+            )
     return results
 
 
@@ -219,31 +221,35 @@ def _detect_mixed_file(bureau_reports: dict) -> list[dict]:
         addr_a = info_a.get("address", "").strip().lower()
         addr_b = info_b.get("address", "").strip().lower()
         if name_a and name_b and name_a != name_b:
-            results.append({
-                "type": "mixed_file_risk",
-                "creditor": "N/A",
-                "field": "name",
-                "values": {
-                    "bureau_a": {"bureau": ba, "value": info_a.get("name", "")},
-                    "bureau_b": {"bureau": bb, "value": info_b.get("name", "")},
-                },
-                "severity": "high",
-                "recommended_dispute_bureau": bb,
-                "description": f"Name differs between {ba} and {bb}",
-            })
+            results.append(
+                {
+                    "type": "mixed_file_risk",
+                    "creditor": "N/A",
+                    "field": "name",
+                    "values": {
+                        "bureau_a": {"bureau": ba, "value": info_a.get("name", "")},
+                        "bureau_b": {"bureau": bb, "value": info_b.get("name", "")},
+                    },
+                    "severity": "high",
+                    "recommended_dispute_bureau": bb,
+                    "description": f"Name differs between {ba} and {bb}",
+                }
+            )
         if addr_a and addr_b and addr_a != addr_b:
-            results.append({
-                "type": "mixed_file_risk",
-                "creditor": "N/A",
-                "field": "address",
-                "values": {
-                    "bureau_a": {"bureau": ba, "value": info_a.get("address", "")},
-                    "bureau_b": {"bureau": bb, "value": info_b.get("address", "")},
-                },
-                "severity": "high",
-                "recommended_dispute_bureau": bb,
-                "description": f"Address differs between {ba} and {bb}",
-            })
+            results.append(
+                {
+                    "type": "mixed_file_risk",
+                    "creditor": "N/A",
+                    "field": "address",
+                    "values": {
+                        "bureau_a": {"bureau": ba, "value": info_a.get("address", "")},
+                        "bureau_b": {"bureau": bb, "value": info_b.get("address", "")},
+                    },
+                    "severity": "high",
+                    "recommended_dispute_bureau": bb,
+                    "description": f"Address differs between {ba} and {bb}",
+                }
+            )
     return results
 
 
@@ -271,7 +277,11 @@ class Metro2FormatValidator:
 
 
 def _compare_matched_pair(
-    a: dict, b: dict, ba: str, bb: str, fields: list[dict],
+    a: dict,
+    b: dict,
+    ba: str,
+    bb: str,
+    fields: list[dict],
 ) -> list[dict]:
     """Compare two matched accounts across bureaus for all field rules."""
     results: list[dict] = []
@@ -290,7 +300,9 @@ def _compare_matched_pair(
 
 
 def _cross_bureau_scan(
-    bureau_reports: dict, bureau_names: list[str], fields: list[dict],
+    bureau_reports: dict,
+    bureau_names: list[str],
+    fields: list[dict],
 ) -> tuple[list[dict], int]:
     """Scan all bureau pairs for discrepancies. Return (discrepancies, match_count)."""
     discrepancies: list[dict] = []
@@ -302,7 +314,12 @@ def _cross_bureau_scan(
             for b in accts_b:
                 if not _accounts_match(a, b):
                     continue
-                pair_key = (ba, bb, a.get("creditor", "").lower(), _last4(a.get("account_number", "")))
+                pair_key = (
+                    ba,
+                    bb,
+                    a.get("creditor", "").lower(),
+                    _last4(a.get("account_number", "")),
+                )
                 matched_pairs.add(pair_key)
                 discrepancies.extend(_compare_matched_pair(a, b, ba, bb, fields))
     return discrepancies, len(matched_pairs)
@@ -337,7 +354,9 @@ class TubmanAgent(BaseAgent):
         fields = load_config("metro2_consistency_rules")["fields"]
         discs, match_count = _cross_bureau_scan(bureau_reports, bureau_names, fields)
         for name in bureau_names:
-            discs.extend(_detect_duplicates(name, bureau_reports[name].get("accounts", [])))
+            discs.extend(
+                _detect_duplicates(name, bureau_reports[name].get("accounts", []))
+            )
         discs.extend(_detect_mixed_file(bureau_reports))
         discs.sort(key=lambda d: _SEVERITY_ORDER.get(d["severity"], 99))
 

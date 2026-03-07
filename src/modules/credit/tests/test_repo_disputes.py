@@ -176,3 +176,39 @@ class TestDisputeList:
                 assert await repo.count_by_user("other@test.com") == 0
 
         asyncio.run(_run())
+
+    def test_count_by_user_with_status_filter(self, db_factory):
+        async def _run():
+            async with db_factory() as s:
+                repo = DisputeRepository(s)
+                d1 = await repo.create(
+                    user_id="u1@test.com",
+                    bureau="equifax",
+                    negative_item_data=_ITEM,
+                )
+                await repo.create(
+                    user_id="u1@test.com",
+                    bureau="experian",
+                    negative_item_data=_ITEM,
+                )
+                # Update one to "sent" status
+                await repo.update_status(
+                    d1.id,
+                    user_id="u1@test.com",
+                    new_status=DisputeStatus.SENT,
+                )
+                assert (
+                    await repo.count_by_user(
+                        "u1@test.com", status_filter=DisputeStatus.SENT
+                    )
+                    == 1
+                )
+                assert (
+                    await repo.count_by_user(
+                        "u1@test.com", status_filter=DisputeStatus.DRAFT
+                    )
+                    == 1
+                )
+                assert await repo.count_by_user("u1@test.com") == 2
+
+        asyncio.run(_run())

@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import enum
 import logging
-import time
 
 import redis
 from fastapi import FastAPI, Request
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
@@ -62,28 +60,6 @@ def _get_redis_url() -> str | None:
 
 
 limiter = create_limiter(redis_url=_get_redis_url())
-
-
-class RateLimitHeaderMiddleware(BaseHTTPMiddleware):
-    """Add rate limit headers to responses on rate-limited endpoints."""
-
-    def __init__(self, app, *, limit: str = "10/minute") -> None:
-        super().__init__(app)
-        self._limit = limit
-        self._parse_limit(limit)
-
-    def _parse_limit(self, limit: str) -> None:
-        parts = limit.split("/")
-        self._max_requests = int(parts[0])
-
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if request.url.path in {"/assess", "/v1/assess"}:
-            reset_at = int(time.time()) + 60
-            response.headers["X-RateLimit-Limit"] = str(self._max_requests)
-            response.headers["X-RateLimit-Remaining"] = str(self._max_requests - 1)
-            response.headers["X-RateLimit-Reset"] = str(reset_at)
-        return response
 
 
 def register_rate_limit_handler(app: FastAPI) -> None:

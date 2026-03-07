@@ -13,9 +13,7 @@ def _get_king():
     return KingAgent()
 
 
-def _run_king(
-    profile: CreditProfile, context: dict | None = None
-) -> AgentResult:
+def _run_king(profile: CreditProfile, context: dict | None = None) -> AgentResult:
     """Execute King agent and assert success."""
     agent = _get_king()
     result = agent.execute(profile, context)
@@ -32,9 +30,7 @@ class TestKingPhase1:
         phase1 = result.data["phases"][0]
         assert phase1["phase"] == 1
         assert phase1["name"] == "Bureau Disputes"
-        assert len(phase1["steps"]) == len(
-            poor_profile_structured.negative_items
-        )
+        assert len(phase1["steps"]) == len(poor_profile_structured.negative_items)
 
     def test_phase1_collections_first(self, profile_with_mixed_items):
         result = _run_king(profile_with_mixed_items)
@@ -101,13 +97,12 @@ class TestKingPhase2:
         furnisher_cfg = load_config("direct_furnisher_requirements")
         phase2 = result.data["phases"][1]
         for step in phase2["steps"]:
-            assert step["documentation_required"] == furnisher_cfg[
-                "documentation_required"
-            ]
+            assert (
+                step["documentation_required"]
+                == furnisher_cfg["documentation_required"]
+            )
 
-    def test_phase2_substantially_same_blocked(
-        self, poor_profile_structured
-    ):
+    def test_phase2_substantially_same_blocked(self, poor_profile_structured):
         # Use a description with >70% word overlap with fixture item
         # "Medical collection - $1,200"
         previous = [
@@ -134,13 +129,9 @@ class TestKingPhase2:
         result = _run_king(poor_profile_structured, context=ctx)
         phase2 = result.data["phases"][1]
         # All items should pass through (low overlap)
-        assert len(phase2["steps"]) == len(
-            poor_profile_structured.negative_items
-        )
+        assert len(phase2["steps"]) == len(poor_profile_structured.negative_items)
 
-    def test_phase2_invalid_converts_to_bureau(
-        self, poor_profile_structured
-    ):
+    def test_phase2_invalid_converts_to_bureau(self, poor_profile_structured):
         # Pass a context that forces an invalid basis
         ctx = {"force_invalid_basis": True}
         result = _run_king(poor_profile_structured, context=ctx)
@@ -187,8 +178,12 @@ class TestKingPhase3:
         actions = phase3["actions"]
         assert len(actions) > 0
         # With parks data, actions should reference doors
-        action_texts = " ".join(a["action"] + " " + a.get("why_now", "") for a in actions)
-        assert "580" in action_texts or "door" in action_texts.lower() or len(actions) > 0
+        action_texts = " ".join(
+            a["action"] + " " + a.get("why_now", "") for a in actions
+        )
+        assert (
+            "580" in action_texts or "door" in action_texts.lower() or len(actions) > 0
+        )
 
     def test_phase3_without_parks_data(self, poor_profile_structured):
         result = _run_king(poor_profile_structured)

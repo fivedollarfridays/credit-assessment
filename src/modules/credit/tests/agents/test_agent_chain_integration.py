@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
 
-from modules.credit.agents.base import AgentResult
 from modules.credit.agents.moses import MosesAgent
 from modules.credit.agents.parks import ParksAgent
 from modules.credit.agents.king import KingAgent
@@ -20,6 +18,7 @@ from modules.credit.agents.tubman import TubmanAgent
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_wired_moses() -> MosesAgent:
     """Create a MosesAgent with all real sub-agents wired in."""
@@ -61,6 +60,7 @@ class TestAgentChainIntegration:
     def test_backward_compatibility_assess(self, poor_profile_structured):
         """CreditAssessmentService still works after liberation wiring."""
         from modules.credit.assessment import CreditAssessmentService
+
         svc = CreditAssessmentService()
         result = svc.assess(poor_profile_structured)
         assert result.readiness.score >= 0
@@ -70,7 +70,15 @@ class TestAgentChainIntegration:
         moses = _make_wired_moses()
         result = moses.execute(poor_profile_structured)
         chain = result.data["reasoning_chain"]
-        expected_base = ["parks", "king", "colvin", "robinson", "lewis", "phantom", "truth"]
+        expected_base = [
+            "parks",
+            "king",
+            "colvin",
+            "robinson",
+            "lewis",
+            "phantom",
+            "truth",
+        ]
         actual_base = [n for n in chain if n in expected_base]
         assert actual_base == expected_base
 
@@ -103,7 +111,10 @@ class TestAgentChainIntegration:
         result = moses.execute(poor_profile_structured)
         tax = result.data["liberation_plan"]["poverty_tax"]
         assert "methodology_source" in tax
-        assert "Bristol" in tax["methodology_source"] or "PFRC" in tax["methodology_source"]
+        assert (
+            "Bristol" in tax["methodology_source"]
+            or "PFRC" in tax["methodology_source"]
+        )
 
     def test_reasoning_chain_populated(self, poor_profile_structured):
         moses = _make_wired_moses()

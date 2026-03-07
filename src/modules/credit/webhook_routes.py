@@ -5,7 +5,7 @@ from __future__ import annotations
 import ipaddress
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +13,8 @@ from .assess_routes import verify_auth
 from .auth import AuthIdentity
 from .config import settings
 from .database import get_db
-from .webhook_delivery import get_delivery_log
+from .rate_limit import limiter
+from .webhook_delivery import get_delivery_log, is_non_routable
 from .webhooks import (
     EventType,
     create_webhook,
@@ -23,10 +24,9 @@ from .webhooks import (
 )
 
 _BLOCKED_HOSTNAMES = {"localhost", "0.0.0.0", "0", "127.0.0.1", "::1"}
-# NOTE: Hostname string matching only. DNS-resolved hostnames are not checked
-# (e.g., evil.com -> 127.0.0.1 passes hostname check but is caught by
-# _is_private_ip for raw IP URLs). Full DNS rebinding protection requires
-# async resolution at delivery time.
+# NOTE: Hostname string matching at registration time. DNS rebinding protection
+# (re-resolving at delivery time) is handled by _resolve_and_check() in
+# webhook_delivery.py — blocks private/loopback/link-local resolved IPs.
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -38,7 +38,7 @@ def _is_private_ip(hostname: str) -> bool:
         addr = ipaddress.ip_address(cleaned)
     except ValueError:
         return False
-    return not addr.is_global or addr.is_multicast
+    return is_non_routable(addr)
 
 
 class WebhookCreateRequest(BaseModel):
@@ -64,8 +64,8 @@ class WebhookCreateRequest(BaseModel):
     @field_validator("secret")
     @classmethod
     def validate_secret(cls, v: str) -> str:
-        if len(v) < 16:
-            raise ValueError("Secret must be at least 16 characters")
+        if len(v) < 32:
+            raise ValueError("Secret must be at least 32 characters")
         return v
 
 
@@ -93,7 +93,9 @@ def _check_ownership(wh, auth: AuthIdentity) -> None:
     response_model=WebhookResponse,
     status_code=201,
 )
+@limiter.limit("10/minute")
 async def register_webhook(
+    request: Request,
     req: WebhookCreateRequest,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
@@ -106,7 +108,9 @@ async def register_webhook(
 
 
 @router.get("")
+@limiter.limit("60/minute")
 async def list_webhooks(
+    request: Request,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
 ) -> list[WebhookResponse]:
@@ -115,7 +119,9 @@ async def list_webhooks(
 
 
 @router.get("/{webhook_id}/deliveries")
+@limiter.limit("60/minute")
 async def webhook_deliveries(
+    request: Request,
     webhook_id: str,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
@@ -128,7 +134,9 @@ async def webhook_deliveries(
 
 
 @router.delete("/{webhook_id}")
+@limiter.limit("10/minute")
 async def remove_webhook(
+    request: Request,
     webhook_id: str,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
