@@ -300,3 +300,34 @@ class TestGrayRegistration:
         """Agent instance name should be 'gray'."""
         agent = _get_gray()
         assert agent.name == "gray"
+
+
+# ---- Score Keyword Fuzzy Match ----
+
+
+class TestGrayScoreKeywordFuzzyMatch:
+    """Cover line 81: _has_fuzzy_match returns True when both contain a score keyword."""
+
+    def test_fuzzy_match_on_score_keyword(self) -> None:
+        """When both required and received contain a score keyword, match is True."""
+        from modules.credit.agents.gray import _notice_matches
+
+        required = "credit score disclosure required"
+        received_set = {"some credit score info"}
+        assert _notice_matches(required, received_set) is True
+
+    def test_fuzzy_match_score_used_keyword(self) -> None:
+        """'score used' keyword matches across required and received."""
+        from modules.credit.agents.gray import _notice_matches
+
+        required = "score used in decision"
+        received_set = {"the score used was provided"}
+        assert _notice_matches(required, received_set) is True
+
+    def test_no_fuzzy_match_when_keyword_only_in_required(self) -> None:
+        """If only the required notice contains a score keyword, no match."""
+        from modules.credit.agents.gray import _notice_matches
+
+        required = "credit score must be disclosed"
+        received_set = {"adverse action notice"}
+        assert _notice_matches(required, received_set) is False

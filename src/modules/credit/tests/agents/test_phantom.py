@@ -395,3 +395,71 @@ class TestPhantomRegistration:
         from modules.credit.agents import _REGISTRY
 
         assert "phantom" in _REGISTRY
+
+
+# ---- TestPhantomCollectionBlocker ----
+
+
+class TestPhantomCollectionBlocker:
+    """Cover phantom.py line 56: _is_blocked when collection_blocker is truthy."""
+
+    def test_collection_blocker_blocks_with_collections(self) -> None:
+        """collection_blocker=True + collection_accounts > 0 -> blocked."""
+        from modules.credit.agents.phantom import _is_blocked
+
+        rules = {
+            "industries": {
+                "government_federal": {
+                    "collection_blocker": True,
+                    "min_score": None,
+                },
+            },
+        }
+        assert _is_blocked("government_federal", 800, 1, rules) is True
+
+    def test_collection_blocker_does_not_block_with_zero_collections(self) -> None:
+        """collection_blocker=True but 0 collections -> not blocked by that rule."""
+        from modules.credit.agents.phantom import _is_blocked
+
+        rules = {
+            "industries": {
+                "government_federal": {
+                    "collection_blocker": True,
+                    "min_score": None,
+                },
+            },
+        }
+        assert _is_blocked("government_federal", 800, 0, rules) is False
+
+    def test_min_score_blocks_low_score(self) -> None:
+        """min_score threshold blocks when score is below it."""
+        from modules.credit.agents.phantom import _is_blocked
+
+        rules = {
+            "industries": {
+                "finance_banking": {
+                    "collection_blocker": False,
+                    "min_score": 650,
+                },
+            },
+        }
+        assert _is_blocked("finance_banking", 600, 0, rules) is True
+
+
+# ---- TestScoreToBandFallback ----
+
+
+class TestScoreToBandFallback:
+    """Cover scoring.py line 21: score_to_band returns '750-850' for scores > 850."""
+
+    def test_score_above_850_returns_top_band(self) -> None:
+        """A score of 900 (above all thresholds) falls through to the fallback."""
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(900) == "750-850"
+
+    def test_score_851_returns_top_band(self) -> None:
+        """Score just above 850 triggers the fallback return."""
+        from modules.credit.agents.scoring import score_to_band
+
+        assert score_to_band(851) == "750-850"

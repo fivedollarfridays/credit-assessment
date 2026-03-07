@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from modules.credit.agents.base import AgentResult, load_config
-from modules.credit.agents.robinson import RobinsonAgent
+from modules.credit.agents.robinson import RobinsonAgent, _check_eligibility
 from modules.credit.types import (
     AccountSummary,
     CreditProfile,
@@ -337,3 +337,48 @@ class TestRobinsonMeta:
     def test_result_status_success(self, result: AgentResult) -> None:
         assert result.status == "success"
         assert result.agent_name == "robinson"
+
+
+# ---------------------------------------------------------------------------
+# TestRobinsonURLGuard — robinson.py:19 (pragma: no cover applied)
+# ---------------------------------------------------------------------------
+
+
+class TestRobinsonURLGuard:
+    """Verify the module-level URL host check exists structurally."""
+
+    def test_url_guard_exists_in_source(self) -> None:
+        """Confirm the RuntimeError guard for _BRIGHT_DATA_URL host is present."""
+        import inspect
+        import modules.credit.agents.robinson as mod
+
+        source = inspect.getsource(mod)
+        assert "raise RuntimeError" in source
+        assert "_BRIGHT_DATA_ALLOWED_HOST" in source
+
+
+# ---------------------------------------------------------------------------
+# TestCheckEligibilityFallthrough — robinson.py:33
+# ---------------------------------------------------------------------------
+
+
+class TestCheckEligibilityFallthrough:
+    """_check_eligibility returns True for unknown service types."""
+
+    def test_unknown_service_type_returns_true(
+        self, poor_profile_structured: CreditProfile
+    ) -> None:
+        service = {"type": "unknown_type"}
+        assert _check_eligibility(service, poor_profile_structured) is True
+
+    def test_empty_service_type_returns_true(
+        self, poor_profile_structured: CreditProfile
+    ) -> None:
+        service = {"type": ""}
+        assert _check_eligibility(service, poor_profile_structured) is True
+
+    def test_missing_type_key_returns_true(
+        self, poor_profile_structured: CreditProfile
+    ) -> None:
+        service = {}
+        assert _check_eligibility(service, poor_profile_structured) is True

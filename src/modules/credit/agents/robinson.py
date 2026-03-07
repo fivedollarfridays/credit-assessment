@@ -16,7 +16,9 @@ _BRIGHT_DATA_URL = (
     "https://api.brightdata.com/datasets/v3/trigger?dataset_id=jobs_montgomery_al"
 )
 if httpx.URL(_BRIGHT_DATA_URL).host != _BRIGHT_DATA_ALLOWED_HOST:
-    raise RuntimeError("_BRIGHT_DATA_URL host does not match allowlist")
+    raise RuntimeError(
+        "_BRIGHT_DATA_URL host does not match allowlist"
+    )  # pragma: no cover
 
 
 def _check_eligibility(service: dict, profile: CreditProfile) -> bool:

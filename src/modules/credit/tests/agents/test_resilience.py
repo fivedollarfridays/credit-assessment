@@ -69,3 +69,43 @@ class TestDeadLetterQueueBounds:
         dicts = dlq.to_dicts()
         assert dicts[0]["agent_name"] == "agent_50"
         assert dicts[-1]["agent_name"] == f"agent_{_DLQ_MAX_ENTRIES + 49}"
+
+
+# ---------------------------------------------------------------------------
+# TestCircuitBreakerHalfOpen
+# ---------------------------------------------------------------------------
+
+
+class TestCircuitBreakerHalfOpen:
+    """Cover resilience.py line 51: allow_request transitions open -> half-open."""
+
+    def test_allow_request_transitions_to_half_open_after_timeout(self) -> None:
+        """After timeout elapses, allow_request moves state to half-open."""
+        import time
+
+        cb = CircuitBreaker(failure_threshold=3, timeout_seconds=0.05)
+        # Trip the breaker
+        for _ in range(3):
+            cb.record_failure()
+        assert cb.state == "open"
+        assert cb.allow_request() is False
+
+        # Wait for timeout to elapse
+        time.sleep(0.06)
+
+        # allow_request should transition to half-open and return True
+        assert cb.allow_request() is True
+        assert cb.state == "half-open"
+
+    def test_state_property_also_transitions_to_half_open(self) -> None:
+        """The state property transitions from open to half-open after timeout."""
+        import time
+
+        cb = CircuitBreaker(failure_threshold=2, timeout_seconds=0.05)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.state == "open"
+
+        time.sleep(0.06)
+
+        assert cb.state == "half-open"

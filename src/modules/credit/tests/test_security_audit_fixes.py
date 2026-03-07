@@ -281,3 +281,206 @@ class TestLiberatePrintCSP:
         assert "'none'" in csp
         assert "frame-ancestors" in csp
         assert resp.headers.get("x-frame-options") == "DENY"
+
+
+# ---------------------------------------------------------------------------
+# assess_routes.py background task exception handlers (lines 175-176, 188-189, 209-210)
+# ---------------------------------------------------------------------------
+
+
+class TestAssessRoutesBackgroundTaskErrors:
+    """Exception handlers in _persist_assessment, _record_usage_for_user,
+    and _record_score_history should swallow errors gracefully."""
+
+    @staticmethod
+    def _make_profile():
+        from modules.credit.types import AccountSummary, CreditProfile, ScoreBand
+
+        return CreditProfile(
+            current_score=535,
+            score_band=ScoreBand.VERY_POOR,
+            overall_utilization=82.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=4200.0,
+                total_credit_limit=5100.0,
+                monthly_payments=180.0,
+            ),
+            payment_history_pct=68.0,
+            average_account_age_months=18,
+            negative_items=[],
+        )
+
+    @pytest.mark.asyncio
+    async def test_persist_assessment_swallows_exception(self) -> None:
+        """_persist_assessment logs warning when factory raises."""
+        from contextlib import asynccontextmanager
+        from unittest.mock import MagicMock
+
+        from modules.credit.assess_routes import _persist_assessment
+
+        @asynccontextmanager
+        async def _failing_factory():
+            raise RuntimeError("db down")
+            yield  # pragma: no cover
+
+        profile = self._make_profile()
+        result = MagicMock()
+        result.barrier_severity.value = "high"
+        result.readiness.score = 35
+        result.model_dump.return_value = {}
+        # Should not raise
+        await _persist_assessment(_failing_factory, profile, result, "u1", "o1")
+
+    @pytest.mark.asyncio
+    async def test_record_usage_swallows_exception(self) -> None:
+        """_record_usage_for_user logs debug when factory raises."""
+        from contextlib import asynccontextmanager
+
+        from modules.credit.assess_routes import _record_usage_for_user
+
+        @asynccontextmanager
+        async def _failing_factory():
+            raise RuntimeError("db down")
+            yield  # pragma: no cover
+
+        # Should not raise
+        await _record_usage_for_user(_failing_factory, "user-42")
+
+    @pytest.mark.asyncio
+    async def test_record_score_history_swallows_exception(self) -> None:
+        """_record_score_history logs warning when factory raises."""
+        from contextlib import asynccontextmanager
+
+        from modules.credit.assess_routes import _record_score_history
+
+        @asynccontextmanager
+        async def _failing_factory():
+            raise RuntimeError("db down")
+            yield  # pragma: no cover
+
+        profile = self._make_profile()
+        # Should not raise
+        await _record_score_history(_failing_factory, profile, "u1", "o1")
+
+
+# ---------------------------------------------------------------------------
+# liberate_routes.py:56-58 — _cap_bureau_reports validator
+# ---------------------------------------------------------------------------
+
+
+class TestLiberateRequestBureauReportsValidator:
+    """_cap_bureau_reports on LiberateRequest fires when bureau_reports is set."""
+
+    @staticmethod
+    def _make_profile():
+        from modules.credit.types import AccountSummary, CreditProfile, ScoreBand
+
+        return CreditProfile(
+            current_score=535,
+            score_band=ScoreBand.VERY_POOR,
+            overall_utilization=82.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=4200.0,
+                total_credit_limit=5100.0,
+                monthly_payments=180.0,
+            ),
+            payment_history_pct=68.0,
+            average_account_age_months=18,
+            negative_items=[],
+        )
+
+    def test_bureau_reports_accepts_valid(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest
+
+        profile = self._make_profile()
+        req = LiberateRequest(
+            profile=profile,
+            bureau_reports={"experian": {}, "equifax": {}},
+        )
+        assert req.bureau_reports == {"experian": {}, "equifax": {}}
+
+    def test_bureau_reports_rejects_too_many(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest
+
+        profile = self._make_profile()
+        reports = {f"bureau_{i}": {} for i in range(6)}
+        with pytest.raises(ValidationError):
+            LiberateRequest(profile=profile, bureau_reports=reports)
+
+    def test_bureau_reports_none_accepted(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest
+
+        profile = self._make_profile()
+        req = LiberateRequest(profile=profile, bureau_reports=None)
+        assert req.bureau_reports is None
+
+
+# ---------------------------------------------------------------------------
+# liberate_routes.py:106, 108, 110 — _build_moses_context
+# ---------------------------------------------------------------------------
+
+
+class TestBuildMosesContext:
+    """_build_moses_context builds context dict from optional request fields."""
+
+    @staticmethod
+    def _make_profile():
+        from modules.credit.types import AccountSummary, CreditProfile, ScoreBand
+
+        return CreditProfile(
+            current_score=535,
+            score_band=ScoreBand.VERY_POOR,
+            overall_utilization=82.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=4200.0,
+                total_credit_limit=5100.0,
+                monthly_payments=180.0,
+            ),
+            payment_history_pct=68.0,
+            average_account_age_months=18,
+            negative_items=[],
+        )
+
+    def test_with_target_industries(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest, _build_moses_context
+
+        profile = self._make_profile()
+        body = LiberateRequest(profile=profile, target_industries=["healthcare"])
+        ctx = _build_moses_context(body)
+        assert ctx is not None
+        assert ctx["target_industries"] == ["healthcare"]
+
+    def test_with_denial_context(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest, _build_moses_context
+
+        profile = self._make_profile()
+        body = LiberateRequest(
+            profile=profile, denial_context={"reason": "too many collections"}
+        )
+        ctx = _build_moses_context(body)
+        assert ctx is not None
+        assert ctx["denial_context"] == {"reason": "too many collections"}
+
+    def test_with_bureau_reports(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest, _build_moses_context
+
+        profile = self._make_profile()
+        reports = {"experian": {"score": 535}, "equifax": {"score": 540}}
+        body = LiberateRequest(profile=profile, bureau_reports=reports)
+        ctx = _build_moses_context(body)
+        assert ctx is not None
+        assert ctx["bureau_reports"] == reports
+
+    def test_empty_request_returns_none(self) -> None:
+        from modules.credit.liberate_routes import LiberateRequest, _build_moses_context
+
+        profile = self._make_profile()
+        body = LiberateRequest(profile=profile)
+        ctx = _build_moses_context(body)
+        assert ctx is None

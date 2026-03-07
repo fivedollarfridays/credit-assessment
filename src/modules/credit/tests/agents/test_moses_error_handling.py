@@ -82,3 +82,34 @@ class TestMosesErrorHandling:
         result = validator.check(template_text)
         assert "specificity_score" in result
         assert "structure_hash" in result
+
+
+# ---------------------------------------------------------------------------
+# TestRunKevinExceptionHandling — moses.py:276-277, 281-282
+# ---------------------------------------------------------------------------
+
+
+class TestRunKevinExceptionHandling:
+    """When Kevin's services raise, _run_kevin sets the result to None."""
+
+    def test_assessment_svc_exception_sets_none(self, poor_profile_structured):
+        """assessment_svc.assess raising sets ctx['assessment_result'] = None."""
+        moses = MosesAgent()
+        moses._agents = {}
+        svc = MagicMock()
+        svc.assess.side_effect = RuntimeError("assessment boom")
+        moses._assessment_svc = svc
+        ctx: dict = {}
+        moses._run_kevin(poor_profile_structured, ctx)
+        assert ctx["assessment_result"] is None
+
+    def test_dispute_svc_exception_sets_none(self, poor_profile_structured):
+        """dispute_svc.generate_pathway raising sets ctx['dispute_pathway'] = None."""
+        moses = MosesAgent()
+        moses._agents = {}
+        svc = MagicMock()
+        svc.generate_pathway.side_effect = RuntimeError("dispute boom")
+        moses._dispute_svc = svc
+        ctx: dict = {}
+        moses._run_kevin(poor_profile_structured, ctx)
+        assert ctx["dispute_pathway"] is None

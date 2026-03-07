@@ -267,3 +267,34 @@ class TestLewisMotivation:
         msg = result.data["motivational_message"]
         assert isinstance(msg, str)
         assert len(msg) > 0
+
+
+# ---- Motivational Message Branch Coverage ----
+
+
+class TestLewisMotivationBranches:
+    def test_day30_crosses_580(self):
+        """day30 >= 580 and current < 580 -> rental message."""
+        from modules.credit.agents.lewis import _pick_motivational_message
+
+        msg = _pick_motivational_message(current=550, day30=585, day90=620)
+        assert "qualify for private rental housing" in msg
+
+    def test_day90_crosses_650(self):
+        """day90 >= 650 and current < 650 -> credit cards / insurance message."""
+        from modules.credit.agents.lewis import _pick_motivational_message
+
+        # day30 < 580 so the first branch is skipped
+        msg = _pick_motivational_message(current=600, day30=570, day90=655)
+        assert "most credit cards" in msg
+        assert "lower insurance rates" in msg
+
+    def test_day90_crosses_700(self):
+        """day90 >= 700 and current < 700 -> prime auto / jobs message."""
+        from modules.credit.agents.lewis import _pick_motivational_message
+
+        # current >= 650 so the 650 branch is skipped; day30 >= 580 but
+        # current >= 580 so the 580 branch is also skipped
+        msg = _pick_motivational_message(current=660, day30=680, day90=710)
+        assert "prime auto loan rates" in msg
+        assert "most jobs" in msg

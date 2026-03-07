@@ -284,3 +284,42 @@ class TestKingRegistration:
     def test_agent_name(self):
         agent = _get_king()
         assert agent.name == "king"
+
+
+# ---- Jaccard Edge Cases ----
+
+
+class TestJaccardEdgeCases:
+    def test_both_sets_empty_returns_1(self):
+        from modules.credit.agents.king import _jaccard_similarity
+
+        assert _jaccard_similarity("", "") == 1.0
+
+    def test_one_set_empty_returns_0(self):
+        from modules.credit.agents.king import _jaccard_similarity
+
+        assert _jaccard_similarity("some words here", "") == 0.0
+        assert _jaccard_similarity("", "other words here") == 0.0
+
+
+# ---- Validate Basis ----
+
+
+class TestValidateBasis:
+    def test_valid_basis_returns_true(self):
+        from modules.credit.agents.king import _validate_basis
+
+        permissible = [{"type": "FCRA 611"}, {"type": "FCRA 623"}]
+        assert _validate_basis("FCRA 611", permissible) is True
+
+    def test_invalid_basis_returns_false(self):
+        from modules.credit.agents.king import _validate_basis
+
+        permissible = [{"type": "FCRA 611"}, {"type": "FCRA 623"}]
+        assert _validate_basis("INVALID", permissible) is False
+
+    def test_none_basis_returns_false(self):
+        from modules.credit.agents.king import _validate_basis
+
+        permissible = [{"type": "FCRA 611"}]
+        assert _validate_basis(None, permissible) is False

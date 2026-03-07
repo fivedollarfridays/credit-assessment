@@ -342,3 +342,115 @@ class TestColvinRegistration:
     def test_agent_name(self, agent) -> None:
         """Agent name property is 'colvin'."""
         assert agent.name == "colvin"
+
+
+# ---------------------------------------------------------------------------
+# TestColvinBuildCyclesSkipUnknownType
+# ---------------------------------------------------------------------------
+
+
+class TestColvinBuildCyclesSkipUnknownType:
+    """Cover line 62: continue when item type not in issue_types dict."""
+
+    def test_item_type_not_in_issue_types_is_skipped(self) -> None:
+        """An item whose type.value has no entry in issue_types produces no cycles."""
+        from modules.credit.agents.colvin import _build_cycles
+
+        item = NegativeItem(
+            type=NegativeItemType.IDENTITY_THEFT,
+            description="Fraudulent account",
+            amount=500.0,
+            creditor="Unknown",
+        )
+        # Pass an issue_types dict that has NO key for "identity_theft"
+        cycles = _build_cycles([item], issue_types={})
+        assert cycles == []
+
+    def test_mixed_items_only_known_types_produce_cycles(self) -> None:
+        """Only items with matching issue_types keys produce cycles."""
+        from modules.credit.agents.colvin import _build_cycles
+
+        known_item = NegativeItem(
+            type=NegativeItemType.COLLECTION,
+            description="Medical debt",
+            amount=1000.0,
+        )
+        unknown_item = NegativeItem(
+            type=NegativeItemType.IDENTITY_THEFT,
+            description="ID theft",
+            amount=200.0,
+        )
+        issue_types = {
+            "collection": [
+                {"basis": "FDCPA 809", "statutes": ["15 USC 1692g"]},
+            ],
+        }
+        cycles = _build_cycles([known_item, unknown_item], issue_types)
+        assert len(cycles) == 1
+        assert cycles[0]["item"] == "Medical debt"
+
+
+# ---------------------------------------------------------------------------
+# TestColvinLowDiversityAutoRotate
+# ---------------------------------------------------------------------------
+
+
+class TestColvinLowDiversityAutoRotate:
+    """Cover lines 157-159: format_recommendation auto-rotation on low diversity."""
+
+    def test_low_diversity_triggers_format_rotation(self, agent) -> None:
+        """When diversity < 0.7, the agent auto-rotates format_recommendations."""
+        from unittest.mock import patch
+
+        # Config with only 1 round per collection type -> all cycles get
+        # cycle=1 and format_recommendation="prose", causing low diversity.
+        mock_config = {
+            "issue_types": {
+                "collection": [
+                    {"basis": "FDCPA 809", "statutes": ["15 USC 1692g"]},
+                ],
+            },
+            "fifth_circuit_context": "FACTUAL test",
+        }
+
+        profile = CreditProfile(
+            current_score=535,
+            score_band=ScoreBand.VERY_POOR,
+            overall_utilization=80.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=4000.0,
+                total_credit_limit=5000.0,
+            ),
+            payment_history_pct=68.0,
+            average_account_age_months=18,
+            negative_items=[
+                NegativeItem(
+                    type=NegativeItemType.COLLECTION,
+                    description="Debt A",
+                    amount=1000.0,
+                ),
+                NegativeItem(
+                    type=NegativeItemType.COLLECTION,
+                    description="Debt B",
+                    amount=2000.0,
+                ),
+            ],
+        )
+
+        with patch(
+            "modules.credit.agents.colvin.load_config", return_value=mock_config
+        ):
+            result = agent.execute(profile)
+
+        assert result.status == "success"
+        cycles = result.data["attack_cycles"]
+        assert len(cycles) == 2
+        # After auto-rotation, formats should be rotated across cycles
+        formats = [c["format_recommendation"] for c in cycles]
+        assert formats[0] == "prose"
+        assert formats[1] == "bullets"
+        # Diversity should be recomputed and >= 0.7 is not guaranteed for 2
+        # cycles, but the rotation code path was exercised
+        assert result.data["diversity_metric"] >= 0.0

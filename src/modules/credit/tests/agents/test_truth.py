@@ -262,3 +262,81 @@ class TestTruthAgent:
         assert "legal_language_ratio" in data["eoscar_check"]
         assert "content_flags_found" in data["eoscar_check"]
         assert "eoscar_hardened" in data["eoscar_check"]
+
+
+# ===========================================================================
+# TestEoscarEdgeCases — empty text branches
+# ===========================================================================
+
+
+class TestEoscarEdgeCases:
+    def test_avg_len_zero_for_empty_sentences(self):
+        """truth.py:94 — avg_len = 0.0 when text has no real sentences."""
+        v = _get_eoscar_validator()
+        result = v.check("")
+        # Empty text -> avg_len=0.0, structure_hash like "1:0:prose"
+        assert ":0:" in result["structure_hash"]
+
+    def test_fmt_prose_for_empty_lines(self):
+        """truth.py:105 — fmt = 'prose' when no non-blank lines exist."""
+        v = _get_eoscar_validator()
+        result = v.check("")
+        assert result["structure_hash"].endswith(":prose")
+
+    def test_legal_ratio_zero_for_empty_text(self):
+        """truth.py:124 — _compute_legal_ratio returns 0.0 for empty text."""
+        v = _get_eoscar_validator()
+        result = v.check("")
+        assert result["legal_language_ratio"] == 0.0
+
+
+# ===========================================================================
+# TestBuildRecommendations — specific branch coverage
+# ===========================================================================
+
+
+class TestBuildRecommendations:
+    def test_emotional_patterns_warning(self):
+        """truth.py:150 — emotional_patterns category produces recommendation."""
+        from modules.credit.agents.truth import _build_recommendations
+
+        banned = {
+            "warnings": [
+                {
+                    "category": "emotional_patterns",
+                    "pattern": "please help",
+                    "reason": "Emotional language detected",
+                }
+            ]
+        }
+        eoscar = {"eoscar_hardened": True}
+        recs = _build_recommendations(banned, eoscar)
+        assert any("emotional language" in r.lower() for r in recs)
+
+    def test_content_flags_found_recommendation(self):
+        """truth.py:161 — content_flags_found produces recommendation."""
+        from modules.credit.agents.truth import _build_recommendations
+
+        banned = {"warnings": []}
+        eoscar = {
+            "eoscar_hardened": False,
+            "specificity_score": 0.8,
+            "content_flags_found": ["I am writing to formally dispute"],
+            "legal_language_ratio": 0.01,
+        }
+        recs = _build_recommendations(banned, eoscar)
+        assert any("flagged template phrases" in r.lower() for r in recs)
+
+    def test_legal_language_ratio_recommendation(self):
+        """truth.py:163 — legal_language_ratio > 0.05 produces recommendation."""
+        from modules.credit.agents.truth import _build_recommendations
+
+        banned = {"warnings": []}
+        eoscar = {
+            "eoscar_hardened": False,
+            "specificity_score": 0.8,
+            "content_flags_found": [],
+            "legal_language_ratio": 0.10,
+        }
+        recs = _build_recommendations(banned, eoscar)
+        assert any("legal citations" in r.lower() for r in recs)

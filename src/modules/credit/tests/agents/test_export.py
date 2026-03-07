@@ -228,3 +228,56 @@ class TestExportXSSPrevention:
         result = render_liberation_plan(plan)
         assert "$2,400/year" in result
         assert "high utilization" in result
+
+
+# ---------------------------------------------------------------------------
+# TestExportSafeGetNonDict
+# ---------------------------------------------------------------------------
+
+
+class TestExportSafeGetNonDict:
+    """Cover line 41: _safe_get returns default when intermediate is not a dict."""
+
+    def test_intermediate_value_not_dict_returns_default(self) -> None:
+        """When traversing hits a non-dict intermediate, return the default."""
+        data = {"a": "just_a_string"}
+        result = _safe_get(data, "a", "b")
+        assert result == ""
+
+    def test_intermediate_int_returns_default(self) -> None:
+        """When intermediate value is an int, return the specified default."""
+        data = {"x": 42}
+        result = _safe_get(data, "x", "y", default="fallback")
+        assert result == "fallback"
+
+    def test_intermediate_list_returns_default(self) -> None:
+        """When intermediate value is a list, return the default."""
+        data = {"items": [1, 2, 3]}
+        result = _safe_get(data, "items", "key", default="nope")
+        assert result == "nope"
+
+
+# ---------------------------------------------------------------------------
+# TestExportRenderImpactNonDict
+# ---------------------------------------------------------------------------
+
+
+class TestExportRenderImpactNonDict:
+    """Cover line 111: _render_impact when impact is not a dict."""
+
+    def test_impact_as_string_renders_without_error(self) -> None:
+        """When impact value is a string instead of dict, use empty dict fallback."""
+        plan = {
+            "liberation_plan": {
+                "situation": {"poverty_tax": "$500", "barriers": []},
+                "monday_morning": {"actions": []},
+                "battle_plan": {"phases": []},
+                "impact": "not-a-dict",
+            },
+            "community_impact": "test",
+            "why_deterministic": "test",
+        }
+        result = render_liberation_plan(plan)
+        assert "Your Impact" in result
+        # The dash character is used as fallback for missing score values
+        assert "\u2014" in result or "—" in result
