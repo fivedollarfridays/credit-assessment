@@ -1,0 +1,88 @@
+{
+  "industries": {
+    "healthcare_cna": {
+      "check_frequency": "rarely",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 16.50,
+      "source": "BLS Montgomery MSA"
+    },
+    "healthcare_admin": {
+      "check_frequency": "sometimes",
+      "collection_blocker": true,
+      "min_score": 580,
+      "avg_wage": 18.75,
+      "source": "BLS Montgomery MSA"
+    },
+    "finance_banking": {
+      "check_frequency": "always",
+      "collection_blocker": true,
+      "min_score": 650,
+      "avg_wage": 22.00,
+      "source": "BLS Montgomery MSA"
+    },
+    "government_federal": {
+      "check_frequency": "always",
+      "collection_blocker": true,
+      "min_score": null,
+      "avg_wage": 24.00,
+      "source": "BLS Montgomery MSA"
+    },
+    "government_state": {
+      "check_frequency": "sometimes",
+      "collection_blocker": true,
+      "min_score": null,
+      "avg_wage": 19.50,
+      "source": "BLS Montgomery MSA"
+    },
+    "manufacturing": {
+      "check_frequency": "never",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 17.25,
+      "source": "BLS Montgomery MSA"
+    },
+    "warehouse_logistics": {
+      "check_frequency": "never",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 15.50,
+      "source": "BLS Montgomery MSA"
+    },
+    "food_service": {
+      "check_frequency": "never",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 10.25,
+      "source": "BLS Montgomery MSA"
+    },
+    "retail": {
+      "check_frequency": "never",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 12.00,
+      "source": "BLS Montgomery MSA"
+    },
+    "education_teacher": {
+      "check_frequency": "sometimes",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 21.00,
+      "source": "BLS Montgomery MSA"
+    },
+    "trucking_cdl": {
+      "check_frequency": "rarely",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 22.50,
+      "source": "BLS Montgomery MSA"
+    },
+    "construction": {
+      "check_frequency": "never",
+      "collection_blocker": false,
+      "min_score": null,
+      "avg_wage": 18.00,
+      "source": "BLS Montgomery MSA"
+    }
+  }
+}

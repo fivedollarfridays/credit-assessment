@@ -1,0 +1,76 @@
+{
+  "denial_types": {
+    "employment": {
+      "governing_law": "FCRA \u00a7604(b)(3)",
+      "required_notices": [
+        "pre-adverse action notice",
+        "copy of report",
+        "summary of rights",
+        "final adverse action notice"
+      ],
+      "violation_damages": {
+        "statutory": "$100-$1000",
+        "punitive": "court discretion",
+        "attorneys_fees": true
+      },
+      "statute_of_limitations_years": 2
+    },
+    "housing": {
+      "governing_law": "FCRA \u00a7615(a)",
+      "required_notices": [
+        "adverse action notice",
+        "CRA name and contact",
+        "right to free report within 60 days",
+        "right to dispute"
+      ],
+      "violation_damages": {
+        "statutory": "$100-$1000",
+        "punitive": "court discretion"
+      },
+      "statute_of_limitations_years": 2
+    },
+    "credit": {
+      "governing_law": "ECOA \u00a7701 / FCRA \u00a7615",
+      "required_notices": [
+        "specific reasons for denial OR right to request reasons",
+        "CRA contact info",
+        "credit score used"
+      ],
+      "violation_damages": {
+        "statutory": "up to $10000 ECOA",
+        "punitive": "court discretion"
+      },
+      "statute_of_limitations_years": 2
+    },
+    "insurance": {
+      "governing_law": "FCRA \u00a7615(a)",
+      "required_notices": [
+        "adverse action notice",
+        "credit score",
+        "key factors"
+      ],
+      "violation_damages": {
+        "statutory": "$100-$1000"
+      },
+      "statute_of_limitations_years": 2
+    },
+    "auto_loan": {
+      "governing_law": "ECOA / FCRA \u00a7615",
+      "required_notices": [
+        "denial reason",
+        "CRA info",
+        "score disclosure"
+      ],
+      "violation_damages": {
+        "statutory": "$100-$1000"
+      },
+      "statute_of_limitations_years": 2
+    }
+  },
+  "state_overrides": {
+    "AL": {
+      "follows_federal": true,
+      "additional_disclosures": []
+    }
+  }
+}

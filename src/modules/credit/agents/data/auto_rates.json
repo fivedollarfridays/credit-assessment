@@ -1,0 +1,44 @@
+{
+  "loan_parameters": {
+    "principal": 15000,
+    "term_months": 60
+  },
+  "score_bands": {
+    "750-850": {
+      "apr": 4.5,
+      "monthly": 279.65,
+      "total_interest": 1779
+    },
+    "700-749": {
+      "apr": 6.5,
+      "monthly": 293.49,
+      "total_interest": 2609
+    },
+    "650-699": {
+      "apr": 9.5,
+      "monthly": 315.26,
+      "total_interest": 3916
+    },
+    "600-649": {
+      "apr": 13.5,
+      "monthly": 345.44,
+      "total_interest": 5726
+    },
+    "550-599": {
+      "apr": 17.5,
+      "monthly": 376.70,
+      "total_interest": 7602
+    },
+    "500-549": {
+      "apr": 21.0,
+      "monthly": 404.22,
+      "total_interest": 9253
+    },
+    "300-499": {
+      "apr": 25.0,
+      "monthly": 435.93,
+      "total_interest": 11156
+    }
+  },
+  "source": "Federal Reserve + myFICO"
+}

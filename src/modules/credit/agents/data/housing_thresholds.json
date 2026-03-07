@@ -1,0 +1,44 @@
+{
+  "housing_types": {
+    "section_8": {
+      "min_score": null,
+      "credit_check": false,
+      "collection_ok": true,
+      "extra_deposit": 0
+    },
+    "public_housing": {
+      "min_score": null,
+      "credit_check": false,
+      "collection_ok": true,
+      "extra_deposit": 0
+    },
+    "private_rental": {
+      "min_score": 580,
+      "credit_check": true,
+      "collection_ok": false,
+      "extra_deposit": 500
+    },
+    "fha_mortgage": {
+      "min_score": 580,
+      "credit_check": true,
+      "collection_ok": false,
+      "extra_deposit": 0,
+      "down_payment_pct": 3.5
+    },
+    "conventional": {
+      "min_score": 620,
+      "credit_check": true,
+      "collection_ok": false,
+      "extra_deposit": 0,
+      "down_payment_pct": 5
+    },
+    "prime": {
+      "min_score": 700,
+      "credit_check": true,
+      "collection_ok": false,
+      "extra_deposit": 0,
+      "down_payment_pct": 3
+    }
+  },
+  "source": "AL Apartment Association"
+}

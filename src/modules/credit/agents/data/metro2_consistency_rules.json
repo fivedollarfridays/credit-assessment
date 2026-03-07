@@ -1,0 +1,87 @@
+{
+  "fields": [
+    {
+      "name": "balance",
+      "tolerance_pct": 5,
+      "tolerance_abs": 100,
+      "severity": "high"
+    },
+    {
+      "name": "credit_limit",
+      "tolerance_pct": 5,
+      "tolerance_abs": 200,
+      "severity": "medium"
+    },
+    {
+      "name": "payment_status",
+      "tolerance_pct": 0,
+      "tolerance_abs": 0,
+      "severity": "high"
+    },
+    {
+      "name": "account_status",
+      "tolerance_pct": 0,
+      "tolerance_abs": 0,
+      "severity": "high"
+    },
+    {
+      "name": "date_opened",
+      "tolerance_days": 31,
+      "severity": "medium"
+    },
+    {
+      "name": "date_of_first_delinquency",
+      "tolerance_days": 31,
+      "severity": "critical"
+    },
+    {
+      "name": "highest_balance",
+      "tolerance_pct": 10,
+      "tolerance_abs": 500,
+      "severity": "low"
+    },
+    {
+      "name": "payment_amount",
+      "tolerance_pct": 10,
+      "tolerance_abs": 50,
+      "severity": "low"
+    },
+    {
+      "name": "account_type",
+      "tolerance_pct": 0,
+      "tolerance_abs": 0,
+      "severity": "high"
+    }
+  ],
+  "metro2_field_positions": {
+    "account_type": {
+      "start": 26,
+      "end": 27,
+      "codes": {
+        "01": "Auto",
+        "18": "Credit Card",
+        "47": "Medical"
+      }
+    },
+    "status_code": {
+      "start": 28,
+      "end": 29,
+      "codes": {
+        "82": "Collection",
+        "83": "Charged Off",
+        "05": "Current"
+      }
+    },
+    "date_opened": {
+      "start": 30,
+      "end": 37,
+      "format": "MMDDYYYY"
+    },
+    "balance": {
+      "start": 38,
+      "end": 45,
+      "format": "right-justified zero-filled 8 digits"
+    }
+  },
+  "source": "CDIA Metro2 Format specification"
+}

@@ -1,0 +1,46 @@
+{
+  "creditors": [
+    {
+      "name": "Capital One",
+      "type": "bank",
+      "address": "PO Box 30285, Salt Lake City, UT 84130",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "JPMorgan Chase",
+      "type": "bank",
+      "address": "PO Box 15298, Wilmington, DE 19850",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "Synchrony Financial",
+      "type": "bank",
+      "address": "PO Box 965012, Orlando, FL 32896",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "Portfolio Recovery Associates",
+      "type": "collector",
+      "address": "120 Corporate Blvd, Norfolk, VA 23502",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "Midland Credit Management",
+      "type": "collector",
+      "address": "PO Box 60578, San Diego, CA 92166",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "LVNV Funding",
+      "type": "collector",
+      "address": "PO Box 25028, Greenville, SC 29616",
+      "dispute_method": "mail"
+    },
+    {
+      "name": "Ally Financial",
+      "type": "auto_lender",
+      "address": "PO Box 380901, Bloomington, MN 55438",
+      "dispute_method": "mail"
+    }
+  ]
+}

@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-sprint-22
-**Status:** Complete
-**Current Sprint:** 22 (all done — T22.1, T22.2, T22.3)
+**Plan:** plan-2026-03-plan-2026-03-sprint-25
+**Status:** In Progress
+**Current Sprint:** 25 — Security & Resilience Hardening (Bugfix)
 
 ## Current Focus
 
-Sprint 23 complete. All tasks done (T23.1, T23.2, T23.3).
+Sprint 25: Remaining security audit fixes — Robinson SSRF, DNS rebinding, CircuitBreaker persistence.
 
 ## Task Status
 
@@ -208,11 +208,74 @@ Sprint 23 complete. All tasks done (T23.1, T23.2, T23.3).
 | T23.2 | Dispute lifecycle endpoints | P0 | 45 | ✓ Done |
 | T23.3 | Score history tracking | P1 | 40 | ✓ Done |
 
+### Sprint 24 — Baby INERTIA Security Audit Fixes (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T24.1 | XSS remediation in export.py (C-1) | P0 | 35 | ✓ Done |
+| T24.2 | MosesAgent production wiring + factory (C-2) | P0 | 55 | ✓ Done |
+| T24.3 | Input validation hardening (H-1, H-2, H-3) | P0 | 40 | ✓ Done |
+| T24.4 | Path traversal, unvalidated dict, async HTTP (M-1, M-2, M-5) | P1 | 55 | ✓ Done |
+| T24.5 | Webhook DNS, rate limiting, dedup, docker env (M-4, M-7, Q-1, Q-3) | P1 | 55 | ✓ Done |
+| T24.6 | Test coverage gaps + lint cleanup | P2 | 45 | ✓ Done |
+
+### Sprint 25 — Security & Resilience Hardening (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T25.1 | Robinson SSRF: urllib → httpx (M-1) | P0 | 25 | ✓ Done |
+| T25.2 | Webhook DNS rebinding at delivery (M-3) | P0 | 30 | ✓ Done |
+| T25.3 | Thread-safe CircuitBreaker + shared state (L-3/I-1) | P1 | 45 | ✓ Done |
+
 ## What Was Just Done
 
-- **T23.3 done** (auto-updated by hook)
+- **T25.3 done** (auto-updated by hook)
 
-- **T23.3 done**
+- **Sprint 25 complete** — All 3 tasks done. 1536 tests passing, 0 arch errors.
+  - T25.1: Robinson SSRF — urllib→httpx, URL allowlist, API key validation, 4 new tests
+  - T25.2: DNS rebinding — `_resolve_and_check()` with getaddrinfo + is_global, 5 new tests
+  - T25.3: Thread-safe CircuitBreaker — threading.Lock, shared singleton via `_get_shared_resilience()`, 5 new tests
+
+- **T25.1 done** — Robinson SSRF fix: replaced `urllib.request` with `httpx.Client`, added `_BRIGHT_DATA_ALLOWED_HOST` URL allowlist, API key `.strip()` validation, 4 new tests (empty key, whitespace key, blocked host, no-urllib check). 1526 tests passing.
+
+### Session: 2026-03-07 -- T24.6: Test Coverage Gaps + Lint Cleanup
+
+- Added `TestDeadLetterQueueDrain` (3 tests) and `TestCircuitBreakerReset` (2 tests) to test_foundation.py
+- Added `test_count_by_user_id` to test_repo_assessments.py, `test_count_by_user_with_status_filter` to test_repo_disputes.py
+- Removed 15 unused imports across 10 test files via `ruff check --fix`
+- Fixed 2 remaining F841 (unused variable) lint issues in test_moses.py and test_phantom.py
+- Ran `ruff format` on all source files (35 files reformatted)
+- All 1506 tests pass, `ruff check` clean, `ruff format --check` clean, arch check clean (warnings only)
+
+### Session: 2026-03-07 -- T24.5: Dedup, Rate Limiting, Docker Env
+
+- Q-1: Extracted `score_to_band()` to `agents/scoring.py`, removed from parks/phantom/lewis
+- Q-3: Added `@limiter.limit()` to all 4 liberate_routes endpoints
+- M-7: docker-compose.yml uses `${POSTGRES_PASSWORD:-credit}` env var pattern
+- All 356 agent tests pass
+
+### Session: 2026-03-07 -- T24.3: Input Validation Hardening
+
+- H-1: Added `max_length=50` on `negative_items` list and `max_length=200` on each string via `Annotated`
+- H-2: Added `@field_validator` on `bureau_reports` in both `LiberateRequest` and `CompareBureausRequest` (max 5 keys)
+- H-3: Changed audit_log `limit` to `Query(default=100, ge=1, le=10000)`
+- 7 validation boundary tests pass
+
+### Session: 2026-03-07 -- T24.2: MosesAgent Production Wiring
+
+- Added `create_wired_moses()` factory to `agents/__init__.py` with `_ensure_all_imported()`
+- Modified `MosesAgent.__init__` to accept optional `agents` dict, auto-discover from registry when None
+- Updated `liberate_routes.py` to use `create_wired_moses()` instead of bare `MosesAgent()`
+- Fixed Q-2: `callable` → `Callable[[dict], bool]` in moses.py:61
+- Added 4 wiring tests to test_moses_extended.py
+- All 63 moses tests pass
+
+### Session: 2026-03-07 -- T24.1: XSS Remediation in export.py
+
+- Added `import html` and `_esc = html.escape` helper to `export.py`
+- Escaped all user-controlled values across 7 `_render_*` functions + footer
+- Added 10 XSS-specific tests to `test_export.py` (script injection, attribute injection, double-escape prevention)
+- All 19 export tests pass, arch check clean
 
 ### Session: 2026-03-06 -- T23.3: Score History Tracking
 
@@ -418,7 +481,7 @@ Sprint 23 complete. All tasks done (T23.1, T23.2, T23.3).
 
 ## What's Next
 
-Sprint 21 complete. Next: Sprint 19 (persistence), Sprint 20 (commercial), then Sprint 22 (dispute letter generation).
+T25.1 done. Next: T25.2 (webhook DNS rebinding), T25.3 (thread-safe CircuitBreaker).
 
 ---
 

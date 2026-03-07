@@ -1,0 +1,73 @@
+{
+  "acdv_codes": [
+    {
+      "code": "01",
+      "description": "Not his/her account"
+    },
+    {
+      "code": "02",
+      "description": "Account closed"
+    },
+    {
+      "code": "03",
+      "description": "Belongs to another person with same/similar name"
+    },
+    {
+      "code": "04",
+      "description": "Account paid in full"
+    },
+    {
+      "code": "05",
+      "description": "Account balance incorrect"
+    },
+    {
+      "code": "06",
+      "description": "Account history inaccurate"
+    },
+    {
+      "code": "07",
+      "description": "Account status incorrect"
+    },
+    {
+      "code": "08",
+      "description": "Date(s) incorrect"
+    },
+    {
+      "code": "09",
+      "description": "Other (provide detail)"
+    },
+    {
+      "code": "10",
+      "description": "Account information recognized \u2014 disputes details"
+    }
+  ],
+  "structural_detection": {
+    "paragraph_count_range": {
+      "min": 2,
+      "max": 5,
+      "note": "Templates typically have exactly 3 paragraphs"
+    },
+    "avg_sentence_length": {
+      "template_avg": 22,
+      "variation_threshold": 5
+    },
+    "bullets_vs_prose": "Templates heavily use bullet lists \u2014 vary format"
+  },
+  "content_flags": [
+    "I am writing to formally dispute",
+    "pursuant to my rights under",
+    "please conduct a reasonable investigation",
+    "remove this inaccurate information"
+  ],
+  "specificity_requirements": {
+    "min_score": 0.6,
+    "required_elements": [
+      "specific_field_name",
+      "reported_value",
+      "correct_value",
+      "supporting_evidence"
+    ],
+    "description": "Disputes must identify EXACT field, reported value, and correct value"
+  },
+  "source": "e-OSCAR.org ACDV system documentation"
+}

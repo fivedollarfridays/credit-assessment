@@ -26,6 +26,7 @@ API_TAGS = [
     {"name": "data-rights", "description": "GDPR/CCPA data export and deletion"},
     {"name": "docs", "description": "API documentation and integration guides"},
     {"name": "health", "description": "Health and readiness probes"},
+    {"name": "liberation", "description": "Baby INERTIA credit liberation agents"},
 ]
 
 _INTEGRATION_GUIDE: dict = {
@@ -66,6 +67,26 @@ _INTEGRATION_GUIDE: dict = {
             "method": "DELETE",
             "path": "/v1/user/data",
             "description": "Delete all user data (GDPR). Requires user_id param.",
+        },
+        {
+            "method": "POST",
+            "path": "/v1/liberate",
+            "description": "Run full Liberation Plan with all 10 agents. Requires auth.",
+        },
+        {
+            "method": "POST",
+            "path": "/v1/phantom-tax",
+            "description": "Calculate poverty tax receipt. Requires auth.",
+        },
+        {
+            "method": "POST",
+            "path": "/v1/compare-bureaus",
+            "description": "Cross-bureau discrepancy scan. Requires auth.",
+        },
+        {
+            "method": "POST",
+            "path": "/v1/liberate/print",
+            "description": "Printable HTML Liberation Plan. Requires auth.",
         },
         {
             "method": "GET",

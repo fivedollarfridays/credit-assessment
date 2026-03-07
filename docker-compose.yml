@@ -2,15 +2,15 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: credit
-      POSTGRES_PASSWORD: credit
-      POSTGRES_DB: credit
+      POSTGRES_USER: ${POSTGRES_USER:-credit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-credit}
+      POSTGRES_DB: ${POSTGRES_DB:-credit}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U credit"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-credit}"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -32,11 +32,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=development
+      - ENVIRONMENT=${ENVIRONMENT:-development}
       - API_KEY=${API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=postgresql+asyncpg://credit:credit@db:5432/credit
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:-credit}@db:5432/${POSTGRES_DB:-credit}
       - REDIS_URL=redis://redis:6379
     volumes:
       - ./src:/app/src:ro

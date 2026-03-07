@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -93,14 +94,13 @@ async def verify_auth(
             raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     if api_key is not None:
+        # Always run both checks to normalize timing (prevents oracle on DB lookup)
         scoped = await _lookup_scoped_key(request, api_key)
+        expected = settings.api_key
+        static_ok = expected is not None and hmac.compare_digest(api_key, expected)
         if scoped is not None:
             return scoped
-
-    # Fallback: static settings.api_key (constant-time comparison)
-    expected = settings.api_key
-    if expected is not None and api_key is not None:
-        if hmac.compare_digest(api_key, expected):
+        if static_ok:
             return AuthIdentity(identity=API_KEY_IDENTITY)
 
     raise HTTPException(status_code=403, detail="Invalid or missing credentials")
@@ -269,7 +269,9 @@ class SimpleCreditProfile(BaseModel):
     utilization_percent: float = Field(ge=0.0, le=100.0)
     total_accounts: int = Field(ge=0)
     open_accounts: int = Field(ge=0)
-    negative_items: list[str] = Field(default=[])
+    negative_items: list[Annotated[str, Field(max_length=200)]] = Field(
+        default=[], max_length=50
+    )
     payment_history_percent: float = Field(ge=0.0, le=100.0)
     oldest_account_months: int = Field(ge=0, le=1200)
     total_balance: float = Field(default=0.0, ge=0.0)

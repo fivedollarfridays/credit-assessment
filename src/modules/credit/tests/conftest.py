@@ -86,8 +86,10 @@ VALID_ASSESS_PAYLOAD: dict = {
 @pytest.fixture
 def client() -> TestClient:
     """Shared TestClient for the FastAPI app with in-memory DB."""
+    from modules.credit.rate_limit import limiter
     from modules.credit.router import app
 
+    limiter.reset()
     with patch_auth_settings(_TEST_SETTINGS):
         with TestClient(app) as c:
             yield c

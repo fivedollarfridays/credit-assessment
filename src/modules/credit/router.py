@@ -21,6 +21,7 @@ from . import (
     database,
     dispute_routes,
     letter_routes,
+    liberate_routes,
     logging_config,
     middleware,
     rate_limit,
@@ -79,6 +80,7 @@ v1_router.include_router(letter_routes.router)  # v1-only
 v1_router.include_router(simulate_routes.router)  # v1-only
 v1_router.include_router(dispute_routes.router)  # v1-only
 v1_router.include_router(score_routes.router)  # v1-only
+v1_router.include_router(liberate_routes.router)  # v1-only
 
 # Legacy unversioned routers
 app.include_router(auth_router)
@@ -99,7 +101,6 @@ app.add_middleware(
 )
 app.add_middleware(middleware.RequestIdMiddleware)
 app.add_middleware(middleware.DeprecationMiddleware)
-app.add_middleware(rate_limit.RateLimitHeaderMiddleware)
 app.add_middleware(middleware.HstsMiddleware, prod_check=lambda: settings.is_production)
 app.add_middleware(
     middleware.HttpsRedirectMiddleware, prod_check=lambda: settings.is_production

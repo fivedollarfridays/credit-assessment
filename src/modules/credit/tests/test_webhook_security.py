@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import socket
 from unittest.mock import patch
 
 import pytest
 
+from modules.credit.webhook_delivery import _resolve_and_check
 from modules.credit.webhook_routes import _is_private_ip
 
 
@@ -15,7 +17,7 @@ def _post_webhook(client, url: str):
         json={
             "url": url,
             "events": ["assessment.completed"],
-            "secret": "webhook-secret-0123456789",
+            "secret": "webhook-secret-01234567890abcdef",
         },
     )
 
@@ -114,3 +116,59 @@ class TestWebhookHttpsInProduction:
         with patch("modules.credit.webhook_routes.settings", prod):
             resp = _post_webhook(client, "https://example.com/hook")
             assert resp.status_code == 201
+
+
+# --- DNS rebinding protection at delivery time ---
+
+
+class TestDnsRebindingProtection:
+    """T25.2: _resolve_and_check blocks private IPs resolved at delivery time."""
+
+    def test_loopback_ip_blocked(self) -> None:
+        """127.0.0.1 resolved at delivery time should raise ValueError."""
+        fake_addrinfo = [(socket.AF_INET, 0, 0, "", ("127.0.0.1", 0))]
+        with patch(
+            "modules.credit.webhook_delivery.socket.getaddrinfo",
+            return_value=fake_addrinfo,
+        ):
+            with pytest.raises(ValueError, match="non-global"):
+                _resolve_and_check("https://evil.com/hook")
+
+    def test_private_ip_blocked(self) -> None:
+        """192.168.1.1 resolved at delivery time should raise ValueError."""
+        fake_addrinfo = [(socket.AF_INET, 0, 0, "", ("192.168.1.1", 0))]
+        with patch(
+            "modules.credit.webhook_delivery.socket.getaddrinfo",
+            return_value=fake_addrinfo,
+        ):
+            with pytest.raises(ValueError, match="non-global"):
+                _resolve_and_check("https://evil.com/hook")
+
+    def test_link_local_blocked(self) -> None:
+        """169.254.169.254 (cloud metadata) should raise ValueError."""
+        fake_addrinfo = [(socket.AF_INET, 0, 0, "", ("169.254.169.254", 0))]
+        with patch(
+            "modules.credit.webhook_delivery.socket.getaddrinfo",
+            return_value=fake_addrinfo,
+        ):
+            with pytest.raises(ValueError, match="non-global"):
+                _resolve_and_check("https://evil.com/hook")
+
+    def test_ipv6_loopback_blocked(self) -> None:
+        """::1 resolved at delivery time should raise ValueError."""
+        fake_addrinfo = [(socket.AF_INET6, 0, 0, "", ("::1", 0, 0, 0))]
+        with patch(
+            "modules.credit.webhook_delivery.socket.getaddrinfo",
+            return_value=fake_addrinfo,
+        ):
+            with pytest.raises(ValueError, match="non-global"):
+                _resolve_and_check("https://evil.com/hook")
+
+    def test_dns_resolution_failure_raises(self) -> None:
+        """DNS resolution failure (gaierror) should raise ValueError."""
+        with patch(
+            "modules.credit.webhook_delivery.socket.getaddrinfo",
+            side_effect=socket.gaierror("Name or service not known"),
+        ):
+            with pytest.raises(ValueError, match="DNS resolution failed"):
+                _resolve_and_check("https://nonexistent.example.com/hook")

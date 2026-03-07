@@ -85,7 +85,7 @@ class TestWebhookEndpoints:
             json={
                 "url": "https://example.com/hook",
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
         assert resp.status_code == 201
@@ -109,7 +109,7 @@ class TestWebhookEndpoints:
             json={
                 "url": "ftp://example.com/hook",
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
         assert resp.status_code == 422
@@ -120,7 +120,7 @@ class TestWebhookEndpoints:
             json={
                 "url": "https://a.com/h",
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
         resp = client.get("/v1/webhooks")
@@ -137,7 +137,7 @@ class TestWebhookEndpoints:
             json={
                 "url": "https://example.com/h",
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
         wh_id = create_resp.json()["id"]
@@ -155,7 +155,7 @@ class TestWebhookEndpoints:
             json={
                 "url": "https://example.com/h",
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
         wh_id = create_resp.json()["id"]
@@ -213,7 +213,7 @@ class TestWebhookTenantIsolation:
             json={
                 "url": url,
                 "events": ["assessment.completed"],
-                "secret": "webhook-secret-0123456789",
+                "secret": "webhook-secret-01234567890abcdef",
             },
         )
 

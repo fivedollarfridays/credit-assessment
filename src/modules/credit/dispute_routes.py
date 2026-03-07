@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .assess_routes import verify_auth
@@ -24,6 +24,13 @@ class CreateDisputeRequest(BaseModel):
     bureau: Bureau
     negative_item_data: dict
     letter_type: str | None = None
+
+    @field_validator("negative_item_data")
+    @classmethod
+    def _cap_item_data(cls, v: dict) -> dict:
+        if len(v) > 20:
+            raise ValueError("negative_item_data may have at most 20 keys")
+        return v
 
 
 class StatusUpdateRequest(BaseModel):
@@ -153,6 +160,8 @@ async def update_dispute_status(
     except ValueError as exc:
         msg = str(exc)
         if "not found" in msg:
-            raise HTTPException(status_code=404, detail=msg) from exc
-        raise HTTPException(status_code=400, detail=msg) from exc
+            raise HTTPException(status_code=404, detail="Dispute not found") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid status transition"
+        ) from exc
     return _dispute_to_dict(record)

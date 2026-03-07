@@ -193,6 +193,45 @@ class TestAssessmentRepositoryOrgMethods:
 
         asyncio.run(_run())
 
+    def test_count_by_user_id(self, db_factory):
+        from modules.credit.repo_assessments import AssessmentRepository
+
+        async def _run():
+            async with db_factory() as s:
+                repo = AssessmentRepository(s)
+                await repo.save_assessment(
+                    credit_score=740,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=82,
+                    request_payload={},
+                    response_payload={},
+                    user_id="user-A",
+                )
+                await repo.save_assessment(
+                    credit_score=650,
+                    score_band="fair",
+                    barrier_severity="medium",
+                    readiness_score=55,
+                    request_payload={},
+                    response_payload={},
+                    user_id="user-A",
+                )
+                await repo.save_assessment(
+                    credit_score=700,
+                    score_band="good",
+                    barrier_severity="low",
+                    readiness_score=70,
+                    request_payload={},
+                    response_payload={},
+                    user_id="user-B",
+                )
+                assert await repo.count_by_user_id("user-A") == 2
+                assert await repo.count_by_user_id("user-B") == 1
+                assert await repo.count_by_user_id("user-C") == 0
+
+        asyncio.run(_run())
+
     def test_get_by_org_id_with_limit_offset(self, db_factory):
         from modules.credit.repo_assessments import AssessmentRepository
 
