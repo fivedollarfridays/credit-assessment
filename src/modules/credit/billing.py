@@ -108,9 +108,11 @@ async def handle_webhook(
     session: AsyncSession,
     payload: bytes,
     sig_header: str,
-    webhook_secret: str,
+    webhook_secret: str | None,
 ) -> dict:
     """Process a Stripe webhook event, persisting subscription changes to DB."""
+    if not webhook_secret:
+        return {"status": "error", "detail": "Webhook signing not configured"}
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except (ValueError, _StripeSignatureError):

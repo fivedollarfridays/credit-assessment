@@ -12,7 +12,7 @@ services:
       - API_KEY=${API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://credit:credit@db:5432/credit}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set}
       - DEPLOY_SLOT=blue
     depends_on:
       db:
@@ -36,7 +36,7 @@ services:
       - API_KEY=${API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://credit:credit@db:5432/credit}
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set}
       - DEPLOY_SLOT=green
     depends_on:
       db:

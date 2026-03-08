@@ -92,6 +92,14 @@ class ResetTokenRepository:
         await self._session.commit()
         return email
 
+    async def delete_by_email(self, email: str) -> int:
+        """Delete all reset tokens for a given email (invalidation after use)."""
+        result = await self._session.execute(
+            delete(ResetToken).where(ResetToken.email == email)
+        )
+        await self._session.commit()
+        return result.rowcount
+
     async def prune_expired(self, ttl_minutes: int = 30) -> int:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=ttl_minutes)
         result = await self._session.execute(

@@ -205,6 +205,53 @@ class TestPiiPepperConfig:
             Settings(environment="production", jwt_secret="real-secret")
 
 
+class TestCorsWildcardValidation:
+    """CORS wildcard '*' must be rejected in production (Finding #15)."""
+
+    def test_rejects_cors_wildcard_in_production(self):
+        from pydantic import ValidationError
+
+        from modules.credit.config import Settings
+
+        with pytest.raises(ValidationError, match="[Cc][Oo][Rr][Ss]"):
+            Settings(
+                environment="production",
+                jwt_secret="prod-secret",
+                pii_pepper="prod-pepper",
+                cors_origins=["*"],
+            )
+
+    def test_rejects_cors_wildcard_among_valid_origins(self):
+        from pydantic import ValidationError
+
+        from modules.credit.config import Settings
+
+        with pytest.raises(ValidationError, match="[Cc][Oo][Rr][Ss]"):
+            Settings(
+                environment="production",
+                jwt_secret="prod-secret",
+                pii_pepper="prod-pepper",
+                cors_origins=["https://app.example.com", "*"],
+            )
+
+    def test_accepts_specific_origins_in_production(self):
+        from modules.credit.config import Settings
+
+        s = Settings(
+            environment="production",
+            jwt_secret="prod-secret",
+            pii_pepper="prod-pepper",
+            cors_origins=["https://app.example.com"],
+        )
+        assert s.cors_origins == ["https://app.example.com"]
+
+    def test_allows_cors_wildcard_in_development(self):
+        from modules.credit.config import Settings
+
+        s = Settings(cors_origins=["*"])
+        assert s.cors_origins == ["*"]
+
+
 class TestBackwardCompatFunctions:
     """Test that legacy standalone functions delegate to the settings singleton."""
 

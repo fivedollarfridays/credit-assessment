@@ -188,18 +188,21 @@ class TestApiKeyModel:
 
     def test_create_api_key(self, db_factory):
         from modules.credit.models_db import ApiKeyDB
+        from modules.credit.repo_api_keys import _hash_key
 
         async def _run():
             async with db_factory() as session:
                 key = ApiKeyDB(
-                    key="test-key-abc",
+                    key_hash=_hash_key("test-key-abc"),
+                    key_prefix="test-key",
                     org_id="org-1",
                     role="analyst",
                 )
                 session.add(key)
                 await session.commit()
                 await session.refresh(key)
-                assert key.key == "test-key-abc"
+                assert key.key_hash == _hash_key("test-key-abc")
+                assert key.key_prefix == "test-key"
                 assert key.expires_at is None
                 assert key.revoked_at is None
 

@@ -136,7 +136,14 @@ class ResetToken(Base):
 
 
 class WebhookRegistrationDB(Base):
-    """Persisted webhook endpoint registration."""
+    """Persisted webhook endpoint registration.
+
+    The ``secret`` column stores the customer-provided HMAC signing secret
+    in plaintext because it must be available at delivery time to compute
+    signatures.  Encryption at rest should be enforced at the database
+    layer (e.g. PostgreSQL TDE or column-level encryption).  A minimum
+    length of 32 characters is validated at the API layer.
+    """
 
     __tablename__ = "webhook_registrations"
 
@@ -169,11 +176,17 @@ class WebhookDeliveryDB(Base):
 
 
 class ApiKeyDB(Base):
-    """Scoped API key for org-level access."""
+    """Scoped API key for org-level access.
+
+    Keys are stored as SHA-256 hashes (key_hash) with a short prefix
+    (key_prefix) for human identification.  The plaintext key is shown
+    once at creation time and never stored.
+    """
 
     __tablename__ = "api_keys"
 
-    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    key_prefix: Mapped[str] = mapped_column(String(8), nullable=False)
     org_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     expires_at: Mapped[datetime.datetime | None] = mapped_column(

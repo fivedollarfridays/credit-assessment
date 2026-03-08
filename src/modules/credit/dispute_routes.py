@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +32,8 @@ class CreateDisputeRequest(BaseModel):
     def _cap_item_data(cls, v: dict) -> dict:
         if len(v) > 20:
             raise ValueError("negative_item_data may have at most 20 keys")
+        if len(json.dumps(v)) > 10_000:
+            raise ValueError("negative_item_data total size exceeds 10KB limit")
         return v
 
 

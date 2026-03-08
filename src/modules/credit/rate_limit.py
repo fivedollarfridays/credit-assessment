@@ -43,7 +43,16 @@ def resolve_tier(tier: SubscriptionTier | None) -> str | None:
 
 
 def create_limiter(redis_url: str | None = None) -> Limiter:
-    """Create a Limiter, optionally backed by Redis with in-memory fallback."""
+    """Create a Limiter, optionally backed by Redis with in-memory fallback.
+
+    The limiter is keyed on the remote address via ``get_remote_address``
+    (X-Forwarded-For / REMOTE_ADDR).  In production behind a reverse proxy,
+    configure ``FORWARDED_ALLOW_IPS`` (Uvicorn) or the equivalent trusted-proxy
+    setting so that only the **first untrusted** hop is used as the client IP.
+    Without proper proxy trust configuration, X-Forwarded-For can be spoofed
+    by the client.  ``RequestIdMiddleware`` already adds per-request tracing;
+    the proxy trust layer is an infrastructure concern handled at deploy time.
+    """
     if redis_url is not None:
         try:
             return Limiter(key_func=get_remote_address, storage_uri=redis_url)

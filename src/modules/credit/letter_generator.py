@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .disclosures import FCRA_DISCLAIMER
 from .letter_templates import TEMPLATES, get_template
@@ -22,6 +22,14 @@ class LetterRequest(BaseModel):
     consumer_address: str | None = Field(default=None, max_length=500)
     account_number: str | None = Field(default=None, max_length=50)
     variation: int | None = None
+
+    @field_validator("consumer_name")
+    @classmethod
+    def _no_braces(cls, v: str) -> str:
+        """Reject braces to prevent format-string / template injection."""
+        if "{" in v or "}" in v:
+            raise ValueError("Braces not allowed in consumer_name")
+        return v
 
 
 class GeneratedLetter(BaseModel):

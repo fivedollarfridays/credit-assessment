@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from .assess_routes import verify_auth
 from .auth import API_KEY_IDENTITY, AuthIdentity, TokenResponse, issue_token_for
 from .config import settings
+from .rate_limit import limiter
 
 # Demo credentials — only active when environment != "production".
 _DEMO_USERS = {"admin": "admin"}
@@ -30,7 +31,8 @@ class TokenRequest(BaseModel):
 
 
 @router.post("/token", response_model=TokenResponse)
-def issue_token(creds: TokenRequest) -> TokenResponse:
+@limiter.limit("5/minute")
+def issue_token(request: Request, creds: TokenRequest) -> TokenResponse:
     """Issue a JWT access token for valid credentials."""
     if _get_demo_users().get(creds.username) != creds.password:
         raise HTTPException(status_code=401, detail="Invalid credentials")

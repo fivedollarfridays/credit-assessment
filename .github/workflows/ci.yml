@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Audit dependencies for vulnerabilities
+        run: pip install pip-audit && pip-audit
+
       - name: Run tests with coverage
         run: coverage run -m pytest src/modules/credit/tests/ -v --tb=short
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+_ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
 
 _DEFAULT_JWT_SECRET = "change-me-in-production"
 _DEFAULT_PII_PEPPER = "default-pii-pepper"
@@ -31,6 +33,16 @@ class Settings(BaseSettings):
     max_login_attempts: int = 5
     lockout_duration_minutes: int = 15
 
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def _validate_jwt_algorithm(cls, v: str) -> str:
+        """Only allow HMAC-SHA algorithms to prevent algorithm confusion attacks."""
+        if v not in _ALLOWED_JWT_ALGORITHMS:
+            raise ValueError(
+                f"jwt_algorithm must be one of {sorted(_ALLOWED_JWT_ALGORITHMS)}, got {v!r}"
+            )
+        return v
+
     @property
     def is_production(self) -> bool:
         """Check if running in production."""
@@ -48,6 +60,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "PII_PEPPER must be set to a secure value in production"
                 )
+            if "*" in self.cors_origins:
+                raise ValueError("CORS wildcard '*' is not allowed in production")
         return self
 
 

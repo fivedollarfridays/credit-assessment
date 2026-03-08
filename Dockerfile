@@ -37,3 +37,6 @@ CMD gunicorn main:app \
     --bind 0.0.0.0:8000 \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers ${WEB_CONCURRENCY}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"

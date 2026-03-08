@@ -90,9 +90,11 @@ def client() -> TestClient:
     from modules.credit.router import app
 
     limiter.reset()
+    limiter.enabled = False
     with patch_auth_settings(_TEST_SETTINGS):
         with TestClient(app) as c:
             yield c
+    limiter.enabled = True
     # Clear stale factory so tests using bare TestClient(app) don't
     # hit a disposed engine from this fixture's in-memory DB.
     if hasattr(app.state, "db_session_factory"):

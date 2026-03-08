@@ -65,6 +65,21 @@ class DeprecationMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds security headers to every response (Finding #8)."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        response = await call_next(request)
+        response.headers["x-content-type-options"] = "nosniff"
+        response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
+        response.headers["permissions-policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        return response
+
+
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """Adds X-Request-ID to every request/response and binds it to structlog context."""
 

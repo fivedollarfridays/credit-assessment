@@ -68,8 +68,8 @@ class BaseAgent(ABC):
         except Exception as exc:
             elapsed = (time.perf_counter() - start) * 1000
             msg = str(exc)
-            _logger.error("Agent %s failed: %s", self.name, msg)
             safe_msg = _PATH_PATTERN.sub("<redacted>", msg)
+            _logger.error("Agent %s failed: %s", self.name, safe_msg)
             return AgentResult(
                 agent_name=self.name,
                 status="error",

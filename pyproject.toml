@@ -15,6 +15,7 @@ dependencies = [
     "alembic>=1.13,<2",
     "PyJWT>=2.8,<3",
     "cryptography>=46.0.5,<47",
+    "bcrypt>=4.0,<5",
     "passlib[bcrypt]>=1.7,<2",
     "prometheus-fastapi-instrumentator>=7.0,<8",
     "sentry-sdk[fastapi]>=2.0,<3",

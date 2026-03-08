@@ -41,7 +41,7 @@ class TestApiKeyDbPersistence:
 
         result = asyncio.run(_run())
         assert result is not None
-        assert result.key == "test-key-1"
+        assert result.key_prefix == "test-key"
         assert result.org_id == "org-1"
         assert result.role == "viewer"
 

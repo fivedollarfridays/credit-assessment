@@ -16,9 +16,16 @@ from modules.credit.tests.conftest import (
 @contextmanager
 def _get_client(settings: Settings | None = None):
     """Yield a TestClient with auth settings patched and lifespan active."""
-    with patch_auth_settings(settings):
-        with TestClient(app) as client:
-            yield client
+    from modules.credit.rate_limit import limiter
+
+    limiter.reset()
+    limiter.enabled = False
+    try:
+        with patch_auth_settings(settings):
+            with TestClient(app) as client:
+                yield client
+    finally:
+        limiter.enabled = True
 
 
 class TestRoleEnum:
@@ -207,7 +214,7 @@ class TestApiKeyDbManagement:
                 created = await repo.create(
                     key="test-key-1", org_id="org-1", role="analyst"
                 )
-                assert created.key == "test-key-1"
+                assert created.key_prefix == "test-key"
                 found = await repo.lookup("test-key-1")
                 assert found is not None
                 assert found.org_id == "org-1"

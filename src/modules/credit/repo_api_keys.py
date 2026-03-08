@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models_db import ApiKeyDB
+
+
+def _hash_key(key: str) -> str:
+    """Return the SHA-256 hex digest of a raw API key."""
+    return hashlib.sha256(key.encode()).hexdigest()
 
 
 class ApiKeyRepository:
@@ -24,15 +30,21 @@ class ApiKeyRepository:
         role: str,
         expires_at: datetime | None = None,
     ) -> ApiKeyDB:
-        entry = ApiKeyDB(key=key, org_id=org_id, role=role, expires_at=expires_at)
+        entry = ApiKeyDB(
+            key_hash=_hash_key(key),
+            key_prefix=key[:8],
+            org_id=org_id,
+            role=role,
+            expires_at=expires_at,
+        )
         self._session.add(entry)
         await self._session.commit()
         await self._session.refresh(entry)
         return entry
 
     async def lookup(self, key: str) -> ApiKeyDB | None:
-        # NOTE: Key stored as plaintext PK — migrate to hashed storage in future sprint
-        entry = await self._session.get(ApiKeyDB, key)
+        hashed = _hash_key(key)
+        entry = await self._session.get(ApiKeyDB, hashed)
         if entry is None:
             return None
         if entry.revoked_at is not None:
@@ -46,9 +58,10 @@ class ApiKeyRepository:
         return entry
 
     async def revoke(self, key: str) -> bool:
+        hashed = _hash_key(key)
         result = await self._session.execute(
             update(ApiKeyDB)
-            .where(ApiKeyDB.key == key)
+            .where(ApiKeyDB.key_hash == hashed)
             .values(revoked_at=datetime.now(timezone.utc))
         )
         await self._session.commit()

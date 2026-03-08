@@ -130,6 +130,48 @@ class TestLiberateRequestInputBounds:
 class TestAgentErrorSanitization:
     """Agent errors should not leak internal paths or state."""
 
+    def test_error_log_does_not_contain_raw_paths(self, caplog) -> None:
+        """Finding #20: _logger.error must use redacted message, not raw."""
+        import logging
+
+        from modules.credit.agents.base import BaseAgent
+        from modules.credit.types import AccountSummary, CreditProfile, ScoreBand
+
+        class PathLeakAgent(BaseAgent):
+            name = "path_leak"
+
+            def _execute(self, profile, context=None):
+                raise FileNotFoundError(
+                    "/home/deploy/app/src/modules/credit/agents/data/secret.json"
+                )
+
+        profile = CreditProfile(
+            current_score=535,
+            score_band=ScoreBand.VERY_POOR,
+            overall_utilization=82.0,
+            account_summary=AccountSummary(
+                total_accounts=5,
+                open_accounts=3,
+                total_balance=4200.0,
+                total_credit_limit=5100.0,
+                monthly_payments=180.0,
+            ),
+            payment_history_pct=68.0,
+            average_account_age_months=18,
+            negative_items=[],
+        )
+
+        with caplog.at_level(logging.ERROR, logger="modules.credit.agents.base"):
+            PathLeakAgent().execute(profile)
+
+        # The log output must NOT contain the raw internal path
+        for record in caplog.records:
+            assert "/home/deploy" not in record.message
+            assert "/app/src/" not in record.message
+            assert "modules/credit" not in record.message
+            # It SHOULD contain the redacted placeholder
+            assert "<redacted>" in record.message
+
     def test_error_result_has_generic_message(self) -> None:
         from modules.credit.agents.base import BaseAgent
         from modules.credit.types import CreditProfile, AccountSummary, ScoreBand

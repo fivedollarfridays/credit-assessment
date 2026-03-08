@@ -1,0 +1,26 @@
+name: montgowork-platform
+projects:
+  credit-assessment:
+    path: /home/kmasty/projects/credit-assessment
+    role: provider
+    consumers:
+      - montgowork
+    contracts:
+      - type: route
+        path: src/modules/credit/assess_routes.py
+        description: "/v1/assess and /v1/assess/simple endpoints"
+      - type: schema
+        path: src/modules/credit/types.py
+        description: "CreditAssessmentResult response schema"
+  montgowork:
+    path: /home/kmasty/projects/montgowork
+    role: consumer
+    consumes:
+      - credit-assessment
+    contracts:
+      - type: schema
+        path: backend/app/modules/credit/types.py
+        description: "CreditAssessmentResult consumer model"
+      - type: route
+        path: backend/app/routes/credit.py
+        description: "Credit proxy calling /v1/assess/simple"

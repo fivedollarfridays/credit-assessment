@@ -99,6 +99,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
+app.add_middleware(middleware.SecurityHeadersMiddleware)
 app.add_middleware(middleware.RequestIdMiddleware)
 app.add_middleware(middleware.DeprecationMiddleware)
 app.add_middleware(middleware.HstsMiddleware, prod_check=lambda: settings.is_production)

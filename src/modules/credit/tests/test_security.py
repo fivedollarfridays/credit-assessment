@@ -25,6 +25,9 @@ from modules.credit.webhook_routes import _BLOCKED_HOSTNAMES
 
 @pytest.fixture
 def client():
+    from modules.credit.rate_limit import limiter
+
+    limiter.reset()
     return TestClient(app)
 
 

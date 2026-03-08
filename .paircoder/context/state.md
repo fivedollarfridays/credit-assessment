@@ -1,6 +1,6 @@
 # Current State
 
-> Last updated: 2026-03-06
+> Last updated: 2026-03-07
 
 ## Active Plan
 
@@ -228,6 +228,49 @@ Sprint 25: Remaining security audit fixes — Robinson SSRF, DNS rebinding, Circ
 | T25.3 | Thread-safe CircuitBreaker + shared state (L-3/I-1) | P1 | 45 | ✓ Done |
 
 ## What Was Just Done
+
+### Session: 2026-03-07 -- Security Audit Findings #4, #5, #7, #8
+
+Fixed 4 HIGH security audit findings:
+
+- **#4** (No rate limiting on auth endpoints): Added `@limiter.limit()` decorators to all 4 auth endpoints in `user_routes.py` -- `register` and `request_reset` at 3/minute, `login` and `confirm_reset` at 5/minute. Each endpoint now has `request: Request` parameter. Disabled rate limiter in test fixtures to avoid interference with lockout tests.
+- **#5** (Plaintext email in audit log): Changed `request_summary={"email": req.email}` to `request_summary={"email_hash": hash_pii(req.email)}` at user_routes.py:141. Updated test assertion to verify hashed key.
+- **#7** (Dashboard served without security headers): Added CSP, X-Frame-Options, and X-Content-Type-Options headers to `serve_dashboard()` in `dashboard_routes.py`.
+- **#8** (Missing security headers on all responses): Added `SecurityHeadersMiddleware` in `middleware.py` with X-Content-Type-Options, Referrer-Policy, and Permissions-Policy headers. Registered in `router.py`.
+
+Files changed: `user_routes.py`, `middleware.py`, `dashboard_routes.py`, `router.py`, `tests/conftest.py`, `tests/test_rbac.py`, `tests/test_user_endpoints.py`, `tests/test_security_headers.py` (new)
+
+1658 tests passing, 0 arch errors, ruff clean.
+
+### Session: 2026-03-07 -- Critical Security Audit Fixes: Rate Limiting, API Key Hashing, Webhook Docs
+
+Fixed 3 CRITICAL security audit findings:
+
+- **Finding #1** (Hardcoded demo credentials rate limit): Added `@limiter.limit("5/minute")` to `/auth/token` endpoint in `auth_routes.py`, imported `limiter` from `rate_limit` and `Request` from `fastapi`. 1 new test verifying rate limit decorator exists.
+- **Finding #2** (API keys stored plaintext): Changed `ApiKeyDB` model to use `key_hash` (SHA-256, String(64)) as PK and `key_prefix` (String(8)) for identification. Updated `repo_api_keys.py` with `_hash_key()` helper; `create()` hashes before storing, `lookup()` hashes incoming key, `revoke()` hashes before deleting. Updated 3 existing test files (`test_models_new.py`, `test_efficiency_db.py`, `test_rbac.py`) to reference `key_hash`/`key_prefix` instead of `key`. 10 new tests covering hashing, lookup, revoke, expiry, and model columns.
+- **Finding #3** (Webhook secrets plaintext): Added documentation to `WebhookRegistrationDB` model noting that plaintext storage is required for HMAC signing, and encryption at rest should be handled at the database layer. Existing 32-char minimum length validation test confirmed passing.
+
+Also fixed rate limiter state leaking across tests in `test_security.py` and `test_rbac.py` (reset limiter in fixtures).
+
+Deleted stale `credit.db` file with old schema.
+
+Files changed: `auth_routes.py`, `models_db.py`, `repo_api_keys.py`, `tests/test_security_audit_critical.py` (new), `tests/test_security.py`, `tests/test_rbac.py`, `tests/test_models_new.py`, `tests/test_efficiency_db.py`
+
+1658 tests passing, 0 arch errors, ruff clean.
+
+### Session: 2026-03-07 -- Security Audit Findings #6, #15, #17, #18, #19, #20, #21
+
+Fixed 7 LOW/infra security audit findings:
+
+- **#6** (docker-compose default DB password): Changed `POSTGRES_PASSWORD` to `${POSTGRES_PASSWORD:?...}` (fail if unset); changed `DATABASE_URL` in deploy overlay to `${DATABASE_URL:?...}`
+- **#15** (CORS wildcard in production): Added validation in `config.py::_validate_production_secrets` rejecting `"*"` in `cors_origins` when `is_production`; 4 new tests in `test_config.py`
+- **#17** (Dockerfile HEALTHCHECK): Added `HEALTHCHECK` instruction after `CMD` in Dockerfile
+- **#18** (Postgres/Redis exposed publicly): Bound ports to `127.0.0.1` in docker-compose.yml
+- **#19** (bcrypt dependency confusion): Added explicit `"bcrypt>=4.0,<5"` to `pyproject.toml` dependencies
+- **#20** (Agent error log leaks paths): Moved `safe_msg` computation before `_logger.error` call in `base.py`; 1 new test using `caplog` in `test_security_audit_fixes.py`
+- **#21** (No dependency vulnerability scanning): Added `pip-audit` step to CI workflow
+
+Files changed: `config.py`, `agents/base.py`, `docker-compose.yml`, `docker-compose.deploy.yml`, `Dockerfile`, `.github/workflows/ci.yml`, `pyproject.toml`, `test_config.py`, `test_security_audit_fixes.py`
 
 - **T25.3 done** (auto-updated by hook)
 
@@ -481,7 +524,7 @@ Sprint 25: Remaining security audit fixes — Robinson SSRF, DNS rebinding, Circ
 
 ## What's Next
 
-T25.1 done. Next: T25.2 (webhook DNS rebinding), T25.3 (thread-safe CircuitBreaker).
+Security audit findings #4, #5, #7, #8 fixed. Remaining audit findings (if any) or next sprint task.
 
 ---
 

@@ -514,7 +514,11 @@ class TestAccountLockout:
 
         entries = asyncio.run(_check())
         assert len(entries) >= 1
-        assert entries[0]["request_summary"]["email"] == "auditlock@example.com"
+        summary = entries[0]["request_summary"]
+        # Finding #5: email must be hashed, not plaintext
+        assert "email_hash" in summary, "audit log must use email_hash, not email"
+        assert "email" not in summary, "plaintext email must not appear in audit log"
+        assert summary["email_hash"] != "auditlock@example.com"
 
     def test_deactivated_user_cannot_login(self, client):
         """Deactivated user returns 401 even with correct password."""

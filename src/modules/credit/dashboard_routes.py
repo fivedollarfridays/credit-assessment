@@ -80,7 +80,17 @@ _STATIC_DIR = Path(__file__).parent / "static"
 dashboard_page_router = APIRouter(tags=["dashboard"])
 
 
+_DASHBOARD_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+)
+
+
 @dashboard_page_router.get("/dashboard", include_in_schema=False)
 def serve_dashboard() -> FileResponse:
-    """Serve the admin dashboard UI."""
-    return FileResponse(_STATIC_DIR / "dashboard.html", media_type="text/html")
+    """Serve the admin dashboard UI with security headers."""
+    resp = FileResponse(_STATIC_DIR / "dashboard.html", media_type="text/html")
+    resp.headers["content-security-policy"] = _DASHBOARD_CSP
+    resp.headers["x-frame-options"] = "DENY"
+    resp.headers["x-content-type-options"] = "nosniff"
+    return resp

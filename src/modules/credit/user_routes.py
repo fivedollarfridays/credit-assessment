@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 if TYPE_CHECKING:
     from .models_db import User
@@ -15,7 +15,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .audit import create_audit_entry
+from .audit import create_audit_entry, hash_pii
+from .rate_limit import limiter
 from .auth import TokenResponse, issue_token_for
 from .config import settings
 from .database import get_db
@@ -69,8 +70,9 @@ class ConfirmResetRequest(BaseModel):
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=201)
+@limiter.limit("3/minute")
 async def register(
-    req: RegisterRequest, db: AsyncSession = Depends(get_db)
+    request: Request, req: RegisterRequest, db: AsyncSession = Depends(get_db)
 ) -> RegisterResponse:
     """Register a new user with email and password."""
     repo = UserRepository(db)
@@ -106,8 +108,9 @@ def _check_lockout(user: User, now: datetime) -> JSONResponse | None:
 
 
 @router.post("/login", response_model=None)
+@limiter.limit("5/minute")
 async def login(
-    req: LoginRequest, db: AsyncSession = Depends(get_db)
+    request: Request, req: LoginRequest, db: AsyncSession = Depends(get_db)
 ) -> TokenResponse | JSONResponse:
     """Authenticate user and return JWT token. Locks after repeated failures."""
     repo = UserRepository(db)
@@ -135,7 +138,7 @@ async def login(
                 db,
                 action="account_locked",
                 user_id=req.email,
-                request_summary={"email": req.email},
+                request_summary={"email_hash": hash_pii(req.email)},
                 result_summary={
                     "attempts": user.failed_login_attempts,
                     "locked_until": user.locked_until.isoformat(),
@@ -156,8 +159,9 @@ async def login(
 
 
 @router.post("/reset-password", response_model=ResetResponse)
+@limiter.limit("3/minute")
 async def request_reset(
-    req: ResetRequest, db: AsyncSession = Depends(get_db)
+    request: Request, req: ResetRequest, db: AsyncSession = Depends(get_db)
 ) -> ResetResponse:
     """Request a password reset. Returns 200 regardless to prevent enumeration."""
     user_repo = UserRepository(db)
@@ -168,8 +172,9 @@ async def request_reset(
 
 
 @router.post("/confirm-reset")
+@limiter.limit("5/minute")
 async def confirm_reset(
-    req: ConfirmResetRequest, db: AsyncSession = Depends(get_db)
+    request: Request, req: ConfirmResetRequest, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Confirm password reset with token and new password."""
     token_repo = ResetTokenRepository(db)
@@ -178,4 +183,6 @@ async def confirm_reset(
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     user_repo = UserRepository(db)
     await user_repo.set_password_hash(email, hash_password(req.new_password))
+    # Invalidate all remaining reset tokens for this email to prevent reuse
+    await token_repo.delete_by_email(email)
     return {"message": "Password reset successfully"}
