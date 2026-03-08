@@ -293,6 +293,31 @@ class TestApiKeyDbManagement:
 
         asyncio.run(_run())
 
+    def test_revoke_by_prefix_multi_key_collision(self):
+        """Revoking a prefix matching multiple keys revokes all and logs warning."""
+        import asyncio
+
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="collide-aaa", org_id="org-c", role="viewer")
+                await repo.create(key="collide-bbb", org_id="org-c", role="viewer")
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                revoked = await repo.revoke_by_prefix("collide-")
+                assert revoked is True
+            await engine.dispose()
+
+        asyncio.run(_run())
+
     def test_lookup_nonexistent_key_returns_none(self):
         """Looking up a key that was never created returns None."""
         import asyncio

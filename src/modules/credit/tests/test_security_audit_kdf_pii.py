@@ -167,3 +167,48 @@ class TestStructlogPiiProcessor:
         assert "redact_pii" in source, (
             "redact_pii processor not found in configure_logging pipeline"
         )
+
+
+# ---------------------------------------------------------------------------
+# pii.py: scrub_value edge cases (list, tuple, depth limit, passthrough)
+# ---------------------------------------------------------------------------
+
+
+class TestScrubValueEdgeCases:
+    """Cover list, tuple, depth-limit, and non-string passthrough branches."""
+
+    def test_scrub_value_list(self) -> None:
+        from modules.credit.pii import scrub_value
+
+        data = ["hello user@example.com", "clean"]
+        result = scrub_value(data)
+        assert "user@example.com" not in str(result)
+        assert result[1] == "clean"
+
+    def test_scrub_value_tuple(self) -> None:
+        from modules.credit.pii import scrub_value
+
+        data = ("token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.sig123abc", 42)
+        result = scrub_value(data)
+        assert isinstance(result, tuple)
+        assert "eyJ" not in result[0]
+        assert result[1] == 42
+
+    def test_scrub_value_depth_limit(self) -> None:
+        from modules.credit.pii import _MAX_SCRUB_DEPTH, scrub_value
+
+        # Build nested structure deeper than limit
+        data: object = "user@example.com"
+        for _ in range(_MAX_SCRUB_DEPTH + 5):
+            data = {"nested": data}
+        result = scrub_value(data)
+        # At the depth limit the string is returned unscrubbed
+        assert "user@example.com" in str(result)
+
+    def test_scrub_value_passthrough_non_string(self) -> None:
+        from modules.credit.pii import scrub_value
+
+        assert scrub_value(42) == 42
+        assert scrub_value(3.14) == 3.14
+        assert scrub_value(None) is None
+        assert scrub_value(True) is True
