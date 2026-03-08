@@ -36,8 +36,9 @@ services:
       - API_KEY=${API_KEY:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:3000"]}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:-credit}@db:5432/${POSTGRES_DB:-credit}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-credit}
       - REDIS_URL=redis://redis:6379
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
     volumes:
       - ./src:/app/src:ro
     depends_on:

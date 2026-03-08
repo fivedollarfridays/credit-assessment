@@ -77,6 +77,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["permissions-policy"] = (
             "camera=(), microphone=(), geolocation=()"
         )
+        response.headers["x-frame-options"] = "DENY"
         return response
 
 

@@ -88,6 +88,7 @@ class TestWebhookHttpsInProduction:
             environment="production",
             jwt_secret="prod-secret-value",
             pii_pepper="prod-pepper-value",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
         )
         with patch("modules.credit.webhook_routes.settings", prod):
             resp = _post_webhook(client, "http://example.com/hook")
@@ -112,6 +113,7 @@ class TestWebhookHttpsInProduction:
             environment="production",
             jwt_secret="prod-secret-value",
             pii_pepper="prod-pepper-value",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
         )
         with patch("modules.credit.webhook_routes.settings", prod):
             resp = _post_webhook(client, "https://example.com/hook")

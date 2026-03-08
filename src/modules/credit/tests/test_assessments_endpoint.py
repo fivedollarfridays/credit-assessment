@@ -96,8 +96,6 @@ class TestAssessmentsOrgScoping:
                 "score_band",
                 "barrier_severity",
                 "readiness_score",
-                "request_payload",
-                "response_payload",
                 "user_id",
                 "org_id",
                 "created_at",

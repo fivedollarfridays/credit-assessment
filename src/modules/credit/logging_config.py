@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import structlog
+
+from .pii import scrub_string
 
 _LOG_LEVELS = {
     "DEBUG": logging.DEBUG,
@@ -15,12 +18,23 @@ _LOG_LEVELS = {
 }
 
 
+def redact_pii(
+    logger: Any, method_name: Any, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Structlog processor: redact PII patterns from log values."""
+    for key, value in event_dict.items():
+        if isinstance(value, str):
+            event_dict[key] = scrub_string(value)
+    return event_dict
+
+
 def configure_logging(*, json_output: bool = False, log_level: str = "INFO") -> None:
     """Configure structlog with JSON (production) or console (development) renderer."""
     processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
+        redact_pii,
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
     ]

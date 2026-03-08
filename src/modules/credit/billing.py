@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 import stripe
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +68,13 @@ async def count_active_subscriptions(session: AsyncSession) -> int:
     return await repo.count_active()
 
 
+def _validate_checkout_url(url: str, label: str) -> None:
+    """Validate that a checkout redirect URL uses https://."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"{label} must use https:// (got {parsed.scheme!r})")
+
+
 def create_checkout_session(
     *,
     customer_email: str,
@@ -75,6 +83,8 @@ def create_checkout_session(
     cancel_url: str,
 ):
     """Create a Stripe Checkout Session for subscription signup."""
+    _validate_checkout_url(success_url, "success_url")
+    _validate_checkout_url(cancel_url, "cancel_url")
     return stripe.checkout.Session.create(
         customer_email=customer_email,
         payment_method_types=["card"],

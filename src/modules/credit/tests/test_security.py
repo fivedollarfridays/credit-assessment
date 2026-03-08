@@ -151,6 +151,7 @@ class TestDemoUsersDisabledInProduction:
             environment="production",
             jwt_secret="real-secret-value-here",
             pii_pepper="pp",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
         )
         with (
             patch("modules.credit.auth_routes.settings", mock),
@@ -164,11 +165,13 @@ class TestDemoUsersDisabledInProduction:
 
     def test_demo_login_works_in_development(self, client):
         """POST /auth/token with demo creds returns 200 in development."""
-        resp = client.post(
-            "/auth/token",
-            json={"username": "admin", "password": "admin"},
-        )
-        assert resp.status_code == 200
+        mock = Settings(demo_username="admin", demo_password="admin")
+        with patch("modules.credit.auth_routes.settings", mock):
+            resp = client.post(
+                "/auth/token",
+                json={"username": "admin", "password": "admin"},
+            )
+            assert resp.status_code == 200
 
 
 class TestPiiPepperSeparation:

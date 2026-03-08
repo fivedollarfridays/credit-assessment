@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .assess_routes import verify_auth
 from .database import get_db
+from .rate_limit import limiter
 from .feature_flags import (
     FeatureFlag,
     RuleType,
@@ -64,7 +65,9 @@ def _to_response(flag: FeatureFlag) -> FlagResponse:
     status_code=201,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
+@limiter.limit("30/minute")
 async def create(
+    request: Request,
     req: FlagCreateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> FlagResponse:
@@ -83,7 +86,9 @@ async def create(
     response_model=list[FlagResponse],
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
+@limiter.limit("60/minute")
 async def list_flags(
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> list[FlagResponse]:
     """List all feature flags."""
@@ -95,7 +100,9 @@ async def list_flags(
     response_model=FlagResponse,
     dependencies=[Depends(require_role(Role.ADMIN))],
 )
+@limiter.limit("30/minute")
 async def update(
+    request: Request,
     key: str,
     req: FlagUpdateRequest,
     db: AsyncSession = Depends(get_db),
@@ -115,7 +122,9 @@ async def update(
 
 
 @router.delete("/{key}", dependencies=[Depends(require_role(Role.ADMIN))])
+@limiter.limit("30/minute")
 async def remove(
+    request: Request,
     key: str,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -126,7 +135,9 @@ async def remove(
 
 
 @router.get("/{key}/evaluate", dependencies=[Depends(verify_auth)])
+@limiter.limit("60/minute")
 async def evaluate(
+    request: Request,
     key: str,
     org_id: str | None = None,
     user_id: str | None = None,

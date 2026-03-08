@@ -4,13 +4,13 @@
 
 ## Active Plan
 
-**Plan:** plan-2026-03-plan-2026-03-sprint-25
-**Status:** In Progress
-**Current Sprint:** 25 — Security & Resilience Hardening (Bugfix)
+**Plan:** plan-2026-03-plan-2026-03-sprint-27-security-audit-3
+**Status:** Ready
+**Current Sprint:** 27 — Security Audit Phase 3: OWASP Remediation (Bugfix)
 
 ## Current Focus
 
-Sprint 25: Remaining security audit fixes — Robinson SSRF, DNS rebinding, CircuitBreaker persistence.
+Sprint 27 complete — all 16 OWASP findings fixed (3 HIGH, 7 MEDIUM, 6 LOW/INFO). 1745 tests passing. Sprints 26+27 changes uncommitted.
 
 ## Task Status
 
@@ -227,7 +227,134 @@ Sprint 25: Remaining security audit fixes — Robinson SSRF, DNS rebinding, Circ
 | T25.2 | Webhook DNS rebinding at delivery (M-3) | P0 | 30 | ✓ Done |
 | T25.3 | Thread-safe CircuitBreaker + shared state (L-3/I-1) | P1 | 45 | ✓ Done |
 
+### Sprint 26 — Security Audit Phase 2: OWASP Remediation (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T26.1 | HIGH: API key revocation route + DATABASE_URL required | P0 | 20 | ✓ Done |
+| T26.2 | MEDIUM: Assessment audit trail + rate limit proxy hardening | P0 | 30 | ✓ Done |
+| T26.3 | MEDIUM: Dashboard CSP nonce + webhook secret encryption | P1 | 40 | ✓ Done |
+| T26.4 | LOW: Dependency cleanup, demo creds, payload redaction, deploy URL | P1 | 25 | ✓ Done |
+| T26.5 | INFO: CI SHA pins, prod volume override, crypto pin, shutdown flag | P2 | 20 | ✓ Done |
+
+### Sprint 27 — Security Audit Phase 3: OWASP Remediation (Bugfix)
+
+| Task | Title | Priority | Complexity | Status |
+|------|-------|----------|------------|--------|
+| T27.1 | HIGH: CORS PATCH, Sentry PII, timing oracle | P0 | 25 | ✓ Done |
+| T27.2 | MEDIUM: Input validation + production guards | P0 | 25 | ✓ Done |
+| T27.3 | MEDIUM: KDF upgrade + Sentry PII scrubbing | P1 | 35 | ✓ Done |
+| T27.4 | MEDIUM: CSP style-src + JWT role freshness doc | P1 | 30 | ✓ Done |
+| T27.5 | LOW/INFO: Rate limits, headers, Dockerfile, dep pins | P2 | 25 | ✓ Done |
+
 ## What Was Just Done
+
+- **T27.5 done** (auto-updated by hook)
+
+- **T27.5 done** — All 8 LOW/INFO findings fixed
+
+### Session: 2026-03-08 -- Sprint 27: T27.5 LOW/INFO batch
+
+- **T27.5**: Fixed 8 LOW/INFO OWASP findings:
+  - **A04-4**: Added rate limits to all 5 feature flag endpoints in `flag_routes.py`
+  - **A04-5**: Added rate limits to all 4 GDPR endpoints in `data_rights_routes.py`
+  - **A05-3**: Added `Cache-Control: no-store` to `/health` and `/ready` responses; added global `X-Frame-Options: DENY` via SecurityHeadersMiddleware
+  - **A06-1**: Tightened Stripe pin from `>=8.0,<13` to `>=8.0,<10` (2 major versions)
+  - **A08-1**: Converted Dockerfile CMD from shell form to exec form for proper SIGTERM handling
+  - **A09-2**: Added `org_id` query parameter to admin audit-log endpoint
+  - **A07-2**: Added informational comment to `_DUMMY_HASH` about per-worker behavior
+  - **A02-3**: Added informational comment to `lru_cache` about key material retention
+- 14 new tests in `test_security_audit_low_info_27.py`. 1745 total tests green.
+
+### Session: 2026-03-08 -- Sprint 27: T27.4 CSP + JWT doc
+
+- **T27.4**: Fixed 2 MEDIUM-severity OWASP findings:
+  - **A05-2**: Replaced `'unsafe-inline'` in CSP `style-src` with hash-based directive `'sha256-MhxhWmSyTtdEXOb/...'`. Moved inline `style=""` attribute to `.login-error` CSS class.
+  - **A01-1**: JWT role freshness already documented in `_resolve_user_id` docstring ("Verifies current role from DB, not just JWT claims"). Added tests to verify.
+- 6 new tests in `test_security_audit_csp_jwt.py`. 1708 total tests green.
+
+### Session: 2026-03-08 -- Sprint 27: T27.3 KDF + PII scrubbing
+
+- **T27.3**: Fixed 2 MEDIUM-severity OWASP findings:
+  - **A02-2**: Upgraded `crypto.py` KDF from raw SHA-256 to PBKDF2HMAC with 600k iterations. Backward compatible — old SHA-256 ciphertexts still decrypt via fallback.
+  - **A09-1**: Added `_scrub_pii_from_event` as Sentry `before_send` hook (scrubs emails, JWTs, API keys). Added `redact_pii` structlog processor (redacts emails in log values).
+- 12 new tests in `test_security_audit_kdf_pii.py`. 1702 total tests green.
+
+- **T27.2 done** (auto-updated by hook)
+
+### Session: 2026-03-08 -- Sprint 27: T27.2 MEDIUM input validation
+
+- **T27.2**: Fixed 3 MEDIUM-severity OWASP findings:
+  - **A04-1**: Added `max_length=255` to `user_id` Query params in `data_rights_routes.py` (data-export, data-delete)
+  - **A04-3**: Added SQLite rejection in production to `config.py` model validator — `sqlite` URLs raise ValueError when `is_production=True`
+  - **A04-2**: Added URL scheme validation in `billing.py` — `create_checkout_session` rejects non-https URLs for `success_url`/`cancel_url`
+- Updated 4 test files that created production Settings with default SQLite URL
+- 9 new tests, 1690 total passing, arch clean, ruff clean
+
+### Session: 2026-03-08 -- Sprint 27: T27.1 HIGH fixes
+
+- **T27.1**: Fixed 3 HIGH-severity OWASP findings:
+  - **A05-1**: Added `PATCH` to CORS `allow_methods` in `router.py` — fixes `PATCH /disputes/{id}/status` for browser clients
+  - **A02-1**: Added `send_default_pii=False` to `sentry_sdk.init()` in `sentry.py` — prevents JWT, API key, and credit data leakage to Sentry SaaS
+  - **A07-1**: Removed standalone `if not user.is_active: raise` guard in `user_routes.py` login — `is_active` now checked after `verify_password()` to prevent timing-based account enumeration
+- 7 new tests in `test_security_audit_high.py` (AST-based code structure test, API integration tests). 1681 total tests green.
+
+### Session: 2026-03-08 -- Sprint 27 plan created
+
+- Created Sprint 27 plan (`plan-2026-03-plan-2026-03-sprint-27-security-audit-3`) from new OWASP audit
+- 16 findings across 3 HIGH, 7 MEDIUM, 6 LOW/INFO — grouped into 5 tasks (T27.1–T27.5)
+- Sprint 26 fully complete: all 15 findings fixed, 1674 tests green, code reviewed and simplified
+- Sprint 26 changes still uncommitted (22 files, 384 insertions, 62 deletions)
+
+### Session: 2026-03-08 -- Sprint 26: T26.5 INFO batch fixes
+
+- **T26.5**: Fixed 5 INFO-severity OWASP findings:
+  - **D-2**: Added `volumes: []` override in deploy overlay to prevent dev source mount in prod
+  - **CI-1 / A08-2**: Pinned all GitHub Actions to full commit SHAs with version comments (ci.yml, docker-publish.yml, sdk-ci.yml)
+  - **A06-2**: Widened cryptography pin from `<47` to `<48` to allow minor version upgrades
+  - **RC-1**: Replaced bare `_shutting_down` boolean with `threading.Event` for formal thread safety
+- 11 new tests in `test_security_audit_info.py`, all passing. 1674 total tests green.
+
+- **T26.4 done** (auto-updated by hook)
+
+### Session: 2026-03-08 -- Sprint 26: T26.4 LOW batch fixes
+
+- **T26.4**: Fixed 4 LOW-severity OWASP findings:
+  - **A06-1**: Removed unused `requests` production dependency from pyproject.toml
+  - **A07-2**: Replaced hardcoded `_DEMO_USERS` constant with env-var-based `demo_username`/`demo_password` in config
+  - **A01-2**: Removed `request_payload` and `response_payload` from `GET /assessments` list response (summary only)
+  - **A10-2**: Added URL scheme validation to `validate_health()` — rejects non-http(s) URLs
+- 14 new tests in `test_security_audit_low.py`, all passing. 1663 total tests green.
+
+- **T26.3 done** (auto-updated by hook)
+
+### Session: 2026-03-07 -- Sprint 26: T26.3 Dashboard CSP + webhook encryption
+
+- **T26.3**: Fixed 2 MEDIUM-severity OWASP findings:
+  - **A05-1**: Replaced `'unsafe-inline'` in CSP script-src with hash-based CSP (`'sha256-...'`). Style-src keeps `'unsafe-inline'` (lower XSS risk).
+  - **A02-2**: Created `crypto.py` with Fernet envelope encryption. Webhook secrets encrypted on create, decrypted on read. Backward compatible — no key = plaintext storage.
+  - Files: `dashboard_routes.py`, `crypto.py` (new), `webhooks.py`, `config.py`, `models_db.py`, `test_security_headers.py`
+  - 1649 tests passing, arch clean, ruff clean.
+
+- **T26.2 done** (auto-updated by hook)
+
+### Session: 2026-03-07 -- Sprint 26: T26.2 Assessment audit trail + proxy trust
+
+- **T26.2**: Fixed 2 MEDIUM-severity OWASP findings:
+  - **A09-2**: Added `create_audit_entry()` inside `_persist_assessment()` with `action="assessment_run"`, `score_band` + `barrier_severity` in result_summary (no PII). Covers both `/assess` and `/assess/simple`.
+  - **RL-1**: Added `trusted_proxy_ips` setting to `config.py`. Added `FORWARDED_ALLOW_IPS` env var to `docker-compose.yml` (default `127.0.0.1`) and `docker-compose.deploy.yml` (required).
+  - Files: `assess_routes.py`, `config.py`, `docker-compose.yml`, `docker-compose.deploy.yml`, `test_security_audit_fixes.py`
+  - 1641 tests passing, arch clean (warning only on assess_routes.py line count), ruff clean.
+
+- **T26.1 done** (auto-updated by hook)
+
+### Session: 2026-03-07 -- Sprint 26: T26.1 API key route + DATABASE_URL
+
+- **T26.1**: Fixed 2 HIGH-severity OWASP findings:
+  - **A01-1**: Changed `DELETE /admin/api-keys/{api_key}` to `DELETE /admin/api-keys/{key_prefix}`. Added `revoke_by_prefix()` to `repo_api_keys.py`. Raw API key no longer appears in URLs.
+  - **A02-1**: Changed `DATABASE_URL` in `docker-compose.yml` from `:-credit` default to `:?POSTGRES_PASSWORD must be set`.
+  - Files: `admin_routes.py`, `repo_api_keys.py`, `docker-compose.yml`, `test_rbac.py`
+  - 1637 tests passing (excl. repo tests), arch clean, ruff clean.
 
 ### Session: 2026-03-07 -- Security Audit Findings #4, #5, #7, #8
 
@@ -524,7 +651,7 @@ Files changed: `config.py`, `agents/base.py`, `docker-compose.yml`, `docker-comp
 
 ## What's Next
 
-Security audit findings #4, #5, #7, #8 fixed. Remaining audit findings (if any) or next sprint task.
+Sprint 26 complete. All 15 OWASP findings (2 HIGH, 4 MEDIUM, 4 LOW, 5 INFO) resolved across T26.1-T26.5.
 
 ---
 

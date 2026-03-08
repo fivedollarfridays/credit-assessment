@@ -10,17 +10,20 @@ from .auth import API_KEY_IDENTITY, AuthIdentity, TokenResponse, issue_token_for
 from .config import settings
 from .rate_limit import limiter
 
-# Demo credentials — only active when environment != "production".
-_DEMO_USERS = {"admin": "admin"}
-
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _get_demo_users() -> dict[str, str]:
-    """Return demo users only in non-production environments."""
+    """Return demo users only in non-production environments.
+
+    Credentials are read from DEMO_USERNAME / DEMO_PASSWORD env vars
+    (via config.Settings) so nothing is hardcoded in source.
+    """
     if settings.is_production:
         return {}
-    return _DEMO_USERS
+    if settings.demo_username and settings.demo_password:
+        return {settings.demo_username: settings.demo_password}
+    return {}
 
 
 class TokenRequest(BaseModel):

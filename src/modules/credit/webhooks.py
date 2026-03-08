@@ -8,6 +8,8 @@ from enum import StrEnum
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .config import settings
+from .crypto import decrypt_field, encrypt_field
 from .repo_webhooks import WebhookRepository
 
 
@@ -46,7 +48,7 @@ async def create_webhook(
         id=wh_id,
         url=url,
         events=[e.value for e in events],
-        secret=secret,
+        secret=encrypt_field(secret, settings.webhook_encryption_key),
         owner_id=owner_id,
     )
     return _to_registration(db_wh)
@@ -58,7 +60,7 @@ def _to_registration(db_wh) -> WebhookRegistration:
         id=db_wh.id,
         url=db_wh.url,
         events=[EventType(e) for e in db_wh.events],
-        secret=db_wh.secret,
+        secret=decrypt_field(db_wh.secret, settings.webhook_encryption_key),
         owner_id=db_wh.owner_id,
         is_active=db_wh.is_active,
     )

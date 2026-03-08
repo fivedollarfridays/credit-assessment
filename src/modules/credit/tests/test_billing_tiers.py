@@ -7,11 +7,11 @@ from unittest.mock import patch
 import pytest
 
 from modules.credit.assess_routes import (
-    _record_usage_for_user,
     get_tier_limit,
     resolve_user_tier,
     verify_auth,
 )
+from modules.credit.assess_tasks import record_usage_for_user as _record_usage_for_user
 from modules.credit.auth import AuthIdentity
 from modules.credit.billing import _extract_plan, handle_webhook, update_subscription
 from modules.credit.database import create_engine, get_session_factory
@@ -336,7 +336,7 @@ class TestUsageMetering:
                     session, "metered@test.com", "sub_meter", "active", "starter"
                 )
 
-            with patch("modules.credit.assess_routes.record_usage") as mock_usage:
+            with patch("modules.credit.assess_tasks.record_usage") as mock_usage:
                 await _record_usage_for_user(db_factory, "metered@test.com")
                 mock_usage.assert_called_once_with(subscription_item_id="sub_meter")
 
@@ -344,7 +344,7 @@ class TestUsageMetering:
 
     def test_record_usage_skipped_no_subscription(self, db_factory):
         async def _run():
-            with patch("modules.credit.assess_routes.record_usage") as mock_usage:
+            with patch("modules.credit.assess_tasks.record_usage") as mock_usage:
                 await _record_usage_for_user(db_factory, "nobody@test.com")
                 mock_usage.assert_not_called()
 

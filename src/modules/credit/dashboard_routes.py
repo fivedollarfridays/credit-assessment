@@ -80,9 +80,15 @@ _STATIC_DIR = Path(__file__).parent / "static"
 dashboard_page_router = APIRouter(tags=["dashboard"])
 
 
+# CSP hashes correspond to inline blocks in static/dashboard.html:
+#   script-src hash: SHA-256 of <script>...</script> content (lines 83-168)
+#   style-src hash:  SHA-256 of <style>...</style> content (lines 7-38)
+# If those blocks change, recompute: echo -n '<content>' | openssl dgst -sha256 -binary | base64
 _DASHBOARD_CSP = (
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+    "default-src 'self'; "
+    "script-src 'self' 'sha256-MdAXo8Dsf/xlo39xyvC4ljV9IdXnMoEKyz692W6FR9c='; "
+    "style-src 'self' 'sha256-MhxhWmSyTtdEXOb/gJ9lIXYvPbK8vA2rtYgdT+z6gDk='; "
+    "connect-src 'self'; frame-ancestors 'none'"
 )
 
 
@@ -91,6 +97,4 @@ def serve_dashboard() -> FileResponse:
     """Serve the admin dashboard UI with security headers."""
     resp = FileResponse(_STATIC_DIR / "dashboard.html", media_type="text/html")
     resp.headers["content-security-policy"] = _DASHBOARD_CSP
-    resp.headers["x-frame-options"] = "DENY"
-    resp.headers["x-content-type-options"] = "nosniff"
     return resp

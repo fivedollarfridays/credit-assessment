@@ -33,6 +33,7 @@
   #login-form input { width: 100%; padding: 0.6rem; margin-bottom: 0.75rem; border: 1px solid #ccc; border-radius: 4px; }
   #login-form button { width: 100%; padding: 0.7rem; background: #1a1a2e; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
   .hidden { display: none; }
+  .login-error { color: red; margin-top: 0.5rem; font-size: 0.85rem; }
   @media (max-width: 768px) { .cards { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
@@ -46,7 +47,7 @@
       <input id="username" placeholder="Username" type="text">
       <input id="password" placeholder="Password" type="password">
       <button onclick="login()">Sign In</button>
-      <p id="login-error" style="color:red;margin-top:0.5rem;font-size:0.85rem"></p>
+      <p id="login-error" class="login-error"></p>
     </div>
   </div>
 </div>

@@ -70,6 +70,7 @@ class TestSettingsFromEnv:
                 "ENVIRONMENT": "production",
                 "JWT_SECRET": "prod-env-secret",
                 "PII_PEPPER": "prod-pepper",
+                "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/db",
             },
         ):
             from modules.credit.config import Settings
@@ -115,6 +116,7 @@ class TestSettingsHelpers:
                 "ENVIRONMENT": "production",
                 "JWT_SECRET": "prod-test-secret",
                 "PII_PEPPER": "prod-pepper",
+                "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/db",
             },
         ):
             from modules.credit.config import Settings
@@ -169,6 +171,7 @@ class TestProductionSecretValidation:
             environment="production",
             jwt_secret="a-real-secret-key-value",
             pii_pepper="real-pepper",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
         )
         assert s.jwt_secret == "a-real-secret-key-value"
 
@@ -218,6 +221,7 @@ class TestCorsWildcardValidation:
                 environment="production",
                 jwt_secret="prod-secret",
                 pii_pepper="prod-pepper",
+                database_url="postgresql+asyncpg://u:p@localhost/db",
                 cors_origins=["*"],
             )
 
@@ -231,6 +235,7 @@ class TestCorsWildcardValidation:
                 environment="production",
                 jwt_secret="prod-secret",
                 pii_pepper="prod-pepper",
+                database_url="postgresql+asyncpg://u:p@localhost/db",
                 cors_origins=["https://app.example.com", "*"],
             )
 
@@ -241,6 +246,7 @@ class TestCorsWildcardValidation:
             environment="production",
             jwt_secret="prod-secret",
             pii_pepper="prod-pepper",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
             cors_origins=["https://app.example.com"],
         )
         assert s.cors_origins == ["https://app.example.com"]
@@ -273,7 +279,10 @@ class TestBackwardCompatFunctions:
         from modules.credit.config import Settings, is_production
 
         mock = Settings(
-            environment="production", jwt_secret="prod-test-secret", pii_pepper="pp"
+            environment="production",
+            jwt_secret="prod-test-secret",
+            pii_pepper="pp",
+            database_url="postgresql+asyncpg://u:p@localhost/db",
         )
         with patch("modules.credit.config.settings", mock):
             assert is_production() is True

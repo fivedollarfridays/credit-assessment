@@ -27,7 +27,9 @@ from .user_store import validate_password
 
 router = APIRouter(prefix="/auth", tags=["users"])
 
-# Pre-hashed dummy for constant-time response on user-not-found
+# Pre-hashed dummy for constant-time response on user-not-found.
+# Note: computed per-worker process; each gunicorn worker gets its own value.
+# This is acceptable — the hash only needs to be valid bcrypt for timing parity.
 _DUMMY_HASH = hash_password("dummy-constant-time-pad")
 
 
@@ -120,15 +122,12 @@ async def login(
         verify_password("dummy", _DUMMY_HASH)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not user.is_active:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
     now = datetime.now(timezone.utc)
     locked_resp = _check_lockout(user, now)
     if locked_resp is not None:
         return locked_resp
 
-    if not verify_password(req.password, user.password_hash):
+    if not verify_password(req.password, user.password_hash) or not user.is_active:
         user.failed_login_attempts += 1
         if user.failed_login_attempts >= settings.max_login_attempts:
             user.locked_until = now + timedelta(

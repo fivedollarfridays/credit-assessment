@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from .admin_routes import router as admin_router
 from .dashboard_routes import dashboard_page_router, router as dashboard_router
@@ -96,7 +97,7 @@ rate_limit.register_rate_limit_handler(app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
 )
 app.add_middleware(middleware.SecurityHeadersMiddleware)
@@ -112,13 +113,16 @@ app.add_middleware(
 
 
 @app.get("/health")
-def health() -> dict:
+def health() -> JSONResponse:
     """Health check."""
-    return {"status": "ok"}
+    return JSONResponse(
+        content={"status": "ok"},
+        headers={"cache-control": "no-store"},
+    )
 
 
 @app.get("/ready")
-async def ready(request: Request) -> dict:
+async def ready(request: Request) -> JSONResponse:
     """Readiness probe — checks service dependencies."""
     checks: dict = {"status": "ok"}
     factory = getattr(request.app.state, "db_session_factory", None)
@@ -135,7 +139,10 @@ async def ready(request: Request) -> dict:
         else:
             checks["redis"] = "unavailable"
             checks["status"] = "degraded"
-    return checks
+    return JSONResponse(
+        content=checks,
+        headers={"cache-control": "no-store"},
+    )
 
 
 # Include v1 router after all v1 routes are defined

@@ -10,6 +10,8 @@ _JWT_SETTINGS = Settings(
     jwt_expiry_minutes=30,
     api_key="legacy-api-key",
     database_url="sqlite+aiosqlite://",
+    demo_username="admin",
+    demo_password="admin",
 )
 
 

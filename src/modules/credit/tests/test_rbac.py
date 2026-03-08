@@ -155,7 +155,7 @@ class TestApiKeyModel:
             data = resp.json()
             assert "api_key" in data
 
-    def test_admin_can_revoke_api_key(self):
+    def test_admin_can_revoke_api_key_by_prefix(self):
         with _get_client() as client:
             token = self._admin_token(client, "revokeadmin@test.com")
             create_resp = client.post(
@@ -164,18 +164,19 @@ class TestApiKeyModel:
                 headers={"Authorization": f"Bearer {token}"},
             )
             api_key = create_resp.json()["api_key"]
+            key_prefix = api_key[:8]
             resp = client.delete(
-                f"/admin/api-keys/{api_key}",
+                f"/admin/api-keys/{key_prefix}",
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert resp.status_code == 200
             assert resp.json()["message"] == "API key revoked"
 
-    def test_revoke_nonexistent_key_returns_404(self):
+    def test_revoke_nonexistent_prefix_returns_404(self):
         with _get_client() as client:
             token = self._admin_token(client, "revoke404@test.com")
             resp = client.delete(
-                "/admin/api-keys/nonexistent-key",
+                "/admin/api-keys/xxxxxxxx",
                 headers={"Authorization": f"Bearer {token}"},
             )
             assert resp.status_code == 404
@@ -243,6 +244,51 @@ class TestApiKeyDbManagement:
                 assert revoked is True
                 found = await repo.lookup("revoke-key")
                 assert found is None
+            await engine.dispose()
+
+        asyncio.run(_run())
+
+    def test_revoke_by_prefix_works(self):
+        """Revoking by key_prefix finds and revokes the key."""
+        import asyncio
+
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                await repo.create(key="prefix-test-key", org_id="org-p", role="viewer")
+                revoked = await repo.revoke_by_prefix("prefix-t")
+                assert revoked is True
+                found = await repo.lookup("prefix-test-key")
+                assert found is None
+            await engine.dispose()
+
+        asyncio.run(_run())
+
+    def test_revoke_by_prefix_nonexistent_returns_false(self):
+        """Revoking by a nonexistent prefix returns False."""
+        import asyncio
+
+        from modules.credit.database import create_engine, get_session_factory
+        from modules.credit.models_db import Base
+        from modules.credit.repo_api_keys import ApiKeyRepository
+
+        async def _run():
+            engine = create_engine("sqlite+aiosqlite://")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            factory = get_session_factory(engine)
+            async with factory() as session:
+                repo = ApiKeyRepository(session)
+                revoked = await repo.revoke_by_prefix("nonexist")
+                assert revoked is False
             await engine.dispose()
 
         asyncio.run(_run())

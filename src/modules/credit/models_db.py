@@ -138,11 +138,11 @@ class ResetToken(Base):
 class WebhookRegistrationDB(Base):
     """Persisted webhook endpoint registration.
 
-    The ``secret`` column stores the customer-provided HMAC signing secret
-    in plaintext because it must be available at delivery time to compute
-    signatures.  Encryption at rest should be enforced at the database
-    layer (e.g. PostgreSQL TDE or column-level encryption).  A minimum
-    length of 32 characters is validated at the API layer.
+    The ``secret`` column stores the HMAC signing secret encrypted via
+    Fernet envelope encryption when ``WEBHOOK_ENCRYPTION_KEY`` is set.
+    Without the key, secrets are stored in plaintext (backward compat).
+    Decryption is handled transparently by ``webhooks._to_registration()``.
+    A minimum length of 32 characters is validated at the API layer.
     """
 
     __tablename__ = "webhook_registrations"
@@ -150,7 +150,7 @@ class WebhookRegistrationDB(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     url: Mapped[str] = mapped_column(String(2048), nullable=False)
     events: Mapped[list] = mapped_column(JSON, nullable=False)
-    secret: Mapped[str] = mapped_column(String(255), nullable=False)
+    secret: Mapped[str] = mapped_column(String(512), nullable=False)
     owner_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, insert_default=True, server_default="1", nullable=False
@@ -186,7 +186,7 @@ class ApiKeyDB(Base):
     __tablename__ = "api_keys"
 
     key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    key_prefix: Mapped[str] = mapped_column(String(8), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     org_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     expires_at: Mapped[datetime.datetime | None] = mapped_column(

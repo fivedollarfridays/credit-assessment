@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import delete, select, update
@@ -64,6 +65,27 @@ class ApiKeyRepository:
             .where(ApiKeyDB.key_hash == hashed)
             .values(revoked_at=datetime.now(timezone.utc))
         )
+        await self._session.commit()
+        return result.rowcount > 0
+
+    async def revoke_by_prefix(self, prefix: str) -> bool:
+        """Revoke an API key by its 8-char prefix (avoids raw key in URLs).
+
+        Note: prefix collisions are theoretically possible but extremely
+        unlikely (~1 in 10^7 for 10k keys).  If multiple keys share a
+        prefix, all matching active keys are revoked.
+        """
+        result = await self._session.execute(
+            update(ApiKeyDB)
+            .where(ApiKeyDB.key_prefix == prefix, ApiKeyDB.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(timezone.utc))
+        )
+        if result.rowcount > 1:
+            logging.getLogger(__name__).warning(
+                "revoke_by_prefix matched %d keys for prefix %s",
+                result.rowcount,
+                prefix,
+            )
         await self._session.commit()
         return result.rowcount > 0
 

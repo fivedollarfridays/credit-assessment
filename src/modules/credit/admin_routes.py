@@ -5,7 +5,7 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,22 +83,27 @@ async def create_api_key(
 async def audit_log(
     request: Request,
     action: str | None = Query(default=None, max_length=100),
+    org_id: str | None = Query(default=None, max_length=255),
     limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Query audit trail entries with optional filters."""
-    entries = await get_audit_trail(db, action=action, limit=limit)
+    entries = await get_audit_trail(db, action=action, org_id=org_id, limit=limit)
     return {"entries": entries, "count": len(entries)}
 
 
-@router.delete("/api-keys/{api_key}", dependencies=[Depends(require_role(Role.ADMIN))])
+@router.delete(
+    "/api-keys/{key_prefix}", dependencies=[Depends(require_role(Role.ADMIN))]
+)
 @limiter.limit("10/minute")
 async def revoke_api_key(
-    request: Request, api_key: str, db: AsyncSession = Depends(get_db)
+    request: Request,
+    key_prefix: str = Path(min_length=8, max_length=8),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Revoke an API key. Admin only."""
+    """Revoke an API key by its 8-char prefix. Admin only."""
     repo = ApiKeyRepository(db)
-    revoked = await repo.revoke(api_key)
+    revoked = await repo.revoke_by_prefix(key_prefix)
     if not revoked:
         raise HTTPException(status_code=404, detail="API key not found")
     return {"message": "API key revoked"}

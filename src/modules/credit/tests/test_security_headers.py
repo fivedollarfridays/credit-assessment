@@ -36,6 +36,19 @@ class TestDashboardSecurityHeaders:
         assert "default-src 'self'" in csp
         assert "frame-ancestors 'none'" in csp
 
+    def test_dashboard_csp_no_unsafe_inline_scripts(self, client):
+        """A05-1: script-src must not use 'unsafe-inline'."""
+        resp = client.get("/dashboard")
+        csp = resp.headers.get("content-security-policy", "")
+        # Extract script-src directive
+        for directive in csp.split(";"):
+            d = directive.strip()
+            if d.startswith("script-src"):
+                assert "'unsafe-inline'" not in d, (
+                    f"script-src must not include 'unsafe-inline': {d}"
+                )
+                assert "'sha256-" in d, f"script-src should use hash-based CSP: {d}"
+
     def test_dashboard_has_x_frame_options(self, client):
         resp = client.get("/dashboard")
         assert resp.headers.get("x-frame-options") == "DENY"
@@ -73,3 +86,59 @@ class TestAuthRateLimiting:
         assert hasattr(confirm_reset, "__wrapped__"), (
             "confirm_reset should have rate limit decorator"
         )
+
+
+class TestCryptoFieldEncryption:
+    """A02-2: Webhook secrets must be encrypted at rest."""
+
+    def test_encrypt_decrypt_round_trip(self) -> None:
+        from modules.credit.crypto import decrypt_field, encrypt_field
+
+        key = "test-encryption-key-for-webhook-secrets"
+        plaintext = "my-super-secret-hmac-key-32chars!"
+        encrypted = encrypt_field(plaintext, key)
+        assert encrypted != plaintext
+        assert decrypt_field(encrypted, key) == plaintext
+
+    def test_encrypt_produces_different_ciphertext_each_time(self) -> None:
+        from modules.credit.crypto import encrypt_field
+
+        key = "test-key"
+        plaintext = "same-value"
+        a = encrypt_field(plaintext, key)
+        b = encrypt_field(plaintext, key)
+        # Fernet uses random IV so ciphertexts should differ
+        assert a != b
+
+    def test_decrypt_with_wrong_key_raises(self) -> None:
+        import pytest
+
+        from modules.credit.crypto import decrypt_field, encrypt_field
+
+        encrypted = encrypt_field("secret", "correct-key")
+        with pytest.raises(Exception):
+            decrypt_field(encrypted, "wrong-key")
+
+    def test_encrypt_field_none_key_returns_plaintext(self) -> None:
+        from modules.credit.crypto import encrypt_field
+
+        result = encrypt_field("plaintext-value", None)
+        assert result == "plaintext-value"
+
+    def test_decrypt_field_none_key_returns_as_is(self) -> None:
+        from modules.credit.crypto import decrypt_field
+
+        result = decrypt_field("not-encrypted", None)
+        assert result == "not-encrypted"
+
+    def test_config_has_webhook_encryption_key(self) -> None:
+        from modules.credit.config import Settings
+
+        s = Settings()
+        assert s.webhook_encryption_key is None
+
+    def test_config_accepts_webhook_encryption_key(self) -> None:
+        from modules.credit.config import Settings
+
+        s = Settings(webhook_encryption_key="my-secret-key")
+        assert s.webhook_encryption_key == "my-secret-key"

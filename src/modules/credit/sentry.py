@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import sentry_sdk
 
+from .pii import scrub_value
+
+
+def _scrub_pii_from_event(event: dict, hint: dict) -> dict:
+    """Sentry before_send hook: scrub PII from event data."""
+    return scrub_value(event)
+
 
 def setup_sentry(
     *,
@@ -18,6 +25,8 @@ def setup_sentry(
         dsn=dsn,
         environment=environment,
         traces_sample_rate=traces_sample_rate,
+        send_default_pii=False,
+        before_send=_scrub_pii_from_event,
     )
 
 

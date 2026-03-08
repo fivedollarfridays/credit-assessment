@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from .data_rights import (
     withdraw_consent,
 )
 from .database import get_db
+from .rate_limit import limiter
 from .repo_users import UserRepository
 from .roles import Role
 
@@ -45,10 +46,12 @@ async def _resolve_user_id(
 
 
 @router.get("/data-export")
+@limiter.limit("10/minute")
 async def data_export(
+    request: Request,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
-    user_id: str | None = None,
+    user_id: str | None = Query(default=None, max_length=255),
 ) -> dict:
     """Export all data for a user (GDPR Article 15 / CCPA right to know)."""
     effective_id = await _resolve_user_id(auth, user_id, db)
@@ -56,10 +59,12 @@ async def data_export(
 
 
 @router.delete("/data")
+@limiter.limit("10/minute")
 async def data_delete(
+    request: Request,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
-    user_id: str | None = None,
+    user_id: str | None = Query(default=None, max_length=255),
 ) -> dict:
     """Delete all data for a user (GDPR Article 17 / CCPA right to delete)."""
     effective_id = await _resolve_user_id(auth, user_id, db)
@@ -67,7 +72,9 @@ async def data_delete(
 
 
 @router.post("/consent")
+@limiter.limit("10/minute")
 async def consent(
+    request: Request,
     body: ConsentRequest,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),
@@ -83,7 +90,9 @@ async def consent(
 
 
 @router.delete("/consent")
+@limiter.limit("10/minute")
 async def consent_withdraw(
+    request: Request,
     body: ConsentRequest,
     auth: AuthIdentity = Depends(verify_auth),
     db: AsyncSession = Depends(get_db),

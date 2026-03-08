@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     pii_pepper: str = _DEFAULT_PII_PEPPER
     max_login_attempts: int = 5
     lockout_duration_minutes: int = 15
+    trusted_proxy_ips: str | None = None
+    webhook_encryption_key: str | None = None
+    demo_username: str | None = None
+    demo_password: str | None = None
 
     @field_validator("jwt_algorithm")
     @classmethod
@@ -62,6 +66,11 @@ class Settings(BaseSettings):
                 )
             if "*" in self.cors_origins:
                 raise ValueError("CORS wildcard '*' is not allowed in production")
+            if self.database_url.startswith("sqlite"):
+                raise ValueError(
+                    "SQLite database_url is not allowed in production — "
+                    "use PostgreSQL (postgresql+asyncpg://...)"
+                )
         return self
 
 

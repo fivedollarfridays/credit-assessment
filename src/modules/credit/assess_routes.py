@@ -27,14 +27,17 @@ from .auth import (
     decode_token,
     extract_bearer_token,
 )
-from .billing import get_subscription, record_usage
+from .assess_tasks import (
+    persist_assessment,
+    record_score_history,
+    record_usage_for_user,
+)
+from .billing import get_subscription
 from .config import settings
 from .database import get_db
 from .rate_limit import SubscriptionTier, limiter, resolve_tier
 from .repo_api_keys import ApiKeyRepository
 from .repo_assessments import AssessmentRepository
-from .repo_scores import ScoreHistoryRepository
-from .score_models import ScoreSource
 
 from .types import (
     AccountSummary,
@@ -151,67 +154,6 @@ def get_assessment_service() -> CreditAssessmentService:
     return _assessment_service
 
 
-async def _persist_assessment(
-    factory: object,
-    profile: CreditProfile,
-    result: CreditAssessmentResult,
-    user_id: str | None = None,
-    org_id: str | None = None,
-) -> None:
-    """Persist assessment result to database (runs in background)."""
-    try:
-        async with factory() as session:
-            repo = AssessmentRepository(session)
-            await repo.save_assessment(
-                credit_score=profile.current_score,
-                score_band=profile.score_band.value,
-                barrier_severity=result.barrier_severity.value,
-                readiness_score=result.readiness.score,
-                request_payload=profile.model_dump(mode="json"),
-                response_payload=result.model_dump(mode="json"),
-                user_id=user_id,
-                org_id=org_id,
-            )
-    except Exception:
-        logging.getLogger(__name__).warning(
-            "Failed to persist assessment", exc_info=True
-        )
-
-
-async def _record_usage_for_user(factory: object, identity: str) -> None:
-    """Look up user's subscription and record usage (background task)."""
-    try:
-        async with factory() as session:
-            sub = await get_subscription(session, identity)
-            if sub and sub["status"] == "active":
-                record_usage(subscription_item_id=sub["subscription_id"])
-    except Exception:
-        logging.getLogger(__name__).debug("Usage metering skipped", exc_info=True)
-
-
-async def _record_score_history(
-    factory: object,
-    profile: CreditProfile,
-    user_id: str,
-    org_id: str | None = None,
-) -> None:
-    """Auto-record score to history after assessment (background task)."""
-    try:
-        async with factory() as session:
-            repo = ScoreHistoryRepository(session)
-            await repo.record(
-                user_id=user_id,
-                score=profile.current_score,
-                score_band=profile.score_band.value,
-                source=ScoreSource.ASSESSMENT,
-                org_id=org_id,
-            )
-    except Exception:
-        logging.getLogger(__name__).warning(
-            "Failed to record score history", exc_info=True
-        )
-
-
 async def _run_assessment(
     request: Request,
     profile: CreditProfile,
@@ -224,17 +166,17 @@ async def _run_assessment(
     factory = getattr(request.app.state, "db_session_factory", None)
     if factory is not None:
         background_tasks.add_task(
-            _persist_assessment,
+            persist_assessment,
             factory,
             profile,
             result,
             auth.identity,
             auth.org_id,
         )
-        background_tasks.add_task(_record_usage_for_user, factory, auth.identity)
+        background_tasks.add_task(record_usage_for_user, factory, auth.identity)
         if auth.identity != API_KEY_IDENTITY:
             background_tasks.add_task(
-                _record_score_history,
+                record_score_history,
                 factory,
                 profile,
                 auth.identity,
@@ -358,8 +300,6 @@ async def list_assessments(
             "score_band": r.score_band,
             "barrier_severity": r.barrier_severity,
             "readiness_score": r.readiness_score,
-            "request_payload": r.request_payload,
-            "response_payload": r.response_payload,
             "user_id": r.user_id,
             "org_id": r.org_id,
             "created_at": r.created_at.isoformat() if r.created_at else None,

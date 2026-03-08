@@ -360,7 +360,9 @@ class TestAssessRoutesBackgroundTaskErrors:
         from contextlib import asynccontextmanager
         from unittest.mock import MagicMock
 
-        from modules.credit.assess_routes import _persist_assessment
+        from modules.credit.assess_tasks import (
+            persist_assessment as _persist_assessment,
+        )
 
         @asynccontextmanager
         async def _failing_factory():
@@ -380,7 +382,9 @@ class TestAssessRoutesBackgroundTaskErrors:
         """_record_usage_for_user logs debug when factory raises."""
         from contextlib import asynccontextmanager
 
-        from modules.credit.assess_routes import _record_usage_for_user
+        from modules.credit.assess_tasks import (
+            record_usage_for_user as _record_usage_for_user,
+        )
 
         @asynccontextmanager
         async def _failing_factory():
@@ -395,7 +399,9 @@ class TestAssessRoutesBackgroundTaskErrors:
         """_record_score_history logs warning when factory raises."""
         from contextlib import asynccontextmanager
 
-        from modules.credit.assess_routes import _record_score_history
+        from modules.credit.assess_tasks import (
+            record_score_history as _record_score_history,
+        )
 
         @asynccontextmanager
         async def _failing_factory():
